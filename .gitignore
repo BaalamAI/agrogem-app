@@ -1,0 +1,42 @@
+# --- Herramientas de IA y Agentes ---
+.agents/
+.claude/
+.cline/
+
+# --- Archivos de Sistema (macOS) ---
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# --- IntelliJ IDEA (Raíz y subcarpetas) ---
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!*/.idea/runConfigurations/ # Por si quieres compartir configs de ejecución
+
+# --- Android Studio / Android (dentro de /app) ---
+app/.cxx/
+app/.externalNativeBuild/
+app/captures/
+app/*.apk
+app/output.json
+
+# --- Gradle (dentro de /app) ---
+app/.gradle/
+app/build/
+app/local.properties
+
+# --- Kotlin Multiplatform / iOS (Xcode) ---
+# Ignorar binarios compilados de iOS dentro de la estructura de KMP
+app/iosApp/iosApp.xcworkspace/xcuserdata/
+app/iosApp/iosApp.xcodeproj/project.xcworkspace/
+app/iosApp/iosApp.xcodeproj/xcuserdata/
+app/iosApp/DerivedData/
+app/iosApp/.pdm/
+
+# --- Otros ---
+.history/
+*.log
+temp/

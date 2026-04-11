@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
+    },
+    "kmp": {
+      "source": "andvl1/claude-plugin",
+      "sourceType": "github",
+      "computedHash": "e3e35a648d647d1208a7b9abb769c3d6a1f1e9bedb6444d6e4c4dbd9f02399b3"
+    },
+    "kotlin-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "d69f7c8966582d10cd0e3b93cff4dec073872068785376ad835d4f2c87b0561c"
+    }
+  }
+}
