@@ -23,6 +23,11 @@ class AnalysisViewModel : ViewModel() {
             AnalysisEvent.OnCancelRequested -> Unit
         }
     }
+
+    fun onFinishAndViewReport(onViewReport: () -> Unit) {
+        onEvent(AnalysisEvent.OnFinishRequested)
+        onViewReport()
+    }
 }
 
 sealed interface AnalysisEvent {

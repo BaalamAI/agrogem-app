@@ -18,9 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -34,6 +32,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.agrogem.app.ui.viewmodel.kmpViewModel
 
 private val ReportBackground = Color(0xFFFFFFFF)
 private val ReportPrimary = Color(0xFF0D631B)
@@ -48,9 +48,9 @@ fun ReportScreen(
     onScanAgain: () -> Unit,
     onBackToDashboard: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: ReportViewModel = remember { ReportViewModel() },
+    viewModel: ReportViewModel = kmpViewModel { ReportViewModel() },
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -66,10 +66,20 @@ fun ReportScreen(
             ReportTopActions(onBackToDashboard = onBackToDashboard)
             ReportHeroCard()
             ReportDiagnosisCard(diagnosis = uiState.diagnosis)
-            ReportMediaPanel(onScanAgain = onScanAgain)
+            ReportMediaPanel(
+                onScanAgain = {
+                    viewModel.onEvent(ReportEvent.OnScanAgain)
+                    onScanAgain()
+                },
+            )
         }
 
-        ReportMessageInput(onScanAgain = onScanAgain)
+        ReportMessageInput(
+            onScanAgain = {
+                viewModel.onEvent(ReportEvent.OnScanAgain)
+                onScanAgain()
+            },
+        )
     }
 }
 

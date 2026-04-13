@@ -17,9 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -28,6 +26,8 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.agrogem.app.ui.viewmodel.kmpViewModel
 
 private val MapBackground = Color(0xFFFFFFFF)
 private val MapPrimary = Color(0xFF0D631B)
@@ -40,9 +40,9 @@ private val MapAlertColor = Color(0xFFB12D00)
 fun MapRiskScreen(
     modifier: Modifier = Modifier,
     onBackToDashboard: () -> Unit = {},
-    viewModel: MapRiskViewModel = remember { MapRiskViewModel() },
+    viewModel: MapRiskViewModel = kmpViewModel { MapRiskViewModel() },
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val alertText = "${uiState.alerts.size} Alertas de plagas cercanas\ndetectadas en el valle."
 
     Box(

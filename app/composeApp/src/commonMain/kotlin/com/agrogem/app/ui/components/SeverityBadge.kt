@@ -11,7 +11,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.agrogem.app.ui.screens.dashboard.DashboardSeverity
 
 private val SeverityOptimo = Color(0xFF0D631B)
 private val SeverityAtencion = Color(0xFFFE5E2F)
@@ -19,15 +18,15 @@ private val SeverityCritica = Color(0xFFB12D00)
 
 @Composable
 fun SeverityBadge(
-    severity: DashboardSeverity,
+    severity: Severity,
     modifier: Modifier = Modifier,
     labelOverride: String? = null,
     compact: Boolean = false,
 ) {
     val color = when (severity) {
-        DashboardSeverity.Optimo -> SeverityOptimo
-        DashboardSeverity.Atencion -> SeverityAtencion
-        DashboardSeverity.Critica -> SeverityCritica
+        Severity.Optimo -> SeverityOptimo
+        Severity.Atencion -> SeverityAtencion
+        Severity.Critica -> SeverityCritica
     }
     val label = labelOverride ?: severity.label
     val textStyle = if (compact) {
@@ -57,9 +56,9 @@ fun SeverityBadge(
     )
 }
 
-private val DashboardSeverity.label: String
+private val Severity.label: String
     get() = when (this) {
-        DashboardSeverity.Optimo -> "ÓPTIMO"
-        DashboardSeverity.Atencion -> "ATENCIÓN"
-        DashboardSeverity.Critica -> "CRÍTICA"
+        Severity.Optimo -> "ÓPTIMO"
+        Severity.Atencion -> "ATENCIÓN"
+        Severity.Critica -> "CRÍTICA"
     }

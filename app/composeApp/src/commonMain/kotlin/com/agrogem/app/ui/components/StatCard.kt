@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agrogem.app.ui.screens.dashboard.DashboardStat
+import com.agrogem.app.ui.screens.dashboard.toShared
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -60,7 +61,7 @@ fun StatCard(
                 tint = iconTint,
             )
             SeverityBadge(
-                severity = stat.severity,
+                severity = stat.severity.toShared(),
                 labelOverride = stat.badgeLabel,
             )
         }

@@ -1,6 +1,7 @@
 package com.agrogem.app.ui.screens.dashboard
 
 import androidx.compose.runtime.Immutable
+import com.agrogem.app.ui.components.Severity
 
 @Immutable
 data class DashboardUiState(
@@ -35,4 +36,10 @@ enum class DashboardSeverity {
     Optimo,
     Atencion,
     Critica,
+}
+
+fun DashboardSeverity.toShared(): Severity = when (this) {
+    DashboardSeverity.Optimo -> Severity.Optimo
+    DashboardSeverity.Atencion -> Severity.Atencion
+    DashboardSeverity.Critica -> Severity.Critica
 }
