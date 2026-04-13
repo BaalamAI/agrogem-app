@@ -11,8 +11,8 @@ class MapRiskViewModel : ViewModel() {
 }
 
 internal fun defaultMapRiskUiState(): MapRiskUiState = MapRiskUiState(
-    title = "Mapa de riesgo",
-    subtitle = "Vista estática del lote central con alertas fitosanitarias simuladas.",
+    title = "Mapa de riesgo\nregional",
+    subtitle = "Vista regional de alertas de plagas sobre capa estática.",
     riskSummary = listOf(
         RiskSummaryItem(label = "Lotes monitoreados", value = "12"),
         RiskSummaryItem(label = "Alertas críticas", value = "2"),

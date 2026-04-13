@@ -18,6 +18,7 @@ data class DashboardStat(
     val value: String,
     val label: String,
     val severity: DashboardSeverity,
+    val badgeLabel: String? = null,
 )
 
 @Immutable

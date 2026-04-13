@@ -32,7 +32,9 @@ fun AppNavHost(
             )
         }
         composable(AgroGemRoute.Map.route) {
-            MapRiskScreen()
+            MapRiskScreen(
+                onBackToDashboard = { navController.navigateTo(AgroGemRoute.Dashboard) },
+            )
         }
         composable(AgroGemRoute.Analysis.route) {
             AnalysisScreen(

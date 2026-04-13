@@ -39,6 +39,15 @@ From the `app/` directory:
 - Windows:
   `.\gradlew.bat :composeApp:assembleDebug`
 
+### Web (development)
+
+- macOS / Linux:
+  `./gradlew :composeApp:wasmJsBrowserDevelopmentRun`
+- Windows:
+  `\.\gradlew.bat :composeApp:wasmJsBrowserDevelopmentRun`
+
+When the task starts, open the URL printed in the terminal (usually `http://localhost:8080`).
+
 ### iOS
 
 Open `app/iosApp` in Xcode and run the app from there.

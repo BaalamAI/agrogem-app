@@ -33,13 +33,12 @@ sealed interface AnalysisEvent {
 
 internal fun defaultAnalysisUiState(): AnalysisUiState = AnalysisUiState(
     title = "Análisis en progreso",
-    subtitle = "Procesando imagen para identificar señales de estrés y enfermedades.",
-    progress = 0.72f,
-    status = "Aplicando modelo fitosanitario sobre el cultivo escaneado...",
+    subtitle = "Analizando irregularidades celulares y severidad de afectación.",
+    progress = 0.74f,
+    status = "IA activa sobre cultivo escaneado.",
     steps = listOf(
-        AnalysisStep(id = "s1", label = "Preprocesamiento de imagen", done = true),
-        AnalysisStep(id = "s2", label = "Detección de lesiones", done = true),
-        AnalysisStep(id = "s3", label = "Clasificación de severidad", done = false),
-        AnalysisStep(id = "s4", label = "Generación de recomendaciones", done = false),
+        AnalysisStep(id = "s1", label = "Identificando patrones de hojas...", done = true),
+        AnalysisStep(id = "s2", label = "Consultando base de datos de plagas...", done = false),
+        AnalysisStep(id = "s3", label = "Calculando severidad...", done = false),
     ),
 )

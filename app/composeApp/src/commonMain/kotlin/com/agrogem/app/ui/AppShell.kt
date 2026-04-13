@@ -18,18 +18,21 @@ fun AppShell(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = AgroGemRoute.fromRoute(backStackEntry?.destination?.route)
+    val showBottomBar = currentRoute == AgroGemRoute.Dashboard
 
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            BottomNavigationBar(
-                currentRoute = currentRoute,
-                onNavigate = { destination ->
-                    if (destination != currentRoute) {
-                        navController.navigateTo(destination)
-                    }
-                },
-            )
+            if (showBottomBar) {
+                BottomNavigationBar(
+                    currentRoute = currentRoute,
+                    onNavigate = { destination ->
+                        if (destination != currentRoute) {
+                            navController.navigateTo(destination)
+                        }
+                    },
+                )
+            }
         },
     ) { innerPadding ->
         AppNavHost(

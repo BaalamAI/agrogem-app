@@ -12,11 +12,11 @@ class ReportViewModel : ViewModel() {
 
 internal fun defaultReportUiState(): ReportUiState = ReportUiState(
     title = "Reporte de análisis",
-    crop = "Tomate",
+    crop = "Roya del Cafeto",
     lot = "Lote Norte",
-    healthScore = 68,
-    statusLabel = "ATENCIÓN",
-    diagnosis = "Se detectan signos tempranos compatibles con estrés hídrico y manchas foliares leves en el tercio medio.",
+    healthScore = 45,
+    statusLabel = "CRÍTICA",
+    diagnosis = "Se ha detectado una infección avanzada por Hemileia vastatrix. El 45% del follaje muestra pústulas activas. Se requiere intervención inmediata para evitar la pérdida total de la cosecha. Si tienes otra pregunta puedes con gusto hacerla y yo te puedo ayudar.",
     recommendations = listOf(
         "Ajustar riego por goteo en las próximas 24h y volver a medir humedad del suelo.",
         "Aplicar monitoreo visual diario durante 3 días para detectar avance de lesiones.",

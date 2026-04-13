@@ -9,7 +9,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+private val SectionHeaderTextColor = Color(0xFF181D1A)
+private val SectionHeaderActionColor = Color(0xFF0D631B)
 
 @Composable
 fun SectionHeader(
@@ -25,14 +30,21 @@ fun SectionHeader(
     ) {
         Text(
             text = title,
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onBackground,
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontSize = 20.sp,
+                lineHeight = 28.sp,
+                letterSpacing = (-0.5).sp,
+            ),
+            color = SectionHeaderTextColor,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
             text = actionLabel,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            ),
+            color = SectionHeaderActionColor,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.clickable(onClick = onActionClick),
         )

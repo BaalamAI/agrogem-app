@@ -1,269 +1,272 @@
 package com.agrogem.app.ui.screens.map
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.agrogem.app.theme.AgroGemPalette
+import androidx.compose.ui.unit.sp
+
+private val MapBackground = Color(0xFFFFFFFF)
+private val MapPrimary = Color(0xFF0D631B)
+private val MapTextPrimary = Color(0xFF181D1A)
+private val MapTextSecondary = Color(0xFF40493D)
+private val MapMutedCard = Color(0xFFD9D9D9)
+private val MapAlertColor = Color(0xFFB12D00)
 
 @Composable
 fun MapRiskScreen(
     modifier: Modifier = Modifier,
+    onBackToDashboard: () -> Unit = {},
     viewModel: MapRiskViewModel = remember { MapRiskViewModel() },
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val spacing = AgroGemPalette.spacing
+    val alertText = "${uiState.alerts.size} Alertas de plagas cercanas\ndetectadas en el valle."
 
-    LazyColumn(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = spacing.lg),
-        verticalArrangement = Arrangement.spacedBy(spacing.md),
+            .background(MapBackground),
     ) {
-        item {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(spacing.xs),
-                modifier = Modifier.padding(top = spacing.lg),
-            ) {
-                Text(
-                    text = uiState.title,
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    text = uiState.subtitle,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-            ) {
-                uiState.riskSummary.forEach { summary ->
-                    SummaryCard(
-                        label = summary.label,
-                        value = summary.value,
-                        modifier = Modifier.weight(1f),
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
+            contentPadding = PaddingValues(
+                top = 96.dp,
+                bottom = 96.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "BUENOS DÍAS, AGRICULTOR",
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontSize = 16.sp,
+                            lineHeight = 24.sp,
+                            letterSpacing = 1.6.sp,
+                        ),
+                        color = MapPrimary,
+                    )
+                    Text(
+                        text = uiState.title,
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontSize = 36.sp,
+                            lineHeight = 45.sp,
+                            letterSpacing = (-0.9).sp,
+                        ),
+                        color = MapTextPrimary,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
+
+            item {
+                MapPreviewCard()
+            }
+
+            item {
+                AlertSummaryBanner(text = alertText)
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
         }
 
-        item {
-            StaticRiskMap(markers = uiState.markers)
-        }
+        MapBackButton(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 24.dp, top = 16.dp),
+            onClick = onBackToDashboard,
+        )
 
-        item {
-            Text(
-                text = "Alertas activas",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-
-        items(uiState.alerts, key = { it.id }) { alert ->
-            AlertCard(alert = alert)
-        }
-
-        item {
-            Text(
-                text = uiState.disclaimer,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = spacing.lg),
-            )
-        }
+        MapBrandHeader(modifier = Modifier.align(Alignment.TopCenter))
     }
 }
 
 @Composable
-private fun StaticRiskMap(
-    markers: List<RiskMarker>,
+private fun MapPreviewCard(
     modifier: Modifier = Modifier,
 ) {
-    val spacing = AgroGemPalette.spacing
-    val mapHeight = 260.dp
-
-    BoxWithConstraints(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(mapHeight)
+            .height(216.dp)
             .background(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
-                shape = AgroGemPalette.shapes.largeCard,
+                color = Color(0xFFE8E9E9),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
             )
-            .border(
-                width = Dp.Hairline,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f),
-                shape = AgroGemPalette.shapes.largeCard,
-            ),
+            .padding(1.dp),
     ) {
-        val mapWidth = maxWidth
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val lineColor = Color(0xFFC9CCCB)
+            val secondaryLine = Color(0xFFD7D9D8)
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(spacing.md),
-            verticalArrangement = Arrangement.SpaceBetween,
-        ) {
-            repeat(3) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(Dp.Hairline)
-                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+            repeat(18) { index ->
+                val y = size.height * (index / 17f)
+                drawLine(
+                    color = if (index % 3 == 0) lineColor else secondaryLine,
+                    start = Offset(0f, y),
+                    end = Offset(size.width, y + ((index % 2) * 4f)),
+                    strokeWidth = if (index % 3 == 0) 1.4f else 0.8f,
+                    cap = StrokeCap.Round,
+                )
+            }
+
+            repeat(12) { index ->
+                val x = size.width * (index / 11f)
+                drawLine(
+                    color = if (index % 2 == 0) lineColor else secondaryLine,
+                    start = Offset(x, 0f),
+                    end = Offset(x - ((index % 3) * 6f), size.height),
+                    strokeWidth = if (index % 2 == 0) 1.2f else 0.8f,
+                    cap = StrokeCap.Round,
                 )
             }
         }
 
-        markers.forEach { marker ->
-            val markerColor = marker.severity.toColor()
-            MarkerPin(
-                marker = marker,
-                color = markerColor,
-                modifier = Modifier
-                    .offset(
-                        x = mapWidth * marker.xFraction,
-                        y = mapHeight * marker.yFraction,
-                    )
-                    .padding(start = spacing.xs),
+        Text(
+            text = "VER MAPA DE ALERTAS  →",
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 18.dp, bottom = 12.dp),
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                letterSpacing = 1.2.sp,
+            ),
+            color = MapAlertColor,
+            fontWeight = FontWeight.Black,
+        )
+    }
+}
+
+@Composable
+private fun AlertSummaryBanner(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = text,
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                color = MapMutedCard,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+            )
+            .padding(horizontal = 12.dp, vertical = 4.5.dp),
+        style = MaterialTheme.typography.bodyLarge.copy(
+            fontSize = 12.sp,
+            lineHeight = 16.sp,
+        ),
+        color = MapTextSecondary,
+        fontWeight = FontWeight.Bold,
+    )
+}
+
+@Composable
+private fun MapBrandHeader(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MapBackground.copy(alpha = 0.86f))
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+    ) {
+        androidx.compose.foundation.layout.Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            MapLeafMarkIcon()
+            Text(
+                text = "Agrogemma",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontSize = 24.sp,
+                    lineHeight = 32.sp,
+                    letterSpacing = (-1.2).sp,
+                ),
+                color = MapPrimary,
+                fontWeight = FontWeight.Medium,
             )
         }
     }
 }
 
 @Composable
-private fun MarkerPin(
-    marker: RiskMarker,
-    color: Color,
+private fun MapBackButton(
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val spacing = AgroGemPalette.spacing
-
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(spacing.xs),
-    ) {
-        Box(
-            modifier = Modifier
-                .size(14.dp)
-                .background(color = color, shape = CircleShape)
-                .border(width = Dp.Hairline, color = Color.White.copy(alpha = 0.7f), shape = CircleShape),
-        )
-        Text(
-            text = "${marker.lot} · ${marker.riskLabel}",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier
-                .background(
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
-                    shape = AgroGemPalette.shapes.pill,
-                )
-                .padding(horizontal = spacing.xs, vertical = 2.dp),
-        )
-    }
-}
-
-@Composable
-private fun SummaryCard(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    val spacing = AgroGemPalette.spacing
-    Column(
+    Box(
         modifier = modifier
+            .size(32.dp)
             .background(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                shape = AgroGemPalette.shapes.card,
+                color = Color.White.copy(alpha = 0.4f),
+                shape = androidx.compose.foundation.shape.CircleShape,
             )
-            .padding(horizontal = spacing.md, vertical = spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(spacing.xs),
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Canvas(modifier = Modifier.size(18.dp)) {
+            drawLine(
+                color = MapTextSecondary,
+                start = Offset(size.width * 0.68f, size.height * 0.2f),
+                end = Offset(size.width * 0.32f, size.height * 0.5f),
+                strokeWidth = 1.8f,
+                cap = StrokeCap.Round,
+            )
+            drawLine(
+                color = MapTextSecondary,
+                start = Offset(size.width * 0.32f, size.height * 0.5f),
+                end = Offset(size.width * 0.68f, size.height * 0.8f),
+                strokeWidth = 1.8f,
+                cap = StrokeCap.Round,
+            )
+        }
     }
 }
 
 @Composable
-private fun AlertCard(
-    alert: RiskAlert,
-    modifier: Modifier = Modifier,
-) {
-    val spacing = AgroGemPalette.spacing
-    val color = alert.severity.toColor()
+private fun MapLeafMarkIcon() {
+    Canvas(modifier = Modifier.size(16.dp)) {
+        val stroke = size.minDimension * 0.13f
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                shape = AgroGemPalette.shapes.card,
-            )
-            .padding(spacing.md),
-        verticalArrangement = Arrangement.spacedBy(spacing.xs),
-    ) {
-        Text(
-            text = alert.lot,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
+        drawOval(
+            color = MapPrimary,
+            topLeft = Offset(x = size.width * 0.08f, y = size.height * 0.2f),
+            size = androidx.compose.ui.geometry.Size(width = size.width * 0.78f, height = size.height * 0.58f),
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke),
         )
-        Text(
-            text = alert.detail,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = "Sugerencia: ${alert.recommendation}",
-            style = MaterialTheme.typography.labelMedium,
-            color = color,
+
+        drawLine(
+            color = MapPrimary,
+            start = Offset(x = size.width * 0.72f, y = size.height * 0.2f),
+            end = Offset(x = size.width * 0.28f, y = size.height * 0.85f),
+            strokeWidth = stroke,
+            cap = StrokeCap.Round,
         )
     }
-}
-
-@Composable
-private fun RiskSeverity.toColor(): Color = when (this) {
-    RiskSeverity.Optimo -> AgroGemPalette.severity.optimo
-    RiskSeverity.Atencion -> AgroGemPalette.severity.atencion
-    RiskSeverity.Critica -> AgroGemPalette.severity.critica
 }
