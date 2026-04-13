@@ -1,5 +1,6 @@
 # --- Herramientas de IA y Agentes ---
 .agents/
+.atl/
 .claude/
 .cline/
 
