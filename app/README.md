@@ -1,36 +1,76 @@
-This is a Kotlin Multiplatform project targeting Android, iOS.
+# AgroGem app workspace
 
-* [/composeApp](./composeApp/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-    - [commonMain](./composeApp/src/commonMain/kotlin) is for code that’s common for all targets.
-    - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-      For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-      the [iosMain](./composeApp/src/iosMain/kotlin) folder would be the right place for such calls.
-      Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./composeApp/src/jvmMain/kotlin)
-      folder is the appropriate location.
+This directory contains the actual AgroGem application. It is a Kotlin Multiplatform project powered by Compose Multiplatform, with shared UI in `composeApp` and an Xcode host app in `iosApp`.
 
-* [/iosApp](./iosApp/iosApp) contains iOS applications. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+## Project layout
 
-### Build and Run Android Application
+- [`composeApp`](./composeApp/) — main multiplatform application module
+- [`composeApp/src/commonMain`](./composeApp/src/commonMain/kotlin) — shared UI, navigation, state, and presentation logic
+- [`composeApp/src/commonTest`](./composeApp/src/commonTest/kotlin) — shared tests for navigation and view models
+- [`composeApp/src/androidMain`](./composeApp/src/androidMain/kotlin) — Android-specific entry points
+- [`composeApp/src/iosMain`](./composeApp/src/iosMain/kotlin) — iOS-specific entry points
+- [`composeApp/src/wasmJsMain`](./composeApp/src/wasmJsMain/kotlin) — browser preview target
+- [`iosApp`](./iosApp/) — Xcode host application for running on iOS
 
-To build and run the development version of the Android app, use the run configuration from the run widget
-in your IDE’s toolbar or build it directly from the terminal:
+## Current product surface
 
-- on macOS/Linux
-  ```shell
-  ./gradlew :composeApp:assembleDebug
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :composeApp:assembleDebug
-  ```
+The shared app currently contains:
 
-### Build and Run iOS Application
+- A dashboard with health indicators and recent analyses
+- A camera capture flow
+- An analysis progress screen
+- A map/risk overview screen
+- A diagnosis/report screen
+- Shared navigation driven from `commonMain`
 
-To build and run the development version of the iOS app, use the run configuration from the run widget
-in your IDE’s toolbar or open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+## Core architecture
 
----
+- `App.kt` is the shared app entry point.
+- `ui/AppShell.kt` owns the scaffold and navigation controller.
+- `navigation/` centralizes routes and the nav host.
+- `ui/screens/<feature>/` groups UI, `UiState`, and `ViewModel` for each feature.
+- `ui/components/` holds reusable UI building blocks.
+- `theme/` holds shared design tokens and Compose theme setup.
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+## Commands
+
+Run all commands from this `app/` directory.
+
+### Explore available tasks
+
+```sh
+./gradlew tasks --all
+```
+
+### Run verification
+
+```sh
+./gradlew :composeApp:allTests
+./gradlew :composeApp:lint
+```
+
+### Android
+
+```sh
+./gradlew :composeApp:assembleDebug
+```
+
+### WebAssembly preview
+
+```sh
+./gradlew :composeApp:wasmJsBrowserDevelopmentRun
+```
+
+### iOS
+
+Open [`iosApp`](./iosApp/) in Xcode and run from there.
+
+## Testing notes
+
+- Shared tests use `kotlin.test`
+- Existing tests focus on shared navigation and screen view models
+- Add tests in `composeApp/src/commonTest` when changing shared behavior
+
+## Agent-specific documentation
+
+If you are using a coding agent, also read [`AGENTS.md`](./AGENTS.md) in this directory. It contains the operational guidance, conventions, and validated commands for this module.
