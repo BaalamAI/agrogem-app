@@ -1,48 +1,76 @@
 # AgroGem App
 
-A simple Kotlin Multiplatform mobile project (Android + iOS) built with Compose Multiplatform.
+AgroGem is a Kotlin Multiplatform application built with Compose Multiplatform. The repository root is a lightweight workspace, while the actual product code lives in `app/`.
 
-## What is in the repository right now
+## Repository structure
 
-- A root project setup with a mobile app module in `app/`
-- Shared UI and business code in:
-  - `app/composeApp/src/commonMain`
-- Android-specific entry point in:
-  - `app/composeApp/src/androidMain`
-- iOS-specific entry point in:
-  - `app/composeApp/src/iosMain`
-- iOS host application in:
-  - `app/iosApp`
+- `app/` — main Kotlin Multiplatform application
+- `app/composeApp/src/commonMain` — shared UI, navigation, state, and presentation logic
+- `app/composeApp/src/androidMain` — Android-specific entry point and platform code
+- `app/composeApp/src/iosMain` — iOS-specific entry point and platform code
+- `app/composeApp/src/wasmJsMain` — WebAssembly preview target
+- `app/iosApp` — Xcode host application for iOS
 
-## Current app status
+## Current app scope
 
-At the moment, the app contains the default starter screen:
+The app is no longer the default starter template. The shared application currently includes:
 
-- A **"Click me!"** button
-- A simple animated section that appears/disappears
-- A greeting message that changes based on the platform (Android or iOS)
+- A dashboard flow with recent analysis cards and health stats
+- A camera-inspired capture screen
+- An analysis progress screen
+- A map/risk overview screen
+- A report screen for diagnosis details
+- Shared navigation and screen-specific view models in `commonMain`
 
 ## Tech stack
 
 - Kotlin Multiplatform
 - Compose Multiplatform
-- Gradle (Kotlin DSL)
+- Android Gradle Plugin
+- Gradle Kotlin DSL
+- AndroidX Navigation Compose
+- Kotlin `StateFlow` + `ViewModel` for screen state
 
-## Run the project
+## Where to start
 
-From the `app/` directory:
+- Humans: read `app/README.md`
+- Coding agents: read `AGENTS.md`, then `app/AGENTS.md`
 
-### Android (debug build)
+## Running the app
 
-- macOS / Linux:
-  `./gradlew :composeApp:assembleDebug`
-- Windows:
-  `.\gradlew.bat :composeApp:assembleDebug`
+All commands below are executed from `app/`.
+
+### Android
+
+```sh
+./gradlew :composeApp:assembleDebug
+```
+
+### WebAssembly preview
+
+```sh
+./gradlew :composeApp:wasmJsBrowserDevelopmentRun
+```
+
+When the dev server starts, open the URL printed in the terminal.
 
 ### iOS
 
-Open `app/iosApp` in Xcode and run the app from there.
+Open `app/iosApp` in Xcode and run the host app from there.
 
-## Notes
+## Verification commands
 
-This README is intentionally simple and reflects the project as it currently exists. It can be expanded later with architecture, setup requirements, environment config, and release steps.
+From `app/`:
+
+```sh
+./gradlew :composeApp:allTests
+./gradlew :composeApp:lint
+```
+
+Use targeted tasks when possible instead of broad builds.
+
+## Agent notes
+
+- Root-level agent guidance lives in `AGENTS.md`
+- App-level agent guidance lives in `app/AGENTS.md`
+- The closest `AGENTS.md` file should be treated as the source of truth for the current directory
