@@ -6,16 +6,16 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.agrogem.app.ui.screens.figma.AnalysisProgressFigmaScreen
-import com.agrogem.app.ui.screens.figma.CameraCaptureFigmaScreen
-import com.agrogem.app.ui.screens.figma.ChatConversationFigmaScreen
-import com.agrogem.app.ui.screens.figma.ConversationSummaryFigmaScreen
-import com.agrogem.app.ui.screens.figma.DiagnosisFigmaScreen
-import com.agrogem.app.ui.screens.figma.HistoryFigmaScreen
-import com.agrogem.app.ui.screens.figma.HomeFigmaScreen
-import com.agrogem.app.ui.screens.figma.TreatmentPlanFigmaScreen
-import com.agrogem.app.ui.screens.figma.TreatmentProductsFigmaScreen
-import com.agrogem.app.ui.screens.figma.VoiceReadyFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.AnalysisProgressFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.CameraCaptureFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.ChatConversationFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.ConversationSummaryFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.DiagnosisFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.HistoryFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.HomeFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.TreatmentPlanFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.TreatmentProductsFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.VoiceReadyFigmaScreen
 
 @Composable
 fun AppNavHost(

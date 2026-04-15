@@ -1,0 +1,29 @@
+package com.agrogem.app.ui.screens.figma.screens
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.agrogem.app.ui.screens.figma.components.DiagnosisBaseLayout
+
+@Composable
+fun TreatmentPlanFigmaScreen(
+    onSaveAndExit: () -> Unit,
+    onTalk: () -> Unit,
+    onOpenProducts: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    DiagnosisBaseLayout(
+        modifier = modifier,
+        topInset = 57.dp,
+        sliceCollapsedOffset = 360.dp,
+        showCaptureOverlay = false,
+        showProducts = false,
+        showVoiceBadge = true,
+        showLinkToProducts = true,
+        primaryButtonText = "Guardar y salir",
+        secondaryButtonText = "Hablar con agente",
+        onPrimaryAction = onSaveAndExit,
+        onSecondaryAction = onTalk,
+        onOpenProducts = onOpenProducts,
+    )
+}
