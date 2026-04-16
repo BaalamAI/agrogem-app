@@ -16,9 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -31,6 +29,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.agrogem.app.ui.viewmodel.kmpViewModel
 
 private val CameraSurfaceDark = Color(0xFF0D1310)
 private val CameraSurfaceMid = Color(0xFF16201A)
@@ -44,9 +44,9 @@ private val CameraSoftWhite = Color(0xD9FFFFFF)
 fun CameraScreen(
     onStartAnalysis: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: CameraViewModel = remember { CameraViewModel() },
+    viewModel: CameraViewModel = kmpViewModel { CameraViewModel() },
 ) {
-    val _uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Box(
         modifier = modifier

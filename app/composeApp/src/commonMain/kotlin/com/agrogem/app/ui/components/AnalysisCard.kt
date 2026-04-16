@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agrogem.app.ui.screens.dashboard.RecentAnalysis
+import com.agrogem.app.ui.screens.dashboard.toShared
 
 private val AnalysisCardBackground = Color(0xFFF7F7F7)
 private val AnalysisTextPrimary = Color(0xFF181D1A)
@@ -72,7 +73,7 @@ fun AnalysisCard(
                     fontWeight = FontWeight.SemiBold,
                 )
                 SeverityBadge(
-                    severity = analysis.severity,
+                    severity = analysis.severity.toShared(),
                     compact = true,
                 )
             }

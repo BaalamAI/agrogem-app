@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 class DashboardViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(defaultDashboardUiState())
@@ -13,14 +14,14 @@ class DashboardViewModel : ViewModel() {
         when (event) {
             DashboardEvent.OnRefreshRequested -> Unit
             DashboardEvent.OnSeeAllRequested -> {
-                _uiState.value = _uiState.value.copy(isHistoryVisible = true)
+                _uiState.update { it.copy(isHistoryVisible = true) }
             }
             DashboardEvent.OnHistoryDismissRequested -> {
-                _uiState.value = _uiState.value.copy(isHistoryVisible = false)
+                _uiState.update { it.copy(isHistoryVisible = false) }
             }
             is DashboardEvent.OnRecentAnalysisSelected -> Unit
             is DashboardEvent.OnHistoryAnalysisSelected -> {
-                _uiState.value = _uiState.value.copy(isHistoryVisible = false)
+                _uiState.update { it.copy(isHistoryVisible = false) }
             }
         }
     }

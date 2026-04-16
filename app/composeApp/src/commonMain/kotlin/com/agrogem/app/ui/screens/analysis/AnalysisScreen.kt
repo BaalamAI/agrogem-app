@@ -18,9 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -32,6 +30,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.agrogem.app.ui.viewmodel.kmpViewModel
 
 private val AnalysisBackground = Color(0xFFFFFFFF)
 private val AnalysisPrimary = Color(0xFF0D631B)
@@ -42,15 +42,14 @@ private val AnalysisSoftCard = Color(0xFFF7F7F7)
 private val AnalysisSuccess = Color(0xFF2E7D32)
 private val AnalysisNeon = Color(0xFFA3F69C)
 
-@Suppress("UNUSED_PARAMETER")
 @Composable
 fun AnalysisScreen(
     onBackToCamera: () -> Unit,
     onViewReport: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: AnalysisViewModel = remember { AnalysisViewModel() },
+    viewModel: AnalysisViewModel = kmpViewModel { AnalysisViewModel() },
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val progress = uiState.progress.coerceIn(0f, 1f)
     val progressLabel = "${(progress * 100).toInt()}%"
 
@@ -81,6 +80,29 @@ fun AnalysisScreen(
                     .clickable {
                         viewModel.onEvent(AnalysisEvent.OnCancelRequested)
                         onBackToCamera()
+                    }
+                    .background(
+                        color = AnalysisSoftCard,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                    )
+                    .padding(vertical = 20.dp),
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontSize = 18.sp,
+                    lineHeight = 28.sp,
+                ),
+                color = AnalysisPrimary,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+            )
+        }
+
+        item {
+            Text(
+                text = "Ver Reporte",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        viewModel.onFinishAndViewReport(onViewReport)
                     }
                     .background(
                         color = AnalysisSoftCard,

@@ -26,6 +26,21 @@
       "sourceType": "github",
       "computedHash": "1dc59e7e896bc9dd449e43116c4c8b2e656b88c3370df91848330c17347af3d0"
     },
+    "figma-code-connect": {
+      "source": "figma/mcp-server-guide",
+      "sourceType": "github",
+      "computedHash": "030d5f0d86c8ade4d45fda3ede36d93242fc324c315c1160c7a55df95edde092"
+    },
+    "figma-implement-design": {
+      "source": "figma/mcp-server-guide",
+      "sourceType": "github",
+      "computedHash": "6957c9ec828120cddbd95473513975d4b11c3bf4aa25b885943fd6c4c6f52a66"
+    },
+    "figma-use": {
+      "source": "figma/mcp-server-guide",
+      "sourceType": "github",
+      "computedHash": "1e03ce6307bb56bd32b5f2c30e7f01d266f39d88b3f320d58ff351018c67311d"
+    },
     "frontend-design": {
       "source": "anthropics/skills",
       "sourceType": "github",

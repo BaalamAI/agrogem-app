@@ -1,55 +1,65 @@
 # AGENTS.md
 
-## Project Overview
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
-This repository is a small workspace for the AgroGem mobile product. The actual application code lives in `app/`, which is a Kotlin Multiplatform project using Compose Multiplatform.
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
-- Root purpose: workspace entry point and shared repository documentation.
-- Active product module: `app/`
-- Main platforms: Android, iOS, and a WebAssembly preview target.
+## 1. Think Before Coding
 
-When working inside `app/` or any of its children, the closer `app/AGENTS.md` file takes precedence.
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
 
-## Repository Layout
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
 
-- `README.md` — human-facing overview for the repository
-- `app/` — Kotlin Multiplatform application workspace
-- `.agents/skills/` — local agent skills used by this repository
-- `.atl/skill-registry.md` — skill registry metadata
+## 2. Simplicity First
 
-## Working Rules For Agents
+**Minimum code that solves the problem. Nothing speculative.**
 
-- Treat this repo as a root wrapper around the `app/` project.
-- Do not invent root-level workflows that are not present in the repository.
-- Prefer updating docs in both places when changing project structure:
-  - root `README.md` for repository-level navigation
-  - `app/README.md` for implementation and development details
-- Avoid touching generated or local-only directories such as `.gradle/`, `.kotlin/`, `build/`, or IDE metadata unless explicitly requested.
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
 
-## Common Navigation
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
-- Read repository overview: `README.md`
-- Work on the app itself: `app/`
-- App-specific instructions: `app/AGENTS.md`
+## 3. Surgical Changes
 
-## Documentation Expectations
+**Touch only what you must. Clean up only your own mess.**
 
-When you change workflows, architecture, or developer commands in `app/`, update:
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
 
-1. `app/AGENTS.md` for agent-operational guidance
-2. `app/README.md` for human readers
-3. Root `README.md` if repository navigation or scope changed
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
 
-## Validation Strategy
+The test: Every changed line should trace directly to the user's request.
 
-There are no root-level build tools configured.
+## 4. Goal-Driven Execution
 
-- Validate work at the module level inside `app/`
-- Prefer targeted verification over broad commands
-- Do not run full build tasks unless explicitly required
+**Define success criteria. Loop until verified.**
 
-## Commit and PR Guidance
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
 
-- Use conventional commit messages.
-- Keep changes scoped to the module you touched.
-- Mention whether changes affect repository docs, app docs, or app code.
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

@@ -19,9 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
@@ -36,9 +34,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agrogem.app.ui.components.AnalysisCard
 import com.agrogem.app.ui.components.SectionHeader
 import com.agrogem.app.ui.components.StatCard
+import com.agrogem.app.ui.viewmodel.kmpViewModel
 
 private val DashboardBackground = Color(0xFFFFFFFF)
 private val DashboardPrimary = Color(0xFF0D631B)
@@ -48,9 +48,9 @@ private val DashboardTextSecondary = Color(0xFF40493D)
 @Composable
 fun DashboardScreen(
     modifier: Modifier = Modifier,
-    viewModel: DashboardViewModel = remember { DashboardViewModel() },
+    viewModel: DashboardViewModel = kmpViewModel { DashboardViewModel() },
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Box(
         modifier = modifier

@@ -8,6 +8,16 @@ import kotlinx.coroutines.flow.asStateFlow
 class ReportViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(defaultReportUiState())
     val uiState: StateFlow<ReportUiState> = _uiState.asStateFlow()
+
+    fun onEvent(event: ReportEvent) {
+        when (event) {
+            ReportEvent.OnScanAgain -> Unit
+        }
+    }
+}
+
+sealed interface ReportEvent {
+    data object OnScanAgain : ReportEvent
 }
 
 internal fun defaultReportUiState(): ReportUiState = ReportUiState(

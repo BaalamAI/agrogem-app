@@ -6,48 +6,114 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.agrogem.app.ui.screens.analysis.AnalysisScreen
-import com.agrogem.app.ui.screens.camera.CameraScreen
-import com.agrogem.app.ui.screens.dashboard.DashboardScreen
-import com.agrogem.app.ui.screens.map.MapRiskScreen
-import com.agrogem.app.ui.screens.report.ReportScreen
+import com.agrogem.app.ui.screens.figma.screens.AnalysisProgressFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.CameraCaptureFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.ChatConversationFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.ConversationSummaryFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.DiagnosisFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.HistoryFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.HomeFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.TreatmentPlanFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.TreatmentProductsFigmaScreen
+import com.agrogem.app.ui.screens.figma.screens.VoiceReadyFigmaScreen
 
 @Composable
 fun AppNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController,
-    startDestination: AgroGemRoute = AgroGemRoute.Dashboard,
+    startDestination: AgroGemRoute = AgroGemRoute.Home,
 ) {
     NavHost(
         navController = navController,
         startDestination = startDestination.route,
         modifier = modifier,
     ) {
-        composable(AgroGemRoute.Dashboard.route) {
-            DashboardScreen()
+        composable(AgroGemRoute.Home.route) {
+            HomeFigmaScreen(
+                onOpenCamera = { navController.pushTo(AgroGemRoute.Camera) },
+                onOpenHistory = { navController.pushTo(AgroGemRoute.History) },
+            )
         }
+
+        composable(AgroGemRoute.History.route) {
+            HistoryFigmaScreen(
+                onOpenEntry = { navController.pushTo(AgroGemRoute.ConversationSummary) },
+            )
+        }
+
         composable(AgroGemRoute.Camera.route) {
-            CameraScreen(
-                onStartAnalysis = { navController.navigateTo(AgroGemRoute.Analysis) },
+            CameraCaptureFigmaScreen(
+                onClose = { navController.navigateTo(AgroGemRoute.Home) },
+                onAnalyze = { navController.pushTo(AgroGemRoute.Analysis) },
             )
         }
-        composable(AgroGemRoute.Map.route) {
-            MapRiskScreen(
-                onBackToDashboard = { navController.navigateTo(AgroGemRoute.Dashboard) },
-            )
-        }
+
         composable(AgroGemRoute.Analysis.route) {
-            AnalysisScreen(
-                onBackToCamera = { navController.navigateTo(AgroGemRoute.Camera) },
-                onViewReport = { navController.navigateTo(AgroGemRoute.Report) },
+            AnalysisProgressFigmaScreen(
+                onCancel = { navController.navigateTo(AgroGemRoute.Camera) },
+                onContinue = { navController.pushTo(AgroGemRoute.Diagnosis) },
             )
         }
-        composable(AgroGemRoute.Report.route) {
-            ReportScreen(
-                onScanAgain = { navController.navigateTo(AgroGemRoute.Camera) },
-                onBackToDashboard = { navController.navigateTo(AgroGemRoute.Dashboard) },
+
+        composable(AgroGemRoute.Diagnosis.route) {
+            DiagnosisFigmaScreen(
+                onOpenPlan = { navController.pushTo(AgroGemRoute.TreatmentPlan) },
             )
         }
+
+        composable(AgroGemRoute.TreatmentPlan.route) {
+            TreatmentPlanFigmaScreen(
+                onSaveAndExit = { navController.navigateTo(AgroGemRoute.Home) },
+                onTalk = { navController.pushTo(AgroGemRoute.Chat) },
+                onOpenProducts = { navController.pushTo(AgroGemRoute.TreatmentProducts) },
+            )
+        }
+
+        composable(AgroGemRoute.TreatmentProducts.route) {
+            TreatmentProductsFigmaScreen(
+                onSaveAndExit = { navController.navigateTo(AgroGemRoute.Home) },
+                onTalk = { navController.pushTo(AgroGemRoute.Chat) },
+                onOpenConversationSummary = { navController.pushTo(AgroGemRoute.ConversationSummary) },
+            )
+        }
+
+        composable(AgroGemRoute.ConversationSummary.route) {
+            ConversationSummaryFigmaScreen(
+                onViewConversation = { navController.pushTo(AgroGemRoute.Chat) },
+            )
+        }
+
+        composable(AgroGemRoute.Chat.route) {
+            ChatConversationFigmaScreen(
+                onBack = { navController.popBackStack() },
+                onRequestClose = { navController.pushTo(AgroGemRoute.ChatConfirm) },
+                showConfirmDialog = false,
+            )
+        }
+
+        composable(AgroGemRoute.ChatConfirm.route) {
+            ChatConversationFigmaScreen(
+                onBack = { navController.popBackStack() },
+                onRequestClose = {},
+                showConfirmDialog = true,
+                onConfirmClose = {
+                    navController.popBackStack(AgroGemRoute.Chat.route, inclusive = true)
+                },
+            )
+        }
+
+        composable(AgroGemRoute.VoiceReady.route) {
+            VoiceReadyFigmaScreen(
+                onBack = { navController.navigateTo(AgroGemRoute.Home) },
+                onOpenChat = { navController.pushTo(AgroGemRoute.Chat) },
+            )
+        }
+    }
+}
+
+private fun NavHostController.pushTo(route: AgroGemRoute) {
+    navigate(route.route) {
+        launchSingleTop = true
     }
 }
 
