@@ -81,7 +81,7 @@ internal fun DiagnosisBaseLayout(
                 .background(FigmaColors.Surface, RoundedCornerShape(topStart = 40.dp, topEnd = 40.dp))
                 .padding(horizontal = 24.dp, vertical = 14.dp),
             collapsedOffset = sliceCollapsedOffset,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Top),
         ) {
             DragHandle()
             if (showVoiceBadge) {

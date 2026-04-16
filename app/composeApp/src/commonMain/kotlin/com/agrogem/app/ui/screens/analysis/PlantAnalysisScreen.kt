@@ -84,44 +84,39 @@ fun PlantAnalysisScreen(
         }
 
         // ─── Bottom sheet ────────────────────────────────────────────────────
-        // The white background is on this fixed Box, NOT on the DraggableSlice,
-        // so dragging down reveals the image — not a floating white rectangle.
-        Box(
+        // Keep the sheet surface attached to the draggable content to avoid
+        // exposing a static white layer while swiping it down.
+        DraggableSlice(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .background(
                     FigmaColors.Surface,
                     RoundedCornerShape(topStart = 40.dp, topEnd = 40.dp),
-                ),
+                )
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+            collapsedOffset = 240.dp,
+            verticalArrangement = Arrangement.spacedBy(18.dp, Alignment.Top),
         ) {
-            DraggableSlice(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 20.dp),
-                collapsedOffset = 240.dp,
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                DragHandle()
+            DragHandle()
 
-                AnimatedContent(
-                    targetState = phase,
-                    transitionSpec = { fadeIn() togetherWith fadeOut() },
-                    label = "phase_transition",
-                ) { currentPhase ->
-                    when (currentPhase) {
-                        is AnalysisPhase.Analyzing -> AnalyzingContent(
-                            steps = steps,
-                            onCancel = onCancel,
-                        )
+            AnimatedContent(
+                targetState = phase,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "phase_transition",
+            ) { currentPhase ->
+                when (currentPhase) {
+                    is AnalysisPhase.Analyzing -> AnalyzingContent(
+                        steps = steps,
+                        onCancel = onCancel,
+                    )
 
-                        is AnalysisPhase.Results -> ResultsContent(
-                            result = viewModel.diagnosisResult,
-                            exitLabel = if (fromHistory) "Regresar" else "Guardar y salir",
-                            onExit = onExit,
-                            onTalkToAgent = onTalkToAgent,
-                        )
-                    }
+                    is AnalysisPhase.Results -> ResultsContent(
+                        result = viewModel.diagnosisResult,
+                        exitLabel = if (fromHistory) "Regresar" else "Guardar y salir",
+                        onExit = onExit,
+                        onTalkToAgent = onTalkToAgent,
+                    )
                 }
             }
         }
