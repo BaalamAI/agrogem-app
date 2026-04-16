@@ -6,21 +6,17 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.agrogem.app.ui.screens.figma.screens.AnalysisProgressFigmaScreen
-import com.agrogem.app.ui.screens.figma.screens.CameraCaptureFigmaScreen
-import com.agrogem.app.ui.screens.figma.screens.ChatConversationFigmaScreen
-import com.agrogem.app.ui.screens.figma.screens.ConversationSummaryFigmaScreen
-import com.agrogem.app.ui.screens.figma.screens.DiagnosisFigmaScreen
-import com.agrogem.app.ui.screens.figma.screens.HistoryFigmaScreen
-import com.agrogem.app.ui.screens.figma.screens.HomeFigmaScreen
-import com.agrogem.app.ui.screens.figma.screens.TreatmentPlanFigmaScreen
-import com.agrogem.app.ui.screens.figma.screens.TreatmentProductsFigmaScreen
-import com.agrogem.app.ui.screens.figma.screens.VoiceReadyFigmaScreen
+import com.agrogem.app.ui.screens.analysis.AnalysisFlowViewModel
+import com.agrogem.app.ui.screens.analysis.PlantAnalysisScreen
+import com.agrogem.app.ui.screens.chat.ChatScreen
+import com.agrogem.app.ui.screens.history.HistoryScreen
+import com.agrogem.app.ui.screens.home.HomeScreen
 
 @Composable
 fun AppNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController,
+    analysisFlowVm: AnalysisFlowViewModel,
     startDestination: AgroGemRoute = AgroGemRoute.Home,
 ) {
     NavHost(
@@ -29,62 +25,51 @@ fun AppNavHost(
         modifier = modifier,
     ) {
         composable(AgroGemRoute.Home.route) {
-            HomeFigmaScreen(
-                onOpenCamera = { navController.pushTo(AgroGemRoute.Camera) },
+            HomeScreen(
+                onOpenCamera = { /* Camera is launched via FAB in AppShell */ },
                 onOpenHistory = { navController.pushTo(AgroGemRoute.History) },
             )
         }
 
         composable(AgroGemRoute.History.route) {
-            HistoryFigmaScreen(
-                onOpenEntry = { navController.pushTo(AgroGemRoute.ConversationSummary) },
+            HistoryScreen(
+                onOpenEntry = {
+                    analysisFlowVm.loadFromHistory(imageUri = "")
+                    navController.pushTo(AgroGemRoute.AnalysisHistory)
+                },
             )
         }
 
-        composable(AgroGemRoute.Camera.route) {
-            CameraCaptureFigmaScreen(
-                onClose = { navController.navigateTo(AgroGemRoute.Home) },
-                onAnalyze = { navController.pushTo(AgroGemRoute.Analysis) },
-            )
-        }
-
+        // Analysis opened from camera — exit button says "Guardar y salir"
         composable(AgroGemRoute.Analysis.route) {
-            AnalysisProgressFigmaScreen(
-                onCancel = { navController.navigateTo(AgroGemRoute.Camera) },
-                onContinue = { navController.pushTo(AgroGemRoute.Diagnosis) },
+            PlantAnalysisScreen(
+                viewModel = analysisFlowVm,
+                fromHistory = false,
+                onCancel = {
+                    analysisFlowVm.cancelAnalysis()
+                    navController.navigateTo(AgroGemRoute.Home)
+                },
+                onExit = {
+                    analysisFlowVm.clearAll()
+                    navController.navigateTo(AgroGemRoute.Home)
+                },
+                onTalkToAgent = { navController.pushTo(AgroGemRoute.Chat) },
             )
         }
 
-        composable(AgroGemRoute.Diagnosis.route) {
-            DiagnosisFigmaScreen(
-                onOpenPlan = { navController.pushTo(AgroGemRoute.TreatmentPlan) },
-            )
-        }
-
-        composable(AgroGemRoute.TreatmentPlan.route) {
-            TreatmentPlanFigmaScreen(
-                onSaveAndExit = { navController.navigateTo(AgroGemRoute.Home) },
-                onTalk = { navController.pushTo(AgroGemRoute.Chat) },
-                onOpenProducts = { navController.pushTo(AgroGemRoute.TreatmentProducts) },
-            )
-        }
-
-        composable(AgroGemRoute.TreatmentProducts.route) {
-            TreatmentProductsFigmaScreen(
-                onSaveAndExit = { navController.navigateTo(AgroGemRoute.Home) },
-                onTalk = { navController.pushTo(AgroGemRoute.Chat) },
-                onOpenConversationSummary = { navController.pushTo(AgroGemRoute.ConversationSummary) },
-            )
-        }
-
-        composable(AgroGemRoute.ConversationSummary.route) {
-            ConversationSummaryFigmaScreen(
-                onViewConversation = { navController.pushTo(AgroGemRoute.Chat) },
+        // Analysis opened from history — exit button says "Regresar"
+        composable(AgroGemRoute.AnalysisHistory.route) {
+            PlantAnalysisScreen(
+                viewModel = analysisFlowVm,
+                fromHistory = true,
+                onCancel = { navController.popBackStack() },
+                onExit = { navController.popBackStack() },
+                onTalkToAgent = { navController.pushTo(AgroGemRoute.Chat) },
             )
         }
 
         composable(AgroGemRoute.Chat.route) {
-            ChatConversationFigmaScreen(
+            ChatScreen(
                 onBack = { navController.popBackStack() },
                 onRequestClose = { navController.pushTo(AgroGemRoute.ChatConfirm) },
                 showConfirmDialog = false,
@@ -92,20 +77,13 @@ fun AppNavHost(
         }
 
         composable(AgroGemRoute.ChatConfirm.route) {
-            ChatConversationFigmaScreen(
+            ChatScreen(
                 onBack = { navController.popBackStack() },
                 onRequestClose = {},
                 showConfirmDialog = true,
                 onConfirmClose = {
                     navController.popBackStack(AgroGemRoute.Chat.route, inclusive = true)
                 },
-            )
-        }
-
-        composable(AgroGemRoute.VoiceReady.route) {
-            VoiceReadyFigmaScreen(
-                onBack = { navController.navigateTo(AgroGemRoute.Home) },
-                onOpenChat = { navController.pushTo(AgroGemRoute.Chat) },
             )
         }
     }

@@ -1,4 +1,4 @@
-package com.agrogem.app.ui.screens.figma.screens
+package com.agrogem.app.ui.screens.history
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,7 +31,7 @@ import com.agrogem.app.ui.screens.figma.components.LeafThumb
 import com.agrogem.app.ui.screens.figma.components.StatusBadge
 
 @Composable
-fun HistoryFigmaScreen(
+fun HistoryScreen(
     onOpenEntry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {

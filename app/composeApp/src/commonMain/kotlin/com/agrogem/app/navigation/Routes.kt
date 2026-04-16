@@ -31,6 +31,12 @@ sealed interface AgroGemRoute {
         override val bottomTab: AgroGemBottomTab? = null
     }
 
+    data object AnalysisHistory : AgroGemRoute {
+        override val route: String = "analysis_history"
+        override val title: String = "Ver análisis"
+        override val bottomTab: AgroGemBottomTab? = null
+    }
+
     data object Diagnosis : AgroGemRoute {
         override val route: String = "diagnosis"
         override val title: String = "Diagnóstico"
@@ -82,12 +88,8 @@ sealed interface AgroGemRoute {
     companion object {
         val all = listOf(
             Home,
-            Camera,
             Analysis,
-            Diagnosis,
-            TreatmentPlan,
-            TreatmentProducts,
-            ConversationSummary,
+            AnalysisHistory,
             Chat,
             ChatConfirm,
             History,

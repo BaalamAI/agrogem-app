@@ -1,4 +1,4 @@
-package com.agrogem.app.ui.screens.figma.screens
+package com.agrogem.app.ui.screens.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,12 +25,12 @@ import com.agrogem.app.ui.screens.figma.FigmaColors
 import com.agrogem.app.ui.screens.figma.dashboardRecentItems
 import com.agrogem.app.ui.screens.figma.components.LeafThumb
 import com.agrogem.app.ui.screens.figma.components.Pill
-import com.agrogem.app.ui.screens.figma.components.PrimaryActionHint
+
 import com.agrogem.app.ui.screens.figma.components.RoundIconButton
 import com.agrogem.app.ui.screens.figma.components.StatusBadge
 
 @Composable
-fun HomeFigmaScreen(
+fun HomeScreen(
     onOpenCamera: () -> Unit,
     onOpenHistory: () -> Unit,
     modifier: Modifier = Modifier,
@@ -97,15 +97,6 @@ fun HomeFigmaScreen(
                 RecentAnalysisRow(item = item, seed = index)
             }
         }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        PrimaryActionHint(
-            text = "TOMAR FOTO PARA ANALIZAR CON IA",
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .clickable(onClick = onOpenCamera),
-        )
 
         Spacer(modifier = Modifier.height(8.dp))
     }

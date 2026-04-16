@@ -1,4 +1,4 @@
-package com.agrogem.app.ui.screens.figma.screens
+package com.agrogem.app.ui.screens.chat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,7 +31,7 @@ import com.agrogem.app.ui.screens.figma.components.Pill
 import com.agrogem.app.ui.screens.figma.components.RoundIconButton
 
 @Composable
-fun ChatConversationFigmaScreen(
+fun ChatScreen(
     onBack: () -> Unit,
     onRequestClose: () -> Unit,
     showConfirmDialog: Boolean,
