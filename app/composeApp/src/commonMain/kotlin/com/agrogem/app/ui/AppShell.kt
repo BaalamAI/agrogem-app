@@ -15,6 +15,7 @@ import com.agrogem.app.navigation.AppNavHost
 import com.agrogem.app.navigation.navigateTo
 import com.agrogem.app.ui.components.BottomNavigationBar
 import com.agrogem.app.ui.screens.analysis.AnalysisFlowViewModel
+import com.agrogem.app.ui.screens.chat.ChatViewModel
 import com.agrogem.app.ui.viewmodel.kmpViewModel
 
 @Composable
@@ -27,6 +28,18 @@ fun AppShell(modifier: Modifier = Modifier) {
 
     // Shared ViewModel for the analysis flow — lives here so it survives navigation
     val analysisFlowVm = kmpViewModel { AnalysisFlowViewModel() }
+
+    // Shared ChatViewModel for the chat/voice flow — lives here so it survives navigation
+    // and is shared across Chat, ChatConfirm, and VoiceReady routes (Phase 5 architecture fix).
+    // Seeded with null so it starts in Blank mode. When navigating from Analysis → Chat,
+    // AppNavHost calls chatViewModel.seedFromAnalysis(...) before pushing the chat route,
+    // so the shared instance carries the real analysis context at runtime.
+    val chatViewModel = kmpViewModel {
+        ChatViewModel(
+            analysisId = null,
+            diagnosis = null,
+        )
+    }
 
     // Camera launcher — opens the native camera directly from the Scan FAB
     val imagePicker = rememberImagePickerLauncher { result ->
@@ -67,6 +80,7 @@ fun AppShell(modifier: Modifier = Modifier) {
         AppNavHost(
             navController = navController,
             analysisFlowVm = analysisFlowVm,
+            chatViewModel = chatViewModel,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),

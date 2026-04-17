@@ -1,14 +1,26 @@
 package com.agrogem.app.navigation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.agrogem.app.ui.screens.analysis.AnalysisFlowViewModel
 import com.agrogem.app.ui.screens.analysis.PlantAnalysisScreen
+import com.agrogem.app.ui.screens.chat.ChatEvent
 import com.agrogem.app.ui.screens.chat.ChatScreen
+import com.agrogem.app.ui.screens.chat.ChatViewModel
+import com.agrogem.app.ui.screens.chat.VoiceReadyScreen
+import com.agrogem.app.ui.screens.figma.FigmaColors
 import com.agrogem.app.ui.screens.history.HistoryScreen
 import com.agrogem.app.ui.screens.home.HomeScreen
 
@@ -17,6 +29,7 @@ fun AppNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController,
     analysisFlowVm: AnalysisFlowViewModel,
+    chatViewModel: ChatViewModel,
     startDestination: AgroGemRoute = AgroGemRoute.Home,
 ) {
     NavHost(
@@ -31,12 +44,47 @@ fun AppNavHost(
             )
         }
 
+        composable(AgroGemRoute.Camera.route) {
+            PlaceholderRouteScreen(
+                title = "Camara",
+                subtitle = "Usa el boton Scan para abrir la camara nativa.",
+            )
+        }
+
         composable(AgroGemRoute.History.route) {
             HistoryScreen(
                 onOpenEntry = {
                     analysisFlowVm.loadFromHistory(imageUri = "")
                     navController.pushTo(AgroGemRoute.AnalysisHistory)
                 },
+            )
+        }
+
+        composable(AgroGemRoute.Diagnosis.route) {
+            PlaceholderRouteScreen(
+                title = "Diagnostico",
+                subtitle = "Pantalla en preparacion.",
+            )
+        }
+
+        composable(AgroGemRoute.TreatmentPlan.route) {
+            PlaceholderRouteScreen(
+                title = "Plan de tratamiento",
+                subtitle = "Pantalla en preparacion.",
+            )
+        }
+
+        composable(AgroGemRoute.TreatmentProducts.route) {
+            PlaceholderRouteScreen(
+                title = "Insumos sugeridos",
+                subtitle = "Pantalla en preparacion.",
+            )
+        }
+
+        composable(AgroGemRoute.ConversationSummary.route) {
+            PlaceholderRouteScreen(
+                title = "Resumen de conversacion",
+                subtitle = "Pantalla en preparacion.",
             )
         }
 
@@ -53,7 +101,12 @@ fun AppNavHost(
                     analysisFlowVm.clearAll()
                     navController.navigateTo(AgroGemRoute.Home)
                 },
-                onTalkToAgent = { navController.pushTo(AgroGemRoute.Chat) },
+                onTalkToAgent = { analysisId, diagnosis ->
+                    // Post-analysis handoff: seed the shared ChatViewModel with the
+                    // analysis context, then navigate to the chat screen.
+                    chatViewModel.seedFromAnalysis(analysisId, diagnosis)
+                    navController.pushTo(AgroGemRoute.Chat.createRoute(analysisId))
+                },
             )
         }
 
@@ -64,33 +117,99 @@ fun AppNavHost(
                 fromHistory = true,
                 onCancel = { navController.popBackStack() },
                 onExit = { navController.popBackStack() },
-                onTalkToAgent = { navController.pushTo(AgroGemRoute.Chat) },
+                onTalkToAgent = { analysisId, diagnosis ->
+                    // Post-analysis handoff: seed the shared ChatViewModel with the
+                    // analysis context, then navigate to the chat screen.
+                    chatViewModel.seedFromAnalysis(analysisId, diagnosis)
+                    navController.pushTo(AgroGemRoute.Chat.createRoute(analysisId))
+                },
             )
         }
 
-        composable(AgroGemRoute.Chat.route) {
+        composable(AgroGemRoute.VoiceReady.route) {
+            // Use shared chatViewModel from AppShell — same instance as Chat and ChatConfirm
+            VoiceReadyScreen(
+                voiceState = chatViewModel.uiState.value.voiceState,
+                onDismiss = {
+                    chatViewModel.onEvent(ChatEvent.DismissVoice)
+                    navController.popBackStack()
+                },
+                onStopRecording = {
+                    chatViewModel.onEvent(ChatEvent.StopVoiceInput)
+                    navController.popBackStack()
+                },
+            )
+        }
+
+        composable(
+            route = AgroGemRoute.Chat.NAV_ROUTE,
+            arguments = listOf(
+                navArgument(AgroGemRoute.Chat.ANALYSIS_ID_ARG) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) {
+            // Use shared chatViewModel from AppShell — same instance as VoiceReady
             ChatScreen(
+                viewModel = chatViewModel,
                 onBack = { navController.popBackStack() },
                 onRequestClose = { navController.pushTo(AgroGemRoute.ChatConfirm) },
+                onMicClick = {
+                    chatViewModel.onEvent(ChatEvent.StartVoiceInput)
+                    navController.pushTo(AgroGemRoute.VoiceReady)
+                },
                 showConfirmDialog = false,
             )
         }
 
         composable(AgroGemRoute.ChatConfirm.route) {
+            // Use shared chatViewModel from AppShell — same instance as Chat and VoiceReady
             ChatScreen(
+                viewModel = chatViewModel,
                 onBack = { navController.popBackStack() },
                 onRequestClose = {},
+                onMicClick = {
+                    chatViewModel.onEvent(ChatEvent.StartVoiceInput)
+                    navController.pushTo(AgroGemRoute.VoiceReady)
+                },
                 showConfirmDialog = true,
                 onConfirmClose = {
-                    navController.popBackStack(AgroGemRoute.Chat.route, inclusive = true)
+                    navController.popBackStack(AgroGemRoute.Chat.NAV_ROUTE, inclusive = true)
                 },
             )
         }
     }
 }
 
+@Composable
+private fun PlaceholderRouteScreen(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(FigmaColors.Screen),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "$title\n$subtitle",
+            color = Color.Black,
+        )
+    }
+}
+
 private fun NavHostController.pushTo(route: AgroGemRoute) {
     navigate(route.route) {
+        launchSingleTop = true
+    }
+}
+
+private fun NavHostController.pushTo(routeString: String) {
+    navigate(routeString) {
         launchSingleTop = true
     }
 }

@@ -9,14 +9,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.agrogem.app.ui.screens.analysis.DiagnosisResult
 import com.agrogem.app.ui.screens.figma.FigmaColors
 import com.agrogem.app.ui.screens.figma.components.FilledPrimaryButton
 import com.agrogem.app.ui.screens.figma.components.Pill
@@ -32,12 +37,19 @@ import com.agrogem.app.ui.screens.figma.components.RoundIconButton
 
 @Composable
 fun ChatScreen(
+    viewModel: ChatViewModel,
     onBack: () -> Unit,
     onRequestClose: () -> Unit,
+    onMicClick: () -> Unit,
     showConfirmDialog: Boolean,
     onConfirmClose: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val pendingAttachments = uiState.attachments
+    val chatMode = uiState.mode
+    val messages = uiState.messages
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -53,7 +65,7 @@ fun ChatScreen(
 
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 RoundIconButton(label = "‹", onClick = onBack)
-                RoundIconButton(label = "≡", onClick = {}, foreground = Color(0xFF929292))
+                RoundIconButton(label = "≡", onClick = onRequestClose, foreground = Color(0xFF929292))
                 Text(
                     text = "Guardado automáticamente 11:58",
                     color = Color(0xFFABABAB),
@@ -71,28 +83,37 @@ fun ChatScreen(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            DiagnosisHeaderCompact()
-            Spacer(modifier = Modifier.height(10.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-                Text(text = "✧", color = FigmaColors.Primary, fontSize = 24.sp)
-                Text(
-                    text = "Hola, veo que tienes un problema con tus cultivos. Se ha detectado una infección avanzada por Hemileia vastatrix. El 45% del follaje muestra pústulas activas. Se requiere intervención inmediata para evitar la pérdida total de la cosecha. ¿Tenías otra duda o algo en lo que pueda ayudarte?",
-                    color = Color.Black,
-                    fontSize = 12.sp,
-                    lineHeight = 20.sp,
-                    fontWeight = FontWeight.Medium,
-                )
+            // Show diagnosis header only when chat is seeded with analysis context
+            val seededDiagnosis = (chatMode as? ChatMode.AnalysisSeeded)?.diagnosis
+            if (seededDiagnosis != null) {
+                SeededChatHeader(diagnosis = seededDiagnosis)
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            // Render messages from state — seed message (assistant) appears first in seeded mode
+            messages.forEach { message ->
+                MessageBubble(message = message)
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             Spacer(modifier = Modifier.weight(1f))
 
-            ChatInputArea(onRequestClose = onRequestClose)
+            ChatInputArea(
+                inputText = uiState.inputText,
+                onInputChanged = { viewModel.onEvent(ChatEvent.InputChanged(it)) },
+                onAttachClick = { viewModel.onEvent(ChatEvent.ToggleAttachmentMenu(true)) },
+                onMicClick = onMicClick,
+                onSendClick = { viewModel.onEvent(ChatEvent.SendMessage) },
+                pendingAttachments = pendingAttachments,
+            )
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        if (!showConfirmDialog) {
+        if (!showConfirmDialog && uiState.showAttachmentMenu) {
             AttachmentMenu(
+                onPhotosClick = { viewModel.onEvent(ChatEvent.RequestGallery) },
+                onCameraClick = { viewModel.onEvent(ChatEvent.RequestCamera) },
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .offset(y = (-68).dp)
@@ -116,16 +137,21 @@ fun ChatScreen(
 }
 
 @Composable
-private fun DiagnosisHeaderCompact() {
+private fun SeededChatHeader(diagnosis: DiagnosisResult) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "Plaga detectada", color = Color.Black, fontSize = 32.sp / 1.75f, fontWeight = FontWeight.Medium)
+            Text(
+                text = diagnosis.pestName,
+                color = Color.Black,
+                fontSize = 32.sp / 1.75f,
+                fontWeight = FontWeight.Medium,
+            )
             Pill(
-                text = "Problema iniciando",
+                text = diagnosis.severity,
                 background = FigmaColors.AlertSoft,
                 foreground = FigmaColors.Alert,
                 horizontal = 8.dp,
@@ -135,7 +161,7 @@ private fun DiagnosisHeaderCompact() {
         }
 
         Pill(
-            text = "95% de confianza",
+            text = "${(diagnosis.confidence * 100).toInt()}% de confianza",
             background = FigmaColors.ConfidenceBg,
             foreground = FigmaColors.ConfidenceText,
             icon = "◉",
@@ -146,8 +172,17 @@ private fun DiagnosisHeaderCompact() {
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            DiagnosisInfoBox(label = "Área afectada", value = "Tallo y hoja", modifier = Modifier.weight(1f))
-            DiagnosisInfoBox(label = "Causa", value = "Hongo, Hemileia vastatrix", italicTail = true, modifier = Modifier.weight(1f))
+            DiagnosisInfoBox(
+                label = "Área afectada",
+                value = diagnosis.affectedArea,
+                modifier = Modifier.weight(1f),
+            )
+            DiagnosisInfoBox(
+                label = "Causa",
+                value = diagnosis.cause,
+                italicTail = true,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
@@ -182,8 +217,56 @@ private fun DiagnosisInfoBox(
     }
 }
 
+/**
+ * Renders a single chat message bubble, styled according to sender.
+ */
 @Composable
-private fun ChatInputArea(onRequestClose: () -> Unit) {
+private fun MessageBubble(message: ChatMessage) {
+    when (message.sender) {
+        MessageSender.Assistant -> {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Text(text = "✧", color = FigmaColors.Primary, fontSize = 24.sp)
+                Text(
+                    text = message.text,
+                    color = Color.Black,
+                    fontSize = 12.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+        MessageSender.User -> {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                Text(
+                    text = message.text,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .background(FigmaColors.Primary, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatInputArea(
+    inputText: String,
+    onInputChanged: (String) -> Unit,
+    onAttachClick: () -> Unit,
+    onMicClick: () -> Unit,
+    onSendClick: () -> Unit,
+    pendingAttachments: List<ChatAttachment>,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -192,16 +275,45 @@ private fun ChatInputArea(onRequestClose: () -> Unit) {
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
+        val hasPendingAttachments = pendingAttachments.isNotEmpty()
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
                     .size(24.dp)
-                    .background(Color(0xFFE5E5E5), CircleShape),
+                    .background(if (hasPendingAttachments) FigmaColors.Primary else Color(0xFFE5E5E5), CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = "○", color = Color(0xFF7A7A7A), fontSize = 10.sp)
+                Text(
+                    text = if (hasPendingAttachments) "${pendingAttachments.size}" else "○",
+                    color = if (hasPendingAttachments) Color.White else Color(0xFF7A7A7A),
+                    fontSize = 10.sp,
+                )
             }
-            Text(text = "Preguntale algo sobre tus cultivos", color = Color(0xFFBDBDBD), fontSize = 12.sp)
+
+            BasicTextField(
+                value = inputText,
+                onValueChange = onInputChanged,
+                modifier = Modifier.weight(1f),
+                textStyle = TextStyle(
+                    color = Color.Black,
+                    fontSize = 12.sp,
+                ),
+                maxLines = 3,
+                decorationBox = { innerTextField ->
+                    if (inputText.isBlank()) {
+                        Text(
+                            text = if (hasPendingAttachments) {
+                                "${pendingAttachments.size} adjuntos listos"
+                            } else {
+                                "Preguntale algo sobre tus cultivos"
+                            },
+                            color = if (hasPendingAttachments) FigmaColors.Primary else Color(0xFFBDBDBD),
+                            fontSize = 12.sp,
+                        )
+                    }
+                    innerTextField()
+                },
+            )
         }
 
         Row(
@@ -209,7 +321,7 @@ private fun ChatInputArea(onRequestClose: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RoundIconButton(label = "+", onClick = {}, background = Color(0xB9E5E5E5), foreground = Color.Black, size = 24.dp)
+            RoundIconButton(label = "+", onClick = onAttachClick, background = Color(0xB9E5E5E5), foreground = Color.Black, size = 24.dp)
 
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -225,7 +337,8 @@ private fun ChatInputArea(onRequestClose: () -> Unit) {
                     modifier = Modifier
                         .height(24.dp)
                         .background(Color(0xB9E5E5E5), RoundedCornerShape(90.dp))
-                        .padding(horizontal = 8.dp),
+                        .padding(horizontal = 8.dp)
+                        .clickable(onClick = onMicClick),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
@@ -235,7 +348,7 @@ private fun ChatInputArea(onRequestClose: () -> Unit) {
 
                 RoundIconButton(
                     label = "↑",
-                    onClick = onRequestClose,
+                    onClick = onSendClick,
                     background = Color(0xB9E5E5E5),
                     foreground = Color.Black,
                     size = 24.dp,
@@ -246,7 +359,11 @@ private fun ChatInputArea(onRequestClose: () -> Unit) {
 }
 
 @Composable
-private fun AttachmentMenu(modifier: Modifier = Modifier) {
+private fun AttachmentMenu(
+    onPhotosClick: () -> Unit,
+    onCameraClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier
             .width(190.dp)
@@ -255,7 +372,11 @@ private fun AttachmentMenu(modifier: Modifier = Modifier) {
             .padding(vertical = 10.dp, horizontal = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.clickable(onClick = onPhotosClick),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Box(
                 modifier = Modifier
                     .size(24.dp)
@@ -267,7 +388,11 @@ private fun AttachmentMenu(modifier: Modifier = Modifier) {
             Text(text = "Fotos", color = Color.Black, fontSize = 12.sp)
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.clickable(onClick = onCameraClick),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Box(
                 modifier = Modifier
                     .size(24.dp)
@@ -294,14 +419,14 @@ private fun ConfirmDialog(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            text = "Esta conversación se guardará automáticamente al salir",
+            text = "Esta conversación se guardará automaticamente al salir",
             color = Color.Black,
             fontSize = 12.sp,
             lineHeight = 18.sp,
             fontWeight = FontWeight.Medium,
         )
         Text(
-            text = "Si desea acceder a esta otra vez puede ir a historial de análisis, ingresar al análisis y luego presionar en ver conversación.",
+            text = "Si desea acceder a esta otra vez puede ir a historial de análisis, ingresa al análisis y luego presionar en ver conversación",
             color = Color(0xFF939393),
             fontSize = 8.sp,
             lineHeight = 12.sp,

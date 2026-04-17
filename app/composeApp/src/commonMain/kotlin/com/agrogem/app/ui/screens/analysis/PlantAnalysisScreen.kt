@@ -52,7 +52,7 @@ fun PlantAnalysisScreen(
     viewModel: AnalysisFlowViewModel,
     onCancel: () -> Unit,
     onExit: () -> Unit,
-    onTalkToAgent: () -> Unit,
+    onTalkToAgent: (analysisId: String, diagnosis: DiagnosisResult) -> Unit,
     fromHistory: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -116,6 +116,7 @@ fun PlantAnalysisScreen(
                         exitLabel = if (fromHistory) "Regresar" else "Guardar y salir",
                         onExit = onExit,
                         onTalkToAgent = onTalkToAgent,
+                        analysisId = "analysis_current",
                     )
                 }
             }
@@ -194,7 +195,8 @@ private fun ResultsContent(
     result: DiagnosisResult,
     exitLabel: String,
     onExit: () -> Unit,
-    onTalkToAgent: () -> Unit,
+    onTalkToAgent: (analysisId: String, diagnosis: DiagnosisResult) -> Unit,
+    analysisId: String,
 ) {
     Column(
         modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -297,7 +299,7 @@ private fun ResultsContent(
             )
             FilledPrimaryButton(
                 text = "Hablar con agente",
-                onClick = onTalkToAgent,
+                onClick = { onTalkToAgent(analysisId, result) },
                 modifier = Modifier.weight(1f),
             )
         }

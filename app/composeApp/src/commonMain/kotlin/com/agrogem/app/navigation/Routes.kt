@@ -62,9 +62,22 @@ sealed interface AgroGemRoute {
     }
 
     data object Chat : AgroGemRoute {
-        override val route: String = "chat"
+        override val route: String = BASE_ROUTE
         override val title: String = "Chat"
         override val bottomTab: AgroGemBottomTab? = null
+
+        /** Base route without query params — used for back-stack matching. */
+        const val BASE_ROUTE = "chat"
+        const val ANALYSIS_ID_ARG = "analysisId"
+        const val NAV_ROUTE = "$BASE_ROUTE?$ANALYSIS_ID_ARG={$ANALYSIS_ID_ARG}"
+
+        fun createRoute(analysisId: String? = null): String {
+            return if (!analysisId.isNullOrBlank()) {
+                "$BASE_ROUTE?$ANALYSIS_ID_ARG=$analysisId"
+            } else {
+                BASE_ROUTE
+            }
+        }
     }
 
     data object ChatConfirm : AgroGemRoute {
@@ -88,15 +101,24 @@ sealed interface AgroGemRoute {
     companion object {
         val all = listOf(
             Home,
+            Camera,
             Analysis,
             AnalysisHistory,
+            Diagnosis,
+            TreatmentPlan,
+            TreatmentProducts,
+            ConversationSummary,
             Chat,
             ChatConfirm,
             History,
             VoiceReady,
         )
 
-        fun fromRoute(route: String?): AgroGemRoute =
-            all.firstOrNull { it.route == route } ?: Home
+        fun fromRoute(route: String?): AgroGemRoute {
+            if (route == null) return Home
+            // Strip query params to match route patterns like "chat?analysisId=123"
+            val base = route.substringBefore("?")
+            return all.firstOrNull { it.route.substringBefore("?") == base } ?: Home
+        }
     }
 }
