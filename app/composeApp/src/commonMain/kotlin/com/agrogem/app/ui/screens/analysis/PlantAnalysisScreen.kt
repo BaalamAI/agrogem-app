@@ -31,6 +31,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.composeapp.generated.resources.Res
+import app.composeapp.generated.resources.ic_action_sound
+import app.composeapp.generated.resources.ic_status_check
+import app.composeapp.generated.resources.ic_status_plant
+import app.composeapp.generated.resources.ic_status_shield
+import com.agrogem.app.ui.components.AgroGemIcon
+import com.agrogem.app.ui.components.AgroGemIconColors
 import com.agrogem.app.ui.screens.figma.FigmaColors
 import com.agrogem.app.ui.screens.figma.components.DragHandle
 import com.agrogem.app.ui.screens.figma.components.DraggableSlice
@@ -208,12 +215,30 @@ private fun ResultsContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = result.pestName,
-                color = Color.Black,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = result.pestName,
+                    color = Color.Black,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(FigmaColors.Primary, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    AgroGemIcon(
+                        icon = Res.drawable.ic_action_sound,
+                        contentDescription = "Sound",
+                        tint = AgroGemIconColors.OnPrimary,
+                        size = 15.dp,
+                    )
+                }
+            }
             Box(
                 modifier = Modifier
                     .background(FigmaColors.AlertSoft, RoundedCornerShape(999.dp))
@@ -233,7 +258,12 @@ private fun ResultsContent(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = "◉", color = FigmaColors.ConfidenceText, fontSize = 8.sp)
+                AgroGemIcon(
+                    icon = Res.drawable.ic_status_check,
+                    contentDescription = "Confidence",
+                    tint = FigmaColors.ConfidenceText,
+                    size = 12.dp,
+                )
                 Text(
                     text = "${(result.confidence * 100).toInt()}% de confianza",
                     color = FigmaColors.ConfidenceText,
@@ -254,7 +284,12 @@ private fun ResultsContent(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = "✧", color = FigmaColors.Primary, fontSize = 14.sp)
+                AgroGemIcon(
+                    icon = Res.drawable.ic_status_plant,
+                    contentDescription = "Diagnosis",
+                    tint = Color.Unspecified,
+                    size = 16.dp,
+                )
                 Text(text = "Diagnóstico", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
             Text(
@@ -271,7 +306,12 @@ private fun ResultsContent(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(text = "🛡", fontSize = 14.sp, color = FigmaColors.Primary)
+                AgroGemIcon(
+                    icon = Res.drawable.ic_status_shield,
+                    contentDescription = "Treatment plan",
+                    tint = Color.Unspecified,
+                    size = 15.dp,
+                )
                 Text(
                     text = "Plan de tratamiento",
                     color = Color.Black,

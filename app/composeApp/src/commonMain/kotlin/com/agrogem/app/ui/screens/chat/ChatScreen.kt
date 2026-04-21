@@ -29,7 +29,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.composeapp.generated.resources.Res
+import app.composeapp.generated.resources.ic_action_add
+import app.composeapp.generated.resources.ic_action_back
+import app.composeapp.generated.resources.ic_action_camera
+import app.composeapp.generated.resources.ic_action_gallery
+import app.composeapp.generated.resources.ic_action_magic
+import app.composeapp.generated.resources.ic_action_menu
+import app.composeapp.generated.resources.ic_action_mic
+import app.composeapp.generated.resources.ic_action_sound
+import app.composeapp.generated.resources.ic_status_check
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
+import com.agrogem.app.theme.AgroGemIconSizes
+import com.agrogem.app.ui.components.AgroGemIcon
+import com.agrogem.app.ui.components.AgroGemIconColors
 import com.agrogem.app.ui.screens.figma.FigmaColors
 import com.agrogem.app.ui.screens.figma.components.FilledPrimaryButton
 import com.agrogem.app.ui.screens.figma.components.Pill
@@ -64,8 +77,8 @@ fun ChatScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                RoundIconButton(label = "‹", onClick = onBack)
-                RoundIconButton(label = "≡", onClick = onRequestClose, foreground = Color(0xFF929292))
+                RoundIconButton(label = "‹", icon = Res.drawable.ic_action_back, contentDescription = "Back", onClick = onBack)
+                RoundIconButton(label = "≡", icon = Res.drawable.ic_action_menu, contentDescription = "Menu", onClick = onRequestClose, foreground = Color(0xFF929292))
                 Text(
                     text = "Guardado automáticamente 11:58",
                     color = Color(0xFFABABAB),
@@ -75,10 +88,15 @@ fun ChatScreen(
                 Box(
                     modifier = Modifier
                         .size(28.dp)
-                        .background(FigmaColors.SurfaceSoft, CircleShape),
+                        .background(FigmaColors.Primary, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = "◍", color = FigmaColors.Primary, fontSize = 12.sp)
+                    AgroGemIcon(
+                        icon = Res.drawable.ic_action_sound,
+                        contentDescription = "Sound",
+                        tint = AgroGemIconColors.OnPrimary,
+                        size = AgroGemIconSizes.Xs,
+                    )
                 }
             }
 
@@ -160,16 +178,25 @@ private fun SeededChatHeader(diagnosis: DiagnosisResult) {
             )
         }
 
-        Pill(
-            text = "${(diagnosis.confidence * 100).toInt()}% de confianza",
-            background = FigmaColors.ConfidenceBg,
-            foreground = FigmaColors.ConfidenceText,
-            icon = "◉",
-            iconColor = FigmaColors.ConfidenceText,
-            horizontal = 8.dp,
-            vertical = 4.dp,
-            textSize = 8.sp,
-        )
+        Row(
+            modifier = Modifier
+                .background(FigmaColors.ConfidenceBg, RoundedCornerShape(999.dp))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AgroGemIcon(
+                icon = Res.drawable.ic_status_check,
+                contentDescription = "Confidence",
+                tint = FigmaColors.ConfidenceText,
+                size = AgroGemIconSizes.Xs,
+            )
+            Text(
+                text = "${(diagnosis.confidence * 100).toInt()}% de confianza",
+                color = FigmaColors.ConfidenceText,
+                fontSize = 8.sp,
+            )
+        }
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             DiagnosisInfoBox(
@@ -228,7 +255,12 @@ private fun MessageBubble(message: ChatMessage) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.Top,
             ) {
-                Text(text = "✧", color = FigmaColors.Primary, fontSize = 24.sp)
+                AgroGemIcon(
+                    icon = Res.drawable.ic_action_magic,
+                    contentDescription = "AgroGem assistant",
+                    tint = FigmaColors.Primary,
+                    size = AgroGemIconSizes.Md,
+                )
                 Text(
                     text = message.text,
                     color = Color.Black,
@@ -321,7 +353,7 @@ private fun ChatInputArea(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RoundIconButton(label = "+", onClick = onAttachClick, background = Color(0xB9E5E5E5), foreground = Color.Black, size = 24.dp)
+            RoundIconButton(label = "+", icon = Res.drawable.ic_action_add, contentDescription = "Add attachment", onClick = onAttachClick, background = Color(0xB9E5E5E5), foreground = Color.Black, size = 24.dp)
 
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -330,7 +362,12 @@ private fun ChatInputArea(
                         .background(Color(0xFF438A30), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = "⋮", color = Color.White, fontSize = 10.sp)
+                    AgroGemIcon(
+                        icon = Res.drawable.ic_action_menu,
+                        contentDescription = "More options",
+                        tint = AgroGemIconColors.OnPrimary,
+                        size = AgroGemIconSizes.Sm,
+                    )
                 }
 
                 Row(
@@ -342,7 +379,12 @@ private fun ChatInputArea(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Text(text = "◉", color = Color.Black, fontSize = 10.sp)
+                    AgroGemIcon(
+                        icon = Res.drawable.ic_action_mic,
+                        contentDescription = "Mic",
+                        tint = AgroGemIconColors.OnSurface,
+                        size = AgroGemIconSizes.Xs,
+                    )
                     Text(text = "Hablar", color = Color.Black, fontSize = 10.sp)
                 }
 
@@ -383,7 +425,12 @@ private fun AttachmentMenu(
                     .background(FigmaColors.OverlayDark, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = "◉", color = Color.White, fontSize = 10.sp)
+                AgroGemIcon(
+                    icon = Res.drawable.ic_action_gallery,
+                    contentDescription = "Gallery",
+                    tint = AgroGemIconColors.OnPrimary,
+                    size = AgroGemIconSizes.Xs,
+                )
             }
             Text(text = "Fotos", color = Color.Black, fontSize = 12.sp)
         }
@@ -399,7 +446,12 @@ private fun AttachmentMenu(
                     .background(FigmaColors.OverlayDark, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = "◌", color = Color.White, fontSize = 10.sp)
+                AgroGemIcon(
+                    icon = Res.drawable.ic_action_camera,
+                    contentDescription = "Camera",
+                    tint = AgroGemIconColors.OnPrimary,
+                    size = AgroGemIconSizes.Tiny,
+                )
             }
             Text(text = "Cámara", color = Color.Black, fontSize = 12.sp)
         }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.composeapp.generated.resources.Res
+import app.composeapp.generated.resources.ic_action_search
+import com.agrogem.app.theme.AgroGemIconSizes
+import com.agrogem.app.ui.components.AgroGemIcon
 import com.agrogem.app.ui.screens.figma.FigmaColors
 import com.agrogem.app.ui.screens.figma.historyToday
 import com.agrogem.app.ui.screens.figma.historyYesterday
@@ -80,7 +85,12 @@ private fun SearchBar() {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = "⌕", color = Color(0xFFA5A5A5), fontSize = 16.sp)
+        AgroGemIcon(
+            icon = Res.drawable.ic_action_search,
+            contentDescription = "Search",
+            tint = Color(0xFFA5A5A5),
+            size = AgroGemIconSizes.Sm,
+        )
         Text(text = "Buscar", color = Color(0xFFB6B6B6), fontSize = 14.sp)
     }
 }

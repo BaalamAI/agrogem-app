@@ -13,6 +13,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.agrogem.app.ui.components.AgroGemIcon
+import org.jetbrains.compose.resources.DrawableResource
+
+/**
+ * Resolves the content description for an icon button.
+ * Returns [explicit] when provided, otherwise falls back to [label].
+ */
+fun resolveIconContentDescription(label: String, explicit: String?): String =
+    explicit ?: label
 
 @Composable
 internal fun RoundIconButton(
@@ -22,6 +31,8 @@ internal fun RoundIconButton(
     background: Color = Color.White.copy(alpha = 0.4f),
     foreground: Color = Color(0xFF747474),
     size: Dp = 32.dp,
+    icon: DrawableResource? = null,
+    contentDescription: String? = null,
 ) {
     Box(
         modifier = modifier
@@ -30,6 +41,15 @@ internal fun RoundIconButton(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = label, color = foreground, fontSize = (size.value * 0.42f).sp)
+        if (icon != null) {
+            AgroGemIcon(
+                icon = icon,
+                contentDescription = resolveIconContentDescription(label, contentDescription),
+                tint = foreground,
+                size = size * 0.5f,
+            )
+        } else {
+            Text(text = label, color = foreground, fontSize = (size.value * 0.42f).sp)
+        }
     }
 }
