@@ -1,4 +1,4 @@
-package com.agrogem.app.ui.screens.figma.components
+package com.agrogem.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.agrogem.app.theme.AgroGemColors
 
 @Composable
 internal fun PlantBackdrop(
@@ -24,9 +25,7 @@ internal fun PlantBackdrop(
     Box(
         modifier = modifier
             .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xFF3D6278), Color(0xFF8AB0C3), Color(0xFF7E8F6A), Color(0xFF22301E)),
-                ),
+                Brush.verticalGradient(AgroGemColors.BackdropGradient),
             )
             .alpha(alpha),
     ) {
@@ -37,7 +36,7 @@ internal fun PlantBackdrop(
                 .align(Alignment.BottomCenter)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color(0xCC172013)),
+                        listOf(Color.Transparent, AgroGemColors.BackdropOverlay),
                     ),
                 ),
         )
@@ -75,7 +74,7 @@ internal fun PlantBackdrop(
                 .align(Alignment.BottomCenter)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color(0xCC172013)),
+                        listOf(Color.Transparent, AgroGemColors.BackdropOverlay),
                     ),
                 ),
         )

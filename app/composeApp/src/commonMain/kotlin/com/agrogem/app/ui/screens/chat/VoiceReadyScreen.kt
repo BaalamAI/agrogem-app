@@ -23,8 +23,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.agrogem.app.ui.screens.figma.FigmaColors
-import com.agrogem.app.ui.screens.figma.components.RoundIconButton
+import com.agrogem.app.theme.AgroGemColors
+import com.agrogem.app.ui.components.RoundIconButton
 
 @Composable
 fun VoiceReadyScreen(
@@ -36,7 +36,7 @@ fun VoiceReadyScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(FigmaColors.Screen),
+            .background(AgroGemColors.Screen),
     ) {
         VoiceReadyOrb(
             modifier = Modifier
@@ -57,12 +57,12 @@ fun VoiceReadyScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             RoundIconButton(label = "‹", onClick = onDismiss)
-            RoundIconButton(label = "≡", onClick = {}, foreground = Color(0xFF747474))
+            RoundIconButton(label = "≡", onClick = {}, foreground = AgroGemColors.IconDefaultTint)
         }
 
         Text(
             text = "AgroGemma",
-            color = FigmaColors.Text,
+            color = AgroGemColors.TextPrimary,
             fontSize = 18.sp,
             fontWeight = FontWeight.Normal,
             modifier = Modifier
@@ -88,17 +88,17 @@ fun VoiceReadyScreen(
             Box(
                 modifier = Modifier
                     .size(32.dp)
-                    .background(Color(0xFFE5E5E5), CircleShape)
+                    .background(AgroGemColors.VoiceDismissBg, CircleShape)
                     .clickable(onClick = onDismiss),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = "⋯", color = Color(0xFF787878), fontSize = 12.sp)
+                Text(text = "⋯", color = AgroGemColors.VoiceDismissText, fontSize = 12.sp)
             }
 
             Box(
                 modifier = Modifier
                     .size(32.dp)
-                    .background(Color(0xBB202020), CircleShape)
+                    .background(AgroGemColors.VoiceSendBg, CircleShape)
                     .clickable(onClick = onStopRecording),
                 contentAlignment = Alignment.Center,
             ) {
@@ -123,7 +123,7 @@ private fun VoiceReadyHint(
             is VoiceState.Listening -> {
                 Text(
                     text = "Ya puedes hablar",
-                    color = Color.Black,
+                    color = AgroGemColors.TextPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Normal,
                 )
@@ -131,7 +131,7 @@ private fun VoiceReadyHint(
             VoiceState.Processing -> {
                 Text(
                     text = "Procesando...",
-                    color = FigmaColors.Primary,
+                    color = AgroGemColors.Primary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Normal,
                 )
@@ -139,7 +139,7 @@ private fun VoiceReadyHint(
             is VoiceState.Error -> {
                 Text(
                     text = voiceState.message,
-                    color = FigmaColors.Alert,
+                    color = AgroGemColors.Alert,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Normal,
                 )
@@ -147,7 +147,7 @@ private fun VoiceReadyHint(
             VoiceState.Idle -> {
                 Text(
                     text = "Listo",
-                    color = Color.Black,
+                    color = AgroGemColors.TextPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Normal,
                 )
@@ -161,7 +161,7 @@ private fun SoundWaveIcon() {
     Box(
         modifier = Modifier
             .size(24.dp)
-            .background(Color(0xFF438A30), CircleShape),
+            .background(AgroGemColors.VoiceWaveBg, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Row(
@@ -198,8 +198,8 @@ private fun VoiceReadyOrb(modifier: Modifier = Modifier) {
             .background(
                 Brush.radialGradient(
                     colors = listOf(
-                        Color(0x29438A30),
-                        Color(0x0D438A30),
+                        AgroGemColors.VoiceOrbInner,
+                        AgroGemColors.VoiceOrbOuter,
                         Color.Transparent,
                     ),
                 ),

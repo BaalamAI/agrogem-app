@@ -1,4 +1,4 @@
-package com.agrogem.app.ui.screens.figma.components
+package com.agrogem.app.ui.components
 
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable

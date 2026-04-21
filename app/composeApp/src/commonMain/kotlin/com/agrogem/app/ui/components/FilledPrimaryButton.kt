@@ -1,4 +1,4 @@
-package com.agrogem.app.ui.screens.figma.components
+package com.agrogem.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.agrogem.app.theme.AgroGemColors
 
 @Composable
 internal fun FilledPrimaryButton(
@@ -25,7 +26,7 @@ internal fun FilledPrimaryButton(
         modifier = modifier
             .fillMaxWidth()
             .height(36.dp)
-            .background(Color(0xFF008026), RoundedCornerShape(10.dp))
+            .background(AgroGemColors.PrimaryButton, RoundedCornerShape(10.dp))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {

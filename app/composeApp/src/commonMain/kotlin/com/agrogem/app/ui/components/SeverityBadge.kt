@@ -11,10 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-private val SeverityOptimo = Color(0xFF0D631B)
-private val SeverityAtencion = Color(0xFFFE5E2F)
-private val SeverityCritica = Color(0xFFB12D00)
+import com.agrogem.app.theme.AgroGemColors
 
 @Composable
 fun SeverityBadge(
@@ -23,10 +20,10 @@ fun SeverityBadge(
     labelOverride: String? = null,
     compact: Boolean = false,
 ) {
-    val color = when (severity) {
-        Severity.Optimo -> SeverityOptimo
-        Severity.Atencion -> SeverityAtencion
-        Severity.Critica -> SeverityCritica
+    val (bgColor, textColor) = when (severity) {
+        Severity.Optimo -> AgroGemColors.SeverityOptimoBg to AgroGemColors.SeverityOptimoText
+        Severity.Atencion -> AgroGemColors.SeverityAtencionBg to AgroGemColors.SeverityAtencionText
+        Severity.Critica -> AgroGemColors.DangerSoft to AgroGemColors.Danger
     }
     val label = labelOverride ?: severity.label
     val textStyle = if (compact) {
@@ -45,11 +42,11 @@ fun SeverityBadge(
     Text(
         text = label,
         style = textStyle,
-        color = color,
+        color = textColor,
         fontWeight = FontWeight.SemiBold,
         modifier = modifier
             .background(
-                color = color.copy(alpha = 0.1f),
+                color = bgColor,
                 shape = RoundedCornerShape(999.dp),
             )
             .padding(horizontal = 12.dp, vertical = 4.dp),
@@ -60,5 +57,5 @@ private val Severity.label: String
     get() = when (this) {
         Severity.Optimo -> "ÓPTIMO"
         Severity.Atencion -> "ATENCIÓN"
-        Severity.Critica -> "CRÍTICA"
+        Severity.Critica -> "CRÍTICO"
     }

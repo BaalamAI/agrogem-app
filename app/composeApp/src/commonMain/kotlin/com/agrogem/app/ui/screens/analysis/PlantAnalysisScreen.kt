@@ -36,15 +36,16 @@ import app.composeapp.generated.resources.ic_action_sound
 import app.composeapp.generated.resources.ic_status_check
 import app.composeapp.generated.resources.ic_status_plant
 import app.composeapp.generated.resources.ic_status_shield
+import com.agrogem.app.theme.AgroGemColors
+import com.agrogem.app.theme.AgroGemIconSizes
 import com.agrogem.app.ui.components.AgroGemIcon
-import com.agrogem.app.ui.components.AgroGemIconColors
-import com.agrogem.app.ui.screens.figma.FigmaColors
-import com.agrogem.app.ui.screens.figma.components.DragHandle
-import com.agrogem.app.ui.screens.figma.components.DraggableSlice
-import com.agrogem.app.ui.screens.figma.components.FilledPrimaryButton
-import com.agrogem.app.ui.screens.figma.components.OutlinedPrimaryButton
-import com.agrogem.app.ui.screens.figma.components.PlantBackdrop
-import com.agrogem.app.ui.screens.figma.components.PrimaryActionHint
+import com.agrogem.app.ui.components.DiagnosisInfoBox
+import com.agrogem.app.ui.components.DragHandle
+import com.agrogem.app.ui.components.DraggableSlice
+import com.agrogem.app.ui.components.FilledPrimaryButton
+import com.agrogem.app.ui.components.OutlinedPrimaryButton
+import com.agrogem.app.ui.components.PlantBackdrop
+import com.agrogem.app.ui.components.PrimaryActionHint
 
 /**
  * Unified plant analysis screen.
@@ -71,7 +72,7 @@ fun PlantAnalysisScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF172013)),
+            .background(AgroGemColors.AnalysisBackdrop),
     ) {
         // Full-screen backdrop: real captured image or dark gradient fallback
         PlantBackdrop(
@@ -98,7 +99,7 @@ fun PlantAnalysisScreen(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .background(
-                    FigmaColors.Surface,
+                    AgroGemColors.Surface,
                     RoundedCornerShape(topStart = 40.dp, topEnd = 40.dp),
                 )
                 .padding(horizontal = 24.dp, vertical = 20.dp),
@@ -140,15 +141,15 @@ private fun AnalyzingContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(FigmaColors.SurfaceMuted, RoundedCornerShape(48.dp))
+                .background(AgroGemColors.SurfaceMuted, RoundedCornerShape(48.dp))
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             steps.forEachIndexed { index, step ->
                 val alphas = listOf(1f, 0.65f, 0.42f, 0.32f)
                 val alpha = if (step.done) 1f else alphas.getOrElse(index) { 0.32f }
-                val iconBg = if (step.done) Color(0xFF2E7D32) else Color(0xFFDDE2DF)
-                val titleColor = if (step.done) FigmaColors.Primary else Color(0xFF181D1A)
+                val iconBg = if (step.done) AgroGemColors.AnalysisStepDone else AgroGemColors.AnalysisStepPending
+                val titleColor = if (step.done) AgroGemColors.Primary else AgroGemColors.TextPrimary
 
                 AnalysisStepRow(
                     iconBackground = iconBg,
@@ -169,7 +170,7 @@ private fun AnalysisStepRow(
     iconBackground: Color,
     title: String,
     subtitle: String,
-    titleColor: Color = Color(0xFF181D1A),
+    titleColor: Color = AgroGemColors.TextPrimary,
     alpha: Float,
 ) {
     Row(
@@ -184,7 +185,7 @@ private fun AnalysisStepRow(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = if (iconBackground == Color(0xFF2E7D32)) "✓" else "◌",
+                text = if (iconBackground == AgroGemColors.AnalysisStepDone) "✓" else "◌",
                 color = Color.White,
                 fontSize = 13.sp,
             )
@@ -192,7 +193,7 @@ private fun AnalysisStepRow(
 
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(text = title, color = titleColor, fontSize = 14.sp)
-            Text(text = subtitle, color = FigmaColors.TextSecondary, fontSize = 12.sp)
+            Text(text = subtitle, color = AgroGemColors.TextSecondary, fontSize = 12.sp)
         }
     }
 }
@@ -221,37 +222,37 @@ private fun ResultsContent(
             ) {
                 Text(
                     text = result.pestName,
-                    color = Color.Black,
+                    color = AgroGemColors.TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                 )
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .background(FigmaColors.Primary, CircleShape),
+                        .background(AgroGemColors.Primary, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     AgroGemIcon(
                         icon = Res.drawable.ic_action_sound,
                         contentDescription = "Sound",
-                        tint = AgroGemIconColors.OnPrimary,
+                        tint = AgroGemColors.IconOnPrimary,
                         size = 15.dp,
                     )
                 }
             }
             Box(
                 modifier = Modifier
-                    .background(FigmaColors.AlertSoft, RoundedCornerShape(999.dp))
+                    .background(AgroGemColors.AlertSoft, RoundedCornerShape(999.dp))
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
-                Text(text = result.severity, color = FigmaColors.Alert, fontSize = 8.sp)
+                Text(text = result.severity, color = AgroGemColors.Alert, fontSize = 8.sp)
             }
         }
 
         // Confidence pill
         Box(
             modifier = Modifier
-                .background(FigmaColors.ConfidenceBg, RoundedCornerShape(999.dp))
+                .background(AgroGemColors.ConfidenceBg, RoundedCornerShape(999.dp))
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         ) {
             Row(
@@ -261,12 +262,12 @@ private fun ResultsContent(
                 AgroGemIcon(
                     icon = Res.drawable.ic_status_check,
                     contentDescription = "Confidence",
-                    tint = FigmaColors.ConfidenceText,
-                    size = 12.dp,
+                    tint = AgroGemColors.ConfidenceText,
+                    size = AgroGemIconSizes.Xs,
                 )
                 Text(
                     text = "${(result.confidence * 100).toInt()}% de confianza",
-                    color = FigmaColors.ConfidenceText,
+                    color = AgroGemColors.ConfidenceText,
                     fontSize = 8.sp,
                 )
             }
@@ -288,13 +289,13 @@ private fun ResultsContent(
                     icon = Res.drawable.ic_status_plant,
                     contentDescription = "Diagnosis",
                     tint = Color.Unspecified,
-                    size = 16.dp,
+                    size = AgroGemIconSizes.Sm,
                 )
-                Text(text = "Diagnóstico", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(text = "Diagnóstico", color = AgroGemColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
             Text(
                 text = result.diagnosisText,
-                color = FigmaColors.TextSecondary,
+                color = AgroGemColors.TextSecondary,
                 fontSize = 16.sp,
                 lineHeight = 26.sp,
             )
@@ -314,7 +315,7 @@ private fun ResultsContent(
                 )
                 Text(
                     text = "Plan de tratamiento",
-                    color = Color.Black,
+                    color = AgroGemColors.TextPrimary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -323,7 +324,7 @@ private fun ResultsContent(
             result.treatmentSteps.forEachIndexed { index, step ->
                 TreatmentStepRow(number = "${index + 1}", text = step)
                 if (index < result.treatmentSteps.lastIndex) {
-                    Box(modifier = Modifier.fillMaxWidth().height(2.dp).background(Color(0xFFF3F3F3)))
+                    Box(modifier = Modifier.fillMaxWidth().height(2.dp).background(AgroGemColors.DividerThin))
                 }
             }
         }
@@ -349,31 +350,16 @@ private fun ResultsContent(
 }
 
 @Composable
-private fun DiagnosisInfoBox(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .height(51.dp)
-            .background(FigmaColors.Surface, RoundedCornerShape(10.dp))
-            .border(1.dp, Color(0xFFEDEDED), RoundedCornerShape(10.dp))
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(text = label, color = Color(0xFF747474), fontSize = 8.sp)
-        Text(text = value, color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-    }
-}
-
-@Composable
 private fun TreatmentStepRow(number: String, text: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
         Box(
             modifier = Modifier
                 .size(24.dp)
-                .background(FigmaColors.Primary, CircleShape),
+                .background(AgroGemColors.Primary, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Text(text = number, color = Color.White, fontSize = 12.sp)
         }
-        Text(text = text, color = FigmaColors.TextSecondary, fontSize = 16.sp, lineHeight = 26.sp)
+        Text(text = text, color = AgroGemColors.TextSecondary, fontSize = 16.sp, lineHeight = 26.sp)
     }
 }

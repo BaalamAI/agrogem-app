@@ -1,4 +1,4 @@
-package com.agrogem.app.ui.screens.figma.components
+package com.agrogem.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.agrogem.app.ui.components.AgroGemIcon
+import com.agrogem.app.theme.AgroGemColors
 import org.jetbrains.compose.resources.DrawableResource
 
 /**
@@ -29,7 +29,7 @@ internal fun RoundIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     background: Color = Color.White.copy(alpha = 0.4f),
-    foreground: Color = Color(0xFF747474),
+    foreground: Color = AgroGemColors.IconDefaultTint,
     size: Dp = 32.dp,
     icon: DrawableResource? = null,
     contentDescription: String? = null,

@@ -27,13 +27,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.composeapp.generated.resources.Res
 import app.composeapp.generated.resources.ic_action_search
+import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.theme.AgroGemIconSizes
 import com.agrogem.app.ui.components.AgroGemIcon
-import com.agrogem.app.ui.screens.figma.FigmaColors
-import com.agrogem.app.ui.screens.figma.historyToday
-import com.agrogem.app.ui.screens.figma.historyYesterday
-import com.agrogem.app.ui.screens.figma.components.LeafThumb
-import com.agrogem.app.ui.screens.figma.components.StatusBadge
+import com.agrogem.app.ui.components.LeafThumb
+import com.agrogem.app.ui.components.SeverityBadge
+import com.agrogem.app.ui.preview.HistoryEntry
+import com.agrogem.app.ui.preview.historyToday
+import com.agrogem.app.ui.preview.historyYesterday
 
 @Composable
 fun HistoryScreen(
@@ -43,14 +44,14 @@ fun HistoryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(FigmaColors.Screen)
+            .background(AgroGemColors.Screen)
             .padding(horizontal = 22.dp)
             .padding(top = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
             text = "Historial de análisis",
-            color = Color.Black,
+            color = AgroGemColors.TextPrimary,
             fontSize = 24.sp,
             fontWeight = FontWeight.Medium,
         )
@@ -79,8 +80,8 @@ private fun SearchBar() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(FigmaColors.Surface, RoundedCornerShape(10.dp))
-            .border(1.dp, Color(0xFFF0F0F0), RoundedCornerShape(10.dp))
+            .background(AgroGemColors.Surface, RoundedCornerShape(10.dp))
+            .border(1.dp, AgroGemColors.BorderDivider, RoundedCornerShape(10.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -88,10 +89,10 @@ private fun SearchBar() {
         AgroGemIcon(
             icon = Res.drawable.ic_action_search,
             contentDescription = "Search",
-            tint = Color(0xFFA5A5A5),
+            tint = AgroGemColors.TextSearchIcon,
             size = AgroGemIconSizes.Sm,
         )
-        Text(text = "Buscar", color = Color(0xFFB6B6B6), fontSize = 14.sp)
+        Text(text = "Buscar", color = AgroGemColors.TextPlaceholder, fontSize = 14.sp)
     }
 }
 
@@ -102,26 +103,26 @@ private fun DateHeader(label: String) {
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(modifier = Modifier.weight(1f).height(1.dp).background(Color(0xFFDDE2DF)))
+        Box(modifier = Modifier.weight(1f).height(1.dp).background(AgroGemColors.DividerLine))
         Text(
             text = label,
-            color = Color(0xFF707A6C),
+            color = AgroGemColors.TextDateHeader,
             fontSize = 11.sp,
             letterSpacing = 1.1.sp,
         )
-        Box(modifier = Modifier.weight(1f).height(1.dp).background(Color(0xFFDDE2DF)))
+        Box(modifier = Modifier.weight(1f).height(1.dp).background(AgroGemColors.DividerLine))
     }
 }
 
 @Composable
 private fun HistoryCard(
-    entry: com.agrogem.app.ui.screens.figma.HistoryEntry,
+    entry: HistoryEntry,
     onOpenEntry: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(FigmaColors.Surface, RoundedCornerShape(48.dp))
+            .background(AgroGemColors.Surface, RoundedCornerShape(48.dp))
             .padding(16.dp)
             .clickable(onClick = onOpenEntry),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -132,10 +133,10 @@ private fun HistoryCard(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(text = entry.crop, color = FigmaColors.Text, fontSize = 18.sp, fontWeight = FontWeight.Medium)
-            Text(text = entry.meta, color = FigmaColors.TextHint, fontSize = 14.sp)
-            StatusBadge(entry.tone, labelOverride = entry.status)
+            Text(text = entry.crop, color = AgroGemColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+            Text(text = entry.meta, color = AgroGemColors.TextHint, fontSize = 14.sp)
+            SeverityBadge(severity = entry.severity, labelOverride = entry.status)
         }
-        Text(text = "›", color = Color(0xFFB7C2B5), fontSize = 22.sp)
+        Text(text = "›", color = AgroGemColors.TextNavChevron, fontSize = 22.sp)
     }
 }

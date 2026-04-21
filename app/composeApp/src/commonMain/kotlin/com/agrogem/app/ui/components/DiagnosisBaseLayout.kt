@@ -1,4 +1,4 @@
-package com.agrogem.app.ui.screens.figma.components
+package com.agrogem.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,9 +25,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.agrogem.app.ui.screens.figma.FigmaColors
-import com.agrogem.app.ui.screens.figma.ProductItem
-import com.agrogem.app.ui.screens.figma.products
+import com.agrogem.app.theme.AgroGemColors
+import com.agrogem.app.ui.preview.ProductItem
+import com.agrogem.app.ui.preview.products
 
 @Composable
 internal fun DiagnosisBaseLayout(
@@ -49,7 +49,7 @@ internal fun DiagnosisBaseLayout(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(FigmaColors.Screen),
+            .background(AgroGemColors.Screen),
     ) {
         PlantBackdrop(
             modifier = Modifier
@@ -78,7 +78,7 @@ internal fun DiagnosisBaseLayout(
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
                 .padding(top = topInset)
-                .background(FigmaColors.Surface, RoundedCornerShape(topStart = 40.dp, topEnd = 40.dp))
+                .background(AgroGemColors.Surface, RoundedCornerShape(topStart = 40.dp, topEnd = 40.dp))
                 .padding(horizontal = 24.dp, vertical = 14.dp),
             collapsedOffset = sliceCollapsedOffset,
             verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Top),
@@ -88,10 +88,10 @@ internal fun DiagnosisBaseLayout(
                 Box(
                     modifier = Modifier
                         .size(28.dp)
-                        .background(FigmaColors.SurfaceSoft, CircleShape),
+                        .background(AgroGemColors.SurfaceSoft, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(text = "◍", color = FigmaColors.Primary, fontSize = 12.sp)
+                    Text(text = "◍", color = AgroGemColors.Primary, fontSize = 12.sp)
                 }
             }
             DiagnosisHeader()
@@ -140,8 +140,8 @@ private fun DiagnosisHeader() {
             Text(text = "Plaga detectada", color = Color.Black, fontSize = 28.sp / 1.55f, fontWeight = FontWeight.Medium)
             Pill(
                 text = "Problema iniciando",
-                background = FigmaColors.AlertSoft,
-                foreground = FigmaColors.Alert,
+                background = AgroGemColors.AlertSoft,
+                foreground = AgroGemColors.Alert,
                 horizontal = 8.dp,
                 vertical = 4.dp,
                 textSize = 8.sp,
@@ -154,10 +154,10 @@ private fun DiagnosisHeader() {
         ) {
             Pill(
                 text = "95% de confianza",
-                background = FigmaColors.ConfidenceBg,
-                foreground = FigmaColors.ConfidenceText,
+                background = AgroGemColors.ConfidenceBg,
+                foreground = AgroGemColors.ConfidenceText,
                 icon = "◉",
-                iconColor = FigmaColors.ConfidenceText,
+                iconColor = AgroGemColors.ConfidenceText,
                 horizontal = 8.dp,
                 vertical = 4.dp,
                 textSize = 8.sp,
@@ -172,45 +172,15 @@ private fun DiagnosisHeader() {
 }
 
 @Composable
-private fun DiagnosisInfoBox(
-    label: String,
-    value: String,
-    italicTail: Boolean = false,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .height(51.dp)
-            .background(FigmaColors.Surface, RoundedCornerShape(10.dp))
-            .border(1.dp, Color(0xFFEDEDED), RoundedCornerShape(10.dp))
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Text(text = label, color = Color(0xFF747474), fontSize = 8.sp)
-        if (italicTail) {
-            Text(
-                text = value,
-                color = Color.Black,
-                fontSize = 12.sp,
-                lineHeight = 15.sp,
-                fontWeight = FontWeight.Medium,
-            )
-        } else {
-            Text(text = value, color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-        }
-    }
-}
-
-@Composable
 private fun DiagnosisBodyText() {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(text = "✧", color = FigmaColors.Primary, fontSize = 14.sp)
+            Text(text = "✧", color = AgroGemColors.Primary, fontSize = 14.sp)
             Text(text = "Diagnóstico", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
         Text(
             text = "Se ha detectado una infección avanzada por Hemileia vastatrix. El 45% del follaje muestra pústulas activas. Se requiere intervención inmediata para evitar la pérdida total de la cosecha.",
-            color = FigmaColors.TextSecondary,
+            color = AgroGemColors.TextSecondary,
             fontSize = 16.sp,
             lineHeight = 26.sp,
         )
@@ -226,18 +196,18 @@ private fun TreatmentSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(text = "🛡", fontSize = 14.sp, color = FigmaColors.Primary)
+            Text(text = "🛡", fontSize = 14.sp, color = AgroGemColors.Primary)
             Text(text = "Plan de tratamiento", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
 
         TreatmentStep(number = "1")
-        Box(modifier = Modifier.fillMaxWidth().height(2.dp).background(Color(0xFFF3F3F3)))
+        Box(modifier = Modifier.fillMaxWidth().height(2.dp).background(AgroGemColors.DividerThin))
         TreatmentStep(number = "2")
 
         if (showLinkToProducts) {
             Text(
                 text = "Ver insumos sugeridos",
-                color = FigmaColors.Primary,
+                color = AgroGemColors.Primary,
                 fontSize = 13.sp,
                 modifier = Modifier.clickable { onOpenProducts?.invoke() },
             )
@@ -246,7 +216,7 @@ private fun TreatmentSection(
         if (showProducts) {
             Spacer(modifier = Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "◍", fontSize = 15.sp, color = FigmaColors.Primary)
+                Text(text = "◍", fontSize = 15.sp, color = AgroGemColors.Primary)
                 Text(text = "Insumos sugeridos", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
 
@@ -273,14 +243,14 @@ private fun TreatmentStep(number: String) {
         Box(
             modifier = Modifier
                 .size(24.dp)
-                .background(FigmaColors.Primary, CircleShape),
+                .background(AgroGemColors.Primary, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Text(text = number, color = Color.White, fontSize = 12.sp)
         }
         Text(
             text = "Se ha detectado una infección avanzada por Hemileia vastatrix. El 45% del follaje muestra pústulas activas. Se requiere intervención inmediata para evitar la pérdida total de la cosecha.",
-            color = FigmaColors.TextSecondary,
+            color = AgroGemColors.TextSecondary,
             fontSize = 16.sp,
             lineHeight = 26.sp,
         )
@@ -295,7 +265,7 @@ private fun ProductCard(
 ) {
     Column(
         modifier = modifier
-            .background(FigmaColors.SurfaceSoft, RoundedCornerShape(32.dp))
+            .background(AgroGemColors.SurfaceSoft, RoundedCornerShape(32.dp))
             .padding(12.dp)
             .clickable(onClick = onClick),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -305,29 +275,27 @@ private fun ProductCard(
                 .fillMaxWidth()
                 .height(90.dp)
                 .background(
-                    Brush.radialGradient(
-                        listOf(Color(0xFF6D5030), Color(0xFF121212)),
-                    ),
+                    Brush.radialGradient(AgroGemColors.ProductCardGradient),
                     RoundedCornerShape(20.dp),
                 ),
         )
 
-        Text(text = "ORGÁNICO", color = FigmaColors.Primary, fontSize = 11.sp, letterSpacing = 1.1.sp)
-        Text(text = product.name, color = FigmaColors.Text, fontSize = 14.sp)
+        Text(text = "ORGÁNICO", color = AgroGemColors.Primary, fontSize = 11.sp, letterSpacing = 1.1.sp)
+        Text(text = product.name, color = AgroGemColors.TextPrimary, fontSize = 14.sp)
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = product.price, color = FigmaColors.TextSecondary, fontSize = 14.sp)
+            Text(text = product.price, color = AgroGemColors.TextSecondary, fontSize = 14.sp)
             Box(
                 modifier = Modifier
                     .size(28.dp)
-                    .background(FigmaColors.PrimarySoft, CircleShape),
+                    .background(AgroGemColors.PrimarySoft, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = "+", color = FigmaColors.Primary, fontWeight = FontWeight.Bold)
+                Text(text = "+", color = AgroGemColors.Primary, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -339,6 +307,6 @@ internal fun DashedTarget(modifier: Modifier = Modifier) {
         modifier = modifier
             .size(width = 210.dp, height = 217.dp)
             .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-            .border(2.dp, Color(0xFFFF8600), RoundedCornerShape(12.dp)),
+            .border(2.dp, AgroGemColors.ProductAlertBorder, RoundedCornerShape(12.dp)),
     )
 }

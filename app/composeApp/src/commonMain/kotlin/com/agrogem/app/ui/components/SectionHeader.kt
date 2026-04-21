@@ -9,12 +9,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-
-private val SectionHeaderTextColor = Color(0xFF181D1A)
-private val SectionHeaderActionColor = Color(0xFF0D631B)
+import com.agrogem.app.theme.AgroGemColors
 
 @Composable
 fun SectionHeader(
@@ -35,7 +32,7 @@ fun SectionHeader(
                 lineHeight = 28.sp,
                 letterSpacing = (-0.5).sp,
             ),
-            color = SectionHeaderTextColor,
+            color = AgroGemColors.SectionHeader,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
@@ -44,7 +41,7 @@ fun SectionHeader(
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
             ),
-            color = SectionHeaderActionColor,
+            color = AgroGemColors.SectionHeaderAction,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.clickable(onClick = onActionClick),
         )

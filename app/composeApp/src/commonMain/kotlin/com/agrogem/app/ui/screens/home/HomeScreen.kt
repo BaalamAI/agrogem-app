@@ -30,14 +30,15 @@ import app.composeapp.generated.resources.ic_metric_location
 import app.composeapp.generated.resources.ic_metric_uv
 import app.composeapp.generated.resources.ic_metric_water
 import app.composeapp.generated.resources.ic_weather_sunny
+import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.theme.AgroGemIconSizes
 import com.agrogem.app.ui.components.AgroGemIcon
-import com.agrogem.app.ui.screens.figma.FigmaColors
-import com.agrogem.app.ui.screens.figma.dashboardRecentItems
-import com.agrogem.app.ui.screens.figma.components.LeafThumb
-import com.agrogem.app.ui.screens.figma.components.Pill
-import com.agrogem.app.ui.screens.figma.components.RoundIconButton
-import com.agrogem.app.ui.screens.figma.components.StatusBadge
+import com.agrogem.app.ui.components.RoundIconButton
+import com.agrogem.app.ui.components.SeverityBadge
+import com.agrogem.app.ui.components.LeafThumb
+import com.agrogem.app.ui.components.Pill
+import com.agrogem.app.ui.preview.RecentAnalysisItem
+import com.agrogem.app.ui.preview.dashboardRecentItems
 import org.jetbrains.compose.resources.DrawableResource
 
 @Composable
@@ -49,7 +50,7 @@ fun HomeScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(FigmaColors.Screen)
+            .background(AgroGemColors.Screen)
             .padding(horizontal = 24.dp)
             .padding(top = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -64,8 +65,8 @@ fun HomeScreen(
                 label = "🔔",
                 icon = Res.drawable.ic_action_notifications,
                 contentDescription = "Notifications",
-                background = FigmaColors.Surface,
-                foreground = Color(0xFF3D7D20),
+                background = AgroGemColors.Surface,
+                foreground = AgroGemColors.IconBellTint,
                 size = 42.dp,
                 onClick = {},
             )
@@ -77,7 +78,7 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(FigmaColors.Surface, RoundedCornerShape(30.dp))
+                .background(AgroGemColors.Surface, RoundedCornerShape(30.dp))
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -88,13 +89,13 @@ fun HomeScreen(
             ) {
                 Text(
                     text = "Análisis Recientes",
-                    color = Color.Black,
+                    color = AgroGemColors.TextPrimary,
                     fontSize = 32.sp / 1.75f,
                     lineHeight = 28.sp,
                 )
                 Text(
                     text = "Ver todo",
-                    color = Color.Black,
+                    color = AgroGemColors.TextPrimary,
                     fontSize = 14.sp,
                     modifier = Modifier.clickable(onClick = onOpenHistory),
                 )
@@ -116,7 +117,7 @@ private fun LocationChip(
 ) {
     Row(
         modifier = modifier
-            .background(FigmaColors.Surface, RoundedCornerShape(999.dp))
+            .background(AgroGemColors.Surface, RoundedCornerShape(999.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -124,7 +125,7 @@ private fun LocationChip(
         AgroGemIcon(
             icon = Res.drawable.ic_metric_location,
             contentDescription = "Location",
-            tint = Color(0xFF5B5B5B),
+            tint = AgroGemColors.TextLocation,
             size = null,
             modifier = Modifier
                 .width(8.dp)
@@ -132,7 +133,7 @@ private fun LocationChip(
         )
         Text(
             text = text,
-            color = Color(0xFF383838),
+            color = AgroGemColors.TextDark,
             fontSize = 12.sp,
         )
     }
@@ -143,7 +144,7 @@ private fun WeatherCard() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(FigmaColors.Surface, RoundedCornerShape(20.dp))
+            .background(AgroGemColors.Surface, RoundedCornerShape(20.dp))
             .padding(horizontal = 18.dp, vertical = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -156,7 +157,7 @@ private fun WeatherCard() {
                 AgroGemIcon(
                     icon = Res.drawable.ic_metric_location,
                     contentDescription = "Weather location",
-                    tint = Color(0xFF5A5A5A),
+                    tint = AgroGemColors.TextLocationSmall,
                     size = null,
                     modifier = Modifier
                         .width(7.dp)
@@ -164,21 +165,21 @@ private fun WeatherCard() {
                 )
                 Text(
                     text = "GUATEMALA, ZACAPA",
-                    color = Color(0xFF4E4E4E),
+                    color = AgroGemColors.TextMedium,
                     fontSize = 10.sp,
                     letterSpacing = 1.sp,
                 )
             }
             Text(
                 text = "24°C",
-                color = Color(0xFF242424),
+                color = AgroGemColors.TextBody,
                 fontSize = 52.sp / 1.75f,
                 lineHeight = 32.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
                 text = "Día despejado",
-                color = Color(0xFF4E4E4E),
+                color = AgroGemColors.TextMedium,
                 fontSize = 16.sp,
             )
         }
@@ -189,24 +190,24 @@ private fun WeatherCard() {
         ) {
             Pill(
                 text = "Today",
-                background = FigmaColors.Surface,
-                foreground = Color(0xFF8A8A8A),
+                background = AgroGemColors.Surface,
+                foreground = AgroGemColors.TextGraySecondary,
                 icon = "⌄",
-                iconColor = Color(0xFF8A8A8A),
+                iconColor = AgroGemColors.TextGraySecondary,
                 horizontal = 8.dp,
                 vertical = 4.dp,
                 textSize = 9.sp,
-                modifier = Modifier.border(1.dp, Color(0xFFB8B8B8), RoundedCornerShape(999.dp)),
+                modifier = Modifier.border(1.dp, AgroGemColors.PillTrackBorder, RoundedCornerShape(999.dp)),
             )
             AgroGemIcon(
                 icon = Res.drawable.ic_weather_sunny,
                 contentDescription = "Sunny weather",
-                tint = Color(0xFF4D4D4D),
+                tint = AgroGemColors.TextIconGray,
                 size = AgroGemIconSizes.Lg,
             )
             Text(
                 text = "Monday, 12 Oct",
-                color = Color(0xFF616161),
+                color = AgroGemColors.TextLabel,
                 fontSize = 14.sp,
             )
         }
@@ -218,7 +219,7 @@ private fun MetricsCard() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(FigmaColors.Surface, RoundedCornerShape(15.dp))
+            .background(AgroGemColors.Surface, RoundedCornerShape(15.dp))
             .padding(horizontal = 10.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
@@ -228,14 +229,14 @@ private fun MetricsCard() {
             modifier = Modifier
                 .height(44.dp)
                 .width(1.dp)
-                .background(Color(0x264D4D4D)),
+                .background(AgroGemColors.MetricDivider),
         )
         MetricItem(icon = Res.drawable.ic_metric_cloud, value = "65%", label = "CLOUDS")
         Box(
             modifier = Modifier
                 .height(44.dp)
                 .width(1.dp)
-                .background(Color(0x264D4D4D)),
+                .background(AgroGemColors.MetricDivider),
         )
         MetricItem(icon = Res.drawable.ic_metric_uv, value = "Low", label = "UV INDEX")
     }
@@ -256,14 +257,14 @@ private fun MetricItem(
             contentDescription = label,
             size = AgroGemIconSizes.Sm,
         )
-        Text(text = value, color = Color(0xFF4C4C4C), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        Text(text = label, color = Color(0x994C4C4C), fontSize = 10.sp, letterSpacing = 0.6.sp)
+        Text(text = value, color = AgroGemColors.TextGray, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(text = label, color = AgroGemColors.MetricTextAlpha, fontSize = 10.sp, letterSpacing = 0.6.sp)
     }
 }
 
 @Composable
 private fun RecentAnalysisRow(
-    item: com.agrogem.app.ui.screens.figma.RecentAnalysisItem,
+    item: RecentAnalysisItem,
     seed: Int,
 ) {
     Row(
@@ -283,22 +284,22 @@ private fun RecentAnalysisRow(
             ) {
                 Text(
                     text = item.name,
-                    color = Color(0xFF6C6C6C),
+                    color = AgroGemColors.TextGrayMuted,
                     fontSize = 12.sp,
                     letterSpacing = 1.1.sp,
                 )
-                StatusBadge(tone = item.tone)
+                SeverityBadge(severity = item.severity)
             }
 
             Text(
                 text = item.health,
-                color = Color.Black,
+                color = AgroGemColors.TextPrimary,
                 fontSize = 18.sp,
                 lineHeight = 22.sp,
             )
             Text(
                 text = item.subtitle,
-                color = Color.Black,
+                color = AgroGemColors.TextPrimary,
                 fontSize = 14.sp,
             )
         }

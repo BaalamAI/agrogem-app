@@ -7,15 +7,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
+import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.theme.AgroGemIconSizes
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
-
-@Immutable
-object AgroGemIconColors {
-    val OnPrimary: Color = Color.White
-    val OnSurface: Color = Color(0xFF141B34)
-}
 
 @Composable
 fun AgroGemIcon(

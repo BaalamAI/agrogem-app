@@ -21,7 +21,7 @@ import com.agrogem.app.ui.screens.chat.ChatEvent
 import com.agrogem.app.ui.screens.chat.ChatScreen
 import com.agrogem.app.ui.screens.chat.ChatViewModel
 import com.agrogem.app.ui.screens.chat.VoiceReadyScreen
-import com.agrogem.app.ui.screens.figma.FigmaColors
+import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.ui.screens.history.HistoryScreen
 import com.agrogem.app.ui.screens.home.HomeScreen
 
@@ -203,7 +203,7 @@ private fun PlaceholderRouteScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(FigmaColors.Screen),
+            .background(AgroGemColors.Screen),
         contentAlignment = Alignment.Center,
     ) {
         Text(
