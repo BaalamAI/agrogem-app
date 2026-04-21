@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,6 +56,8 @@ fun ChatScreen(
     onBack: () -> Unit,
     onRequestClose: () -> Unit,
     onMicClick: () -> Unit,
+    onLaunchCamera: () -> Unit = {},
+    onLaunchGallery: () -> Unit = {},
     showConfirmDialog: Boolean,
     onConfirmClose: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -129,9 +133,25 @@ fun ChatScreen(
         }
 
         if (!showConfirmDialog && uiState.showAttachmentMenu) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                        onClick = { viewModel.onEvent(ChatEvent.ToggleAttachmentMenu(false)) },
+                    ),
+            )
+
             AttachmentMenu(
-                onPhotosClick = { viewModel.onEvent(ChatEvent.RequestGallery) },
-                onCameraClick = { viewModel.onEvent(ChatEvent.RequestCamera) },
+                onPhotosClick = {
+                    viewModel.onEvent(ChatEvent.RequestGallery)
+                    onLaunchGallery()
+                },
+                onCameraClick = {
+                    viewModel.onEvent(ChatEvent.RequestCamera)
+                    onLaunchCamera()
+                },
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .offset(y = (-68).dp)

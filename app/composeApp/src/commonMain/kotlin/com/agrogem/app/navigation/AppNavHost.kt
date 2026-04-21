@@ -14,6 +14,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.agrogem.app.data.rememberImagePickerLauncher
 import com.agrogem.app.ui.screens.analysis.AnalysisFlowViewModel
 import com.agrogem.app.ui.screens.analysis.PlantAnalysisScreen
 import com.agrogem.app.ui.screens.chat.ChatEvent
@@ -32,6 +33,12 @@ fun AppNavHost(
     chatViewModel: ChatViewModel,
     startDestination: AgroGemRoute = AgroGemRoute.Home,
 ) {
+    val chatImagePicker = rememberImagePickerLauncher { result ->
+        if (result != null) {
+            chatViewModel.onEvent(ChatEvent.ImageSelected(result.uri))
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = startDestination.route,
@@ -160,6 +167,8 @@ fun AppNavHost(
                     chatViewModel.onEvent(ChatEvent.StartVoiceInput)
                     navController.pushTo(AgroGemRoute.VoiceReady)
                 },
+                onLaunchCamera = { chatImagePicker.launchCamera() },
+                onLaunchGallery = { chatImagePicker.launchGallery() },
                 showConfirmDialog = false,
             )
         }
@@ -174,6 +183,8 @@ fun AppNavHost(
                     chatViewModel.onEvent(ChatEvent.StartVoiceInput)
                     navController.pushTo(AgroGemRoute.VoiceReady)
                 },
+                onLaunchCamera = { chatImagePicker.launchCamera() },
+                onLaunchGallery = { chatImagePicker.launchGallery() },
                 showConfirmDialog = true,
                 onConfirmClose = {
                     navController.popBackStack(AgroGemRoute.Chat.NAV_ROUTE, inclusive = true)
