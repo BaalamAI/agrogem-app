@@ -96,7 +96,7 @@ fun OnboardingScreen(
             OnboardingUiStep.StageAnswered -> StageAnsweredScreen()
             OnboardingUiStep.LocationIntro -> LocationIntroScreen()
             OnboardingUiStep.LocationPermission -> LocationPermissionScreen()
-            OnboardingUiStep.AlertsPermission -> AlertsPermissionScreen()
+            OnboardingUiStep.AlertsPermission -> AlertsPermissionScreen(onFinish = onFinish)
             OnboardingUiStep.Final -> FinalScreen(onFinish = onFinish)
         }
     }
@@ -174,7 +174,7 @@ private fun ChoiceScreen(
     onSpeakWithAgroGemma: () -> Unit,
 ) {
     OnboardingConversationFrame(
-        progress = 1f / 9f,
+        progress = 0f,
         content = {
             BotPrompt(
                 text = "👋 ¡Hola! Soy AgroGemma, tu asistente agrícola.\n\nVoy a ayudarte a cuidar tus cultivos con consejos personalizados para tu zona y tu etapa de siembra. ¡Empecemos!\n\n¿Qué método preferís para capturar tus datos iniciales?",
@@ -338,7 +338,7 @@ private fun LocationPermissionScreen() {
 }
 
 @Composable
-private fun AlertsPermissionScreen() {
+private fun AlertsPermissionScreen(onFinish: () -> Unit) {
     OnboardingConversationFrame(
         progress = 8f / 9f,
         content = {
@@ -357,11 +357,13 @@ private fun AlertsPermissionScreen() {
                 SmallActionButton(
                     text = "Ahora no",
                     filled = false,
+                    onClick = onFinish,
                     modifier = Modifier.width(155.dp),
                 )
                 SmallActionButton(
                     text = "Sí, Activar",
                     filled = true,
+                    onClick = onFinish,
                     modifier = Modifier.width(155.dp),
                 )
             }
@@ -391,7 +393,7 @@ private fun FinalScreen(onFinish: () -> Unit) {
             )
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "¡Todo listo, Alejandro! 🎉",
+                text = "¡Todo listo! 🎉",
                 color = AgroGemColors.TextPrimary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
@@ -401,7 +403,7 @@ private fun FinalScreen(onFinish: () -> Unit) {
         Spacer(modifier = Modifier.height(18.dp))
 
         Text(
-            text = "Tenés 2 mzs de tomate en etapa de crecimiento en Retalhuleu.\n\nEsta semana conviene revisar humedad del suelo — vienen días calurosos en tu zona.\n¿Querés que empecemos?",
+            text = "Ya podés empezar a usar AgroGemma para cuidar tus cultivos. Vamos a monitorear el clima, las plagas y las alertas de tu zona.\n\n¿Querés que empecemos?",
             color = AgroGemColors.TextPrimary,
             fontSize = 12.sp,
             lineHeight = 18.sp,
@@ -723,11 +725,13 @@ private fun LocationPermissionCard(
             SmallActionButton(
                 text = "No permitir",
                 filled = false,
+                onClick = {},
                 modifier = Modifier.width(155.dp),
             )
             SmallActionButton(
                 text = "Permitir",
                 filled = true,
+                onClick = {},
                 modifier = Modifier.width(155.dp),
             )
         }
@@ -796,6 +800,7 @@ private fun ExampleAlertRow(
 private fun SmallActionButton(
     text: String,
     filled: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -810,7 +815,7 @@ private fun SmallActionButton(
                 color = AgroGemColors.Primary,
                 shape = RoundedCornerShape(999.dp),
             )
-            .clickable(onClick = {}),
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(

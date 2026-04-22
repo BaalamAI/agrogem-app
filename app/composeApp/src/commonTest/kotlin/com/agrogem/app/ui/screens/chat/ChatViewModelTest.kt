@@ -137,8 +137,7 @@ class ChatViewModelTest {
     fun `SendMessage clears pending attachments`() {
         val viewModel = ChatViewModel()
 
-        // Simulate pending attachments (would come from ImageSelected in full flow)
-        // For now, test that send clears any existing attachments
+        // Test that SendMessage produces a clean attachments list after sending
         viewModel.onEvent(ChatEvent.InputChanged("Message with photo"))
         viewModel.onEvent(ChatEvent.SendMessage)
 

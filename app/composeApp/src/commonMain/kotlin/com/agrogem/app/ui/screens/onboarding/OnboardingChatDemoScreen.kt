@@ -14,17 +14,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -33,32 +42,39 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.composeapp.generated.resources.Res
 import app.composeapp.generated.resources.ic_action_magic
 import com.agrogem.app.data.rememberLocationPermissionRequester
+import com.agrogem.app.data.rememberNotificationPermissionRequester
 import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.theme.AgroGemIconSizes
 import com.agrogem.app.ui.components.AgroGemIcon
 import com.agrogem.app.ui.components.FilledPrimaryButton
+import com.agrogem.app.ui.components.RoundIconButton
 import com.agrogem.app.ui.screens.chat.ChatMessage
-import com.agrogem.app.ui.screens.chat.ChatViewModel
 import com.agrogem.app.ui.screens.chat.MessageSender
-import com.agrogem.app.ui.screens.chat.OnboardingDemoStage
+import com.agrogem.app.ui.screens.onboarding.OnboardingDemoStage
 
 @Composable
 fun OnboardingChatDemoScreen(
-    viewModel: ChatViewModel,
+    viewModel: OnboardingChatViewModel,
     onBack: () -> Unit,
     onFinish: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val stage = uiState.onboardingDemoStage ?: OnboardingDemoStage.Conversation
+    var showLoading by remember { mutableStateOf(false) }
 
     val locationRequester = rememberLocationPermissionRequester { _ ->
         viewModel.continueOnboardingDemoAfterLocationPermission()
+    }
+    val notificationRequester = rememberNotificationPermissionRequester { granted ->
+        viewModel.completeOnboardingDemo(alertsEnabled = granted)
     }
 
     LaunchedEffect(Unit) {
         viewModel.startOnboardingDemo()
     }
+
+    val progress = uiState.onboardingProgress
 
     Box(
         modifier = modifier
@@ -68,22 +84,39 @@ fun OnboardingChatDemoScreen(
         when (stage) {
             OnboardingDemoStage.Conversation -> ConversationScreen(
                 messages = uiState.messages,
+                inputText = uiState.inputText,
+                onInputChanged = { viewModel.onInputChanged(it) },
                 onBack = onBack,
+                onSendMessage = { viewModel.sendOnboardingUserMessage(it) },
+                progress = progress,
             )
 
             OnboardingDemoStage.AwaitingLocationPermission -> ConversationScreen(
                 messages = uiState.messages,
+                inputText = uiState.inputText,
+                onInputChanged = { viewModel.onInputChanged(it) },
                 onBack = onBack,
+                onSendMessage = { viewModel.sendOnboardingUserMessage(it) },
+                progress = progress,
                 showLocationModal = true,
                 onAllowLocation = { locationRequester.request() },
                 onRejectLocation = { viewModel.continueOnboardingDemoAfterLocationPermission() },
             )
 
             OnboardingDemoStage.AlertsPreferences -> LocationAndAlertsScreen(
-                onActivateAlerts = { viewModel.completeOnboardingDemo() },
+                progress = progress,
+                onSkipAlerts = { viewModel.skipOnboardingAlerts() },
+                onActivateAlerts = { notificationRequester.request() },
             )
 
-            OnboardingDemoStage.Final -> FinalCompletionScreen(onFinish = onFinish)
+            OnboardingDemoStage.Final -> FinalCompletionScreen(
+                alertsEnabled = uiState.alertsEnabled,
+                onFinish = { showLoading = true },
+            )
+        }
+
+        if (showLoading) {
+            LoadingOverlay(onFinish = onFinish)
         }
     }
 }
@@ -91,11 +124,21 @@ fun OnboardingChatDemoScreen(
 @Composable
 private fun ConversationScreen(
     messages: List<ChatMessage>,
+    inputText: String,
+    onInputChanged: (String) -> Unit,
     onBack: () -> Unit,
+    onSendMessage: (String) -> Unit,
+    progress: Float,
     showLocationModal: Boolean = false,
     onAllowLocation: (() -> Unit)? = null,
     onRejectLocation: (() -> Unit)? = null,
 ) {
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(messages.size) {
+        scrollState.animateScrollTo(scrollState.maxValue)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -115,28 +158,31 @@ private fun ConversationScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(Color(0xFFE8E8E8)),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxSize()
-                    .background(AgroGemColors.Primary, RoundedCornerShape(999.dp)),
-            )
-        }
+        OnboardingProgressBar(progress = progress)
 
         Spacer(modifier = Modifier.height(30.dp))
 
-        messages.forEachIndexed { index, message ->
-            MessageRow(message = message)
-            if (index != messages.lastIndex) {
-                Spacer(modifier = Modifier.height(18.dp))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState),
+        ) {
+            messages.forEachIndexed { index, message ->
+                MessageRow(message = message)
+                if (index != messages.lastIndex) {
+                    Spacer(modifier = Modifier.height(18.dp))
+                }
             }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (!showLocationModal) {
+            OnboardingChatInput(
+                text = inputText,
+                onTextChange = onInputChanged,
+                onSend = onSendMessage,
+            )
         }
     }
 
@@ -150,6 +196,8 @@ private fun ConversationScreen(
 
 @Composable
 private fun LocationAndAlertsScreen(
+    progress: Float,
+    onSkipAlerts: () -> Unit,
     onActivateAlerts: () -> Unit,
 ) {
     Column(
@@ -171,41 +219,39 @@ private fun LocationAndAlertsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(Color(0xFFE8E8E8)),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxSize()
-                    .background(AgroGemColors.Primary, RoundedCornerShape(999.dp)),
-            )
-        }
+        OnboardingProgressBar(progress = progress)
 
         Spacer(modifier = Modifier.height(30.dp))
-
-        PromptRow(
-            text = "Para darte consejos más exactos necesito saber dónde están tus cultivos. Así puedo ver la temperatura, lluvias y condiciones de tu zona. 📍",
-        )
-
-        Spacer(modifier = Modifier.height(22.dp))
-
-        LocationPermissionCard(
-            onReject = {},
-            onAllow = {},
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
 
         PromptRow(text = "¿Querés que te avise cuando haya alertas importantes para tus cultivos? 🔔")
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        AlertsPreferenceSection(onActivateAlerts = onActivateAlerts)
+        AlertsPreferenceSection(
+            onSkipAlerts = onSkipAlerts,
+            onActivateAlerts = onActivateAlerts,
+        )
+    }
+}
+
+@Composable
+private fun OnboardingProgressBar(
+    progress: Float,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(8.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color(0xFFE8E8E8)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(progress.coerceIn(0f, 1f))
+                .fillMaxSize()
+                .background(AgroGemColors.Primary, RoundedCornerShape(999.dp)),
+        )
     }
 }
 
@@ -373,6 +419,7 @@ private fun PromptRow(text: String) {
 
 @Composable
 private fun AlertsPreferenceSection(
+    onSkipAlerts: () -> Unit,
     onActivateAlerts: () -> Unit,
 ) {
     Column(
@@ -396,7 +443,7 @@ private fun AlertsPreferenceSection(
             )
             AlertExampleRow(
                 icon = "🐛",
-                text = "Ejemplo: \"Alerta de mosca blanca reportada en Retalhuleu. Chequeá tus plantas.\"",
+                text = "Ejemplo: \"Alerta de mosca blanca reportada en tu zona. Chequeá tus plantas.\"",
             )
         }
 
@@ -407,7 +454,7 @@ private fun AlertsPreferenceSection(
             SmallPermissionButton(
                 text = "Ahora no",
                 filled = false,
-                onClick = onActivateAlerts,
+                onClick = onSkipAlerts,
                 modifier = Modifier.width(102.dp),
             )
             Spacer(modifier = Modifier.width(10.dp))
@@ -486,7 +533,93 @@ private fun SmallPermissionButton(
 }
 
 @Composable
-private fun FinalCompletionScreen(onFinish: () -> Unit) {
+private fun OnboardingChatInput(
+    text: String,
+    onTextChange: (String) -> Unit,
+    onSend: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(AgroGemColors.Surface, RoundedCornerShape(20.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BasicTextField(
+            value = text,
+            onValueChange = onTextChange,
+            modifier = Modifier.weight(1f),
+            textStyle = TextStyle(
+                color = AgroGemColors.TextPrimary,
+                fontSize = 12.sp,
+            ),
+            maxLines = 3,
+            decorationBox = { innerTextField ->
+                if (text.isBlank()) {
+                    Text(
+                        text = "Preguntale algo sobre tus cultivos",
+                        color = AgroGemColors.ChatAttachHint,
+                        fontSize = 12.sp,
+                    )
+                }
+                innerTextField()
+            },
+        )
+
+        RoundIconButton(
+            label = "↑",
+            icon = Res.drawable.ic_action_magic,
+            contentDescription = "Send",
+            onClick = {
+                if (text.isNotBlank()) {
+                    onSend(text)
+                }
+            },
+            background = AgroGemColors.PillTrackSemi,
+            foreground = AgroGemColors.TextPrimary,
+            size = 24.dp,
+        )
+    }
+}
+
+@Composable
+private fun LoadingOverlay(onFinish: () -> Unit) {
+    LaunchedEffect(Unit) {
+        delay(1200)
+        onFinish()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AgroGemColors.Screen),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            CircularProgressIndicator(
+                color = AgroGemColors.Primary,
+                strokeWidth = 3.dp,
+                modifier = Modifier.size(36.dp),
+            )
+            Text(
+                text = "Preparando tu experiencia...",
+                color = AgroGemColors.TextPrimary,
+                fontSize = 14.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FinalCompletionScreen(
+    alertsEnabled: Boolean,
+    onFinish: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -506,20 +639,7 @@ private fun FinalCompletionScreen(onFinish: () -> Unit) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(Color(0xFFE8E8E8)),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxSize()
-                    .background(AgroGemColors.Primary, RoundedCornerShape(999.dp)),
-            )
-        }
+        OnboardingProgressBar(progress = 1f)
 
         Spacer(modifier = Modifier.height(30.dp))
 
@@ -536,7 +656,7 @@ private fun FinalCompletionScreen(onFinish: () -> Unit) {
                 modifier = Modifier.padding(top = 2.dp),
             )
             Text(
-                text = "¡Todo listo, Alejandro! 🎉",
+                text = "¡Todo listo! 🎉",
                 color = AgroGemColors.TextPrimary,
                 fontSize = 12.sp,
                 lineHeight = 18.sp,
@@ -546,7 +666,11 @@ private fun FinalCompletionScreen(onFinish: () -> Unit) {
         Spacer(modifier = Modifier.height(18.dp))
 
         Text(
-            text = "Tenés 2 mzs de tomate en etapa de crecimiento en Retalhuleu.\n\nEsta semana conviene revisar humedad del suelo — vienen días calurosos en tu zona.\n¿Querés que empecemos?",
+            text = if (alertsEnabled) {
+                "Ya podés empezar a usar AgroGemma para cuidar tus cultivos. Te vamos a avisar sobre clima, plagas y alertas importantes de tu zona.\n\n¿Querés que empecemos?"
+            } else {
+                "Ya podés empezar a usar AgroGemma para cuidar tus cultivos. Por ahora no vamos a enviarte notificaciones, pero vas a poder activar las alertas importantes de tu zona más adelante cuando quieras.\n\n¿Querés que empecemos?"
+            },
             color = AgroGemColors.TextPrimary,
             fontSize = 12.sp,
             lineHeight = 18.sp,

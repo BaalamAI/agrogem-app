@@ -22,6 +22,7 @@ import com.agrogem.app.ui.screens.chat.ChatScreen
 import com.agrogem.app.ui.screens.chat.ChatViewModel
 import com.agrogem.app.ui.screens.chat.VoiceReadyScreen
 import com.agrogem.app.ui.screens.onboarding.OnboardingChatDemoScreen
+import com.agrogem.app.ui.screens.onboarding.OnboardingChatViewModel
 import com.agrogem.app.ui.screens.onboarding.OnboardingScreen
 import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.ui.screens.history.HistoryScreen
@@ -76,7 +77,7 @@ fun AppNavHost(
         }
 
         composable(AgroGemRoute.OnboardingChat.route) {
-            val onboardingChatViewModel = kmpViewModel { ChatViewModel() }
+            val onboardingChatViewModel = kmpViewModel { OnboardingChatViewModel() }
             OnboardingChatDemoScreen(
                 viewModel = onboardingChatViewModel,
                 onBack = { navController.popBackStack() },

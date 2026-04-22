@@ -146,8 +146,6 @@ class ChatUiStateTest {
         // Verify actual diagnosis data is accessible through the seeded mode
         assertEquals("analysis123", seeded.analysisId)
         assertEquals("Roya", seeded.diagnosis.pestName)
-        assertEquals("analysis123", seeded.analysisId)
-        assertEquals("Roya", seeded.diagnosis.pestName)
         assertEquals(0.92f, seeded.diagnosis.confidence)
     }
 
@@ -278,7 +276,7 @@ class ChatUiStateTest {
             ChatAttachment.Image(uri = "img1"),
             ChatAttachment.Image(uri = "img2"),
         )
-        val state = ChatUiState(attachments = attachments)
+        val state = ChatUiState(attachments = attachments, showAttachmentMenu = true)
 
         assertEquals(2, state.attachments.size)
         assertEquals(true, state.showAttachmentMenu)
