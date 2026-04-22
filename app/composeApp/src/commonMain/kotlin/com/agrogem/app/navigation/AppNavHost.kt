@@ -1,53 +1,263 @@
 package com.agrogem.app.navigation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.agrogem.app.ui.screens.analysis.AnalysisScreen
-import com.agrogem.app.ui.screens.camera.CameraScreen
-import com.agrogem.app.ui.screens.dashboard.DashboardScreen
-import com.agrogem.app.ui.screens.map.MapRiskScreen
-import com.agrogem.app.ui.screens.report.ReportScreen
+import androidx.navigation.navArgument
+import com.agrogem.app.data.rememberImagePickerLauncher
+import com.agrogem.app.ui.screens.analysis.AnalysisFlowViewModel
+import com.agrogem.app.ui.screens.analysis.PlantAnalysisScreen
+import com.agrogem.app.ui.screens.chat.ChatEvent
+import com.agrogem.app.ui.screens.chat.ChatScreen
+import com.agrogem.app.ui.screens.chat.ChatViewModel
+import com.agrogem.app.ui.screens.chat.VoiceReadyScreen
+import com.agrogem.app.ui.screens.onboarding.OnboardingChatScreen
+import com.agrogem.app.ui.screens.onboarding.OnboardingChatViewModel
+import com.agrogem.app.ui.screens.onboarding.OnboardingScreen
+import com.agrogem.app.theme.AgroGemColors
+import com.agrogem.app.ui.screens.history.HistoryScreen
+import com.agrogem.app.ui.screens.home.HomeScreen
+import com.agrogem.app.ui.viewmodel.kmpViewModel
 
 @Composable
 fun AppNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController,
-    startDestination: AgroGemRoute = AgroGemRoute.Dashboard,
+    analysisFlowVm: AnalysisFlowViewModel,
+    chatViewModel: ChatViewModel,
+    startDestination: String = AgroGemRoute.Home.route,
+    onOnboardingFinished: () -> Unit = {},
+    onWelcomeAdvance: () -> Unit = {},
+    onWriteWithAgroGemma: () -> Unit = {},
 ) {
+    val chatImagePicker = rememberImagePickerLauncher { result ->
+        if (result != null) {
+            chatViewModel.onEvent(ChatEvent.ImageSelected(result.uri))
+        }
+    }
+
     NavHost(
         navController = navController,
-        startDestination = startDestination.route,
+        startDestination = startDestination,
         modifier = modifier,
     ) {
-        composable(AgroGemRoute.Dashboard.route) {
-            DashboardScreen()
+        composable(AgroGemRoute.Home.route) {
+            HomeScreen(
+                onOpenCamera = { /* Camera is launched via FAB in AppShell */ },
+                onOpenHistory = { navController.pushTo(AgroGemRoute.History) },
+            )
         }
+
+        composable(
+            route = AgroGemRoute.Onboarding.NAV_ROUTE,
+            arguments = listOf(
+                navArgument(AgroGemRoute.Onboarding.STEP_ARG) {
+                    type = NavType.IntType
+                    defaultValue = 0
+                },
+            ),
+        ) { backStackEntry ->
+            val step = backStackEntry.arguments?.getInt(AgroGemRoute.Onboarding.STEP_ARG) ?: 0
+            OnboardingScreen(
+                step = step,
+                onFinish = onOnboardingFinished,
+                onWelcomeAdvance = onWelcomeAdvance,
+                onWriteWithAgroGemma = onWriteWithAgroGemma,
+            )
+        }
+
+        composable(AgroGemRoute.OnboardingChat.route) {
+            val onboardingChatViewModel = kmpViewModel { OnboardingChatViewModel() }
+            OnboardingChatScreen(
+                viewModel = onboardingChatViewModel,
+                onBack = { navController.popBackStack() },
+                onFinish = {
+                    onOnboardingFinished()
+                },
+            )
+        }
+
         composable(AgroGemRoute.Camera.route) {
-            CameraScreen(
-                onStartAnalysis = { navController.navigateTo(AgroGemRoute.Analysis) },
+            PlaceholderRouteScreen(
+                title = "Camara",
+                subtitle = "Usa el boton Scan para abrir la camara nativa.",
             )
         }
-        composable(AgroGemRoute.Map.route) {
-            MapRiskScreen(
-                onBackToDashboard = { navController.navigateTo(AgroGemRoute.Dashboard) },
+
+        composable(AgroGemRoute.History.route) {
+            HistoryScreen(
+                onOpenEntry = {
+                    analysisFlowVm.loadFromHistory(imageUri = "")
+                    navController.pushTo(AgroGemRoute.AnalysisHistory)
+                },
             )
         }
+
+        composable(AgroGemRoute.Diagnosis.route) {
+            PlaceholderRouteScreen(
+                title = "Diagnostico",
+                subtitle = "Pantalla en preparacion.",
+            )
+        }
+
+        composable(AgroGemRoute.TreatmentPlan.route) {
+            PlaceholderRouteScreen(
+                title = "Plan de tratamiento",
+                subtitle = "Pantalla en preparacion.",
+            )
+        }
+
+        composable(AgroGemRoute.TreatmentProducts.route) {
+            PlaceholderRouteScreen(
+                title = "Insumos sugeridos",
+                subtitle = "Pantalla en preparacion.",
+            )
+        }
+
+        composable(AgroGemRoute.ConversationSummary.route) {
+            PlaceholderRouteScreen(
+                title = "Resumen de conversacion",
+                subtitle = "Pantalla en preparacion.",
+            )
+        }
+
+        // Analysis opened from camera — exit button says "Guardar y salir"
         composable(AgroGemRoute.Analysis.route) {
-            AnalysisScreen(
-                onBackToCamera = { navController.navigateTo(AgroGemRoute.Camera) },
-                onViewReport = { navController.navigateTo(AgroGemRoute.Report) },
+            PlantAnalysisScreen(
+                viewModel = analysisFlowVm,
+                fromHistory = false,
+                onCancel = {
+                    analysisFlowVm.cancelAnalysis()
+                    navController.navigateTo(AgroGemRoute.Home)
+                },
+                onExit = {
+                    analysisFlowVm.clearAll()
+                    navController.navigateTo(AgroGemRoute.Home)
+                },
+                onTalkToAgent = { analysisId, diagnosis ->
+                    // Post-analysis handoff: seed the shared ChatViewModel with the
+                    // analysis context, then navigate to the chat screen.
+                    chatViewModel.seedFromAnalysis(analysisId, diagnosis)
+                    navController.pushTo(AgroGemRoute.Chat.createRoute(analysisId))
+                },
             )
         }
-        composable(AgroGemRoute.Report.route) {
-            ReportScreen(
-                onScanAgain = { navController.navigateTo(AgroGemRoute.Camera) },
-                onBackToDashboard = { navController.navigateTo(AgroGemRoute.Dashboard) },
+
+        // Analysis opened from history — exit button says "Regresar"
+        composable(AgroGemRoute.AnalysisHistory.route) {
+            PlantAnalysisScreen(
+                viewModel = analysisFlowVm,
+                fromHistory = true,
+                onCancel = { navController.popBackStack() },
+                onExit = { navController.popBackStack() },
+                onTalkToAgent = { analysisId, diagnosis ->
+                    // Post-analysis handoff: seed the shared ChatViewModel with the
+                    // analysis context, then navigate to the chat screen.
+                    chatViewModel.seedFromAnalysis(analysisId, diagnosis)
+                    navController.pushTo(AgroGemRoute.Chat.createRoute(analysisId))
+                },
             )
         }
+
+        composable(AgroGemRoute.VoiceReady.route) {
+            // Use shared chatViewModel from AppShell — same instance as Chat and ChatConfirm
+            VoiceReadyScreen(
+                voiceState = chatViewModel.uiState.value.voiceState,
+                onDismiss = {
+                    chatViewModel.onEvent(ChatEvent.DismissVoice)
+                    navController.popBackStack()
+                },
+                onStopRecording = {
+                    chatViewModel.onEvent(ChatEvent.StopVoiceInput)
+                    navController.popBackStack()
+                },
+            )
+        }
+
+        composable(
+            route = AgroGemRoute.Chat.NAV_ROUTE,
+            arguments = listOf(
+                navArgument(AgroGemRoute.Chat.ANALYSIS_ID_ARG) {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) {
+            // Use shared chatViewModel from AppShell — same instance as VoiceReady
+            ChatScreen(
+                viewModel = chatViewModel,
+                onBack = { navController.popBackStack() },
+                onRequestClose = { navController.pushTo(AgroGemRoute.ChatConfirm) },
+                onMicClick = {
+                    chatViewModel.onEvent(ChatEvent.StartVoiceInput)
+                    navController.pushTo(AgroGemRoute.VoiceReady)
+                },
+                onLaunchCamera = { chatImagePicker.launchCamera() },
+                onLaunchGallery = { chatImagePicker.launchGallery() },
+                showConfirmDialog = false,
+            )
+        }
+
+        composable(AgroGemRoute.ChatConfirm.route) {
+            // Use shared chatViewModel from AppShell — same instance as Chat and VoiceReady
+            ChatScreen(
+                viewModel = chatViewModel,
+                onBack = { navController.popBackStack() },
+                onRequestClose = {},
+                onMicClick = {
+                    chatViewModel.onEvent(ChatEvent.StartVoiceInput)
+                    navController.pushTo(AgroGemRoute.VoiceReady)
+                },
+                onLaunchCamera = { chatImagePicker.launchCamera() },
+                onLaunchGallery = { chatImagePicker.launchGallery() },
+                showConfirmDialog = true,
+                onConfirmClose = {
+                    navController.popBackStack(AgroGemRoute.Chat.NAV_ROUTE, inclusive = true)
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlaceholderRouteScreen(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(AgroGemColors.Screen),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "$title\n$subtitle",
+            color = Color.Black,
+        )
+    }
+}
+
+private fun NavHostController.pushTo(route: AgroGemRoute) {
+    navigate(route.route) {
+        launchSingleTop = true
+    }
+}
+
+private fun NavHostController.pushTo(routeString: String) {
+    navigate(routeString) {
+        launchSingleTop = true
     }
 }
 

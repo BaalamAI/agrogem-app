@@ -1,24 +1,24 @@
 package com.agrogem.app.ui.screens.dashboard
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class DashboardViewModel : ViewModel() {
+
     private val _uiState = MutableStateFlow(defaultDashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
     fun onEvent(event: DashboardEvent) {
         when (event) {
-            DashboardEvent.OnRefreshRequested -> Unit
-            DashboardEvent.OnSeeAllRequested -> {
+            is DashboardEvent.OnSeeAllRequested -> {
                 _uiState.value = _uiState.value.copy(isHistoryVisible = true)
             }
-            DashboardEvent.OnHistoryDismissRequested -> {
+            is DashboardEvent.OnHistoryDismissRequested -> {
                 _uiState.value = _uiState.value.copy(isHistoryVisible = false)
             }
-            is DashboardEvent.OnRecentAnalysisSelected -> Unit
             is DashboardEvent.OnHistoryAnalysisSelected -> {
                 _uiState.value = _uiState.value.copy(isHistoryVisible = false)
             }
@@ -27,111 +27,56 @@ class DashboardViewModel : ViewModel() {
 }
 
 sealed interface DashboardEvent {
-    data object OnRefreshRequested : DashboardEvent
-
     data object OnSeeAllRequested : DashboardEvent
-
     data object OnHistoryDismissRequested : DashboardEvent
-
-    data class OnRecentAnalysisSelected(val analysisId: String) : DashboardEvent
-
-    data class OnHistoryAnalysisSelected(val analysisId: String) : DashboardEvent
+    data class OnHistoryAnalysisSelected(val id: String) : DashboardEvent
 }
 
-internal fun defaultDashboardUiState(): DashboardUiState = DashboardUiState(
-    greeting = "BUENOS DÍAS, AGRICULTOR",
-    subtitle = "Tu cultivo está saludable hoy.",
+@Immutable
+data class DashboardUiState(
+    val greeting: String,
+    val stats: List<DashboardStat>,
+    val recentAnalyses: List<RecentAnalysis>,
+    val historyAnalyses: List<HistoryAnalysis>,
+    val isHistoryVisible: Boolean,
+)
+
+@Immutable
+data class DashboardStat(
+    val label: String,
+    val value: String,
+)
+
+@Immutable
+data class RecentAnalysis(
+    val id: String,
+    val title: String,
+    val severity: String,
+)
+
+@Immutable
+data class HistoryAnalysis(
+    val id: String,
+    val title: String,
+    val severity: String,
+)
+
+private fun defaultDashboardUiState(): DashboardUiState = DashboardUiState(
+    greeting = "Buenos días, agricultor",
     stats = listOf(
-        DashboardStat(
-            id = "temperature",
-            value = "24°C",
-            label = "TEMPERATURA",
-            severity = DashboardSeverity.Optimo,
-            badgeLabel = "ÓPTIMO",
-        ),
-        DashboardStat(
-            id = "humidity",
-            value = "42%",
-            label = "HUMEDAD\nSUELO",
-            severity = DashboardSeverity.Atencion,
-            badgeLabel = "BAJO",
-        ),
+        DashboardStat(label = "Lotes activos", value = "8"),
+        DashboardStat(label = "Alertas", value = "3"),
     ),
     recentAnalyses = listOf(
-        RecentAnalysis(
-            id = "r1",
-            cropName = "Albahaca",
-            lotName = "Sin plagas detectadas",
-            healthPercent = 98,
-            severity = DashboardSeverity.Optimo,
-            capturedAt = "Hoy, 08:12",
-        ),
-        RecentAnalysis(
-            id = "r2",
-            cropName = "Tomate",
-            lotName = "Estrés hídrico leve",
-            healthPercent = 72,
-            severity = DashboardSeverity.Atencion,
-            capturedAt = "Hoy, 07:05",
-        ),
-        RecentAnalysis(
-            id = "r3",
-            cropName = "Pimiento",
-            lotName = "Presencia inicial de manchas",
-            healthPercent = 41,
-            severity = DashboardSeverity.Critica,
-            capturedAt = "Ayer, 18:44",
-        ),
+        RecentAnalysis(id = "r1", title = "Lote Norte", severity = "Crítica"),
+        RecentAnalysis(id = "r2", title = "Lote Sur", severity = "Óptimo"),
+        RecentAnalysis(id = "r3", title = "Lote Este", severity = "Atención"),
     ),
     historyAnalyses = listOf(
-        RecentAnalysis(
-            id = "h1",
-            cropName = "Albahaca",
-            lotName = "Sin plagas detectadas",
-            healthPercent = 98,
-            severity = DashboardSeverity.Optimo,
-            capturedAt = "Hoy, 08:12",
-        ),
-        RecentAnalysis(
-            id = "h2",
-            cropName = "Tomate",
-            lotName = "Estrés hídrico leve",
-            healthPercent = 72,
-            severity = DashboardSeverity.Atencion,
-            capturedAt = "Hoy, 07:05",
-        ),
-        RecentAnalysis(
-            id = "h3",
-            cropName = "Pimiento",
-            lotName = "Presencia inicial de manchas",
-            healthPercent = 41,
-            severity = DashboardSeverity.Critica,
-            capturedAt = "Ayer, 18:44",
-        ),
-        RecentAnalysis(
-            id = "h4",
-            cropName = "Lechuga",
-            lotName = "Nutrición estable en hidroponía",
-            healthPercent = 86,
-            severity = DashboardSeverity.Optimo,
-            capturedAt = "Ayer, 10:28",
-        ),
-        RecentAnalysis(
-            id = "h5",
-            cropName = "Espinaca",
-            lotName = "Baja humedad superficial",
-            healthPercent = 57,
-            severity = DashboardSeverity.Atencion,
-            capturedAt = "Hace 2 días",
-        ),
-        RecentAnalysis(
-            id = "h6",
-            cropName = "Tomate",
-            lotName = "Avance de lesión fúngica",
-            healthPercent = 35,
-            severity = DashboardSeverity.Critica,
-            capturedAt = "Hace 3 días",
-        ),
+        HistoryAnalysis(id = "h1", title = "Lote Norte - Historial", severity = "Crítica"),
+        HistoryAnalysis(id = "h2", title = "Lote Sur - Historial", severity = "Óptimo"),
+        HistoryAnalysis(id = "h3", title = "Lote Este - Historial", severity = "Atención"),
+        HistoryAnalysis(id = "h4", title = "Lote Oeste - Historial", severity = "Crítica"),
     ),
     isHistoryVisible = false,
 )

@@ -36,4 +36,16 @@ class DashboardViewModelTest {
         assertEquals(false, hiddenState.isHistoryVisible)
         assertEquals(initial.historyAnalyses, hiddenState.historyAnalyses)
     }
+
+    @Test
+    fun `rapid history events keep deterministic final visibility`() {
+        val viewModel = DashboardViewModel()
+
+        repeat(100) {
+            viewModel.onEvent(DashboardEvent.OnSeeAllRequested)
+            viewModel.onEvent(DashboardEvent.OnHistoryDismissRequested)
+        }
+
+        assertEquals(false, viewModel.uiState.value.isHistoryVisible)
+    }
 }

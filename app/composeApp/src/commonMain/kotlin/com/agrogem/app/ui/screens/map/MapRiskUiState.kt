@@ -1,6 +1,7 @@
 package com.agrogem.app.ui.screens.map
 
 import androidx.compose.runtime.Immutable
+import com.agrogem.app.ui.components.Severity
 
 @Immutable
 data class MapRiskUiState(
@@ -41,4 +42,10 @@ enum class RiskSeverity {
     Optimo,
     Atencion,
     Critica,
+}
+
+fun RiskSeverity.toShared(): Severity = when (this) {
+    RiskSeverity.Optimo -> Severity.Optimo
+    RiskSeverity.Atencion -> Severity.Atencion
+    RiskSeverity.Critica -> Severity.Critica
 }

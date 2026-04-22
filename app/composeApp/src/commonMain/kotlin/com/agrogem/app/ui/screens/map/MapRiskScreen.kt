@@ -14,12 +14,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -28,27 +28,23 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-private val MapBackground = Color(0xFFFFFFFF)
-private val MapPrimary = Color(0xFF0D631B)
-private val MapTextPrimary = Color(0xFF181D1A)
-private val MapTextSecondary = Color(0xFF40493D)
-private val MapMutedCard = Color(0xFFD9D9D9)
-private val MapAlertColor = Color(0xFFB12D00)
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.agrogem.app.theme.AgroGemColors
+import com.agrogem.app.ui.viewmodel.kmpViewModel
 
 @Composable
 fun MapRiskScreen(
     modifier: Modifier = Modifier,
     onBackToDashboard: () -> Unit = {},
-    viewModel: MapRiskViewModel = remember { MapRiskViewModel() },
+    viewModel: MapRiskViewModel = kmpViewModel { MapRiskViewModel() },
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val alertText = "${uiState.alerts.size} Alertas de plagas cercanas\ndetectadas en el valle."
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MapBackground),
+            .background(AgroGemColors.MapBackground),
     ) {
         LazyColumn(
             modifier = Modifier
@@ -69,7 +65,7 @@ fun MapRiskScreen(
                             lineHeight = 24.sp,
                             letterSpacing = 1.6.sp,
                         ),
-                        color = MapPrimary,
+                        color = AgroGemColors.MapPrimary,
                     )
                     Text(
                         text = uiState.title,
@@ -78,7 +74,7 @@ fun MapRiskScreen(
                             lineHeight = 45.sp,
                             letterSpacing = (-0.9).sp,
                         ),
-                        color = MapTextPrimary,
+                        color = AgroGemColors.MapTextPrimary,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
@@ -117,14 +113,14 @@ private fun MapPreviewCard(
             .fillMaxWidth()
             .height(216.dp)
             .background(
-                color = Color(0xFFE8E9E9),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                color = AgroGemColors.MapMutedCard,
+                shape = RoundedCornerShape(20.dp),
             )
             .padding(1.dp),
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val lineColor = Color(0xFFC9CCCB)
-            val secondaryLine = Color(0xFFD7D9D8)
+            val lineColor = AgroGemColors.MapLinePrimary
+            val secondaryLine = AgroGemColors.MapLineSecondary
 
             repeat(18) { index ->
                 val y = size.height * (index / 17f)
@@ -159,7 +155,7 @@ private fun MapPreviewCard(
                 lineHeight = 16.sp,
                 letterSpacing = 1.2.sp,
             ),
-            color = MapAlertColor,
+            color = AgroGemColors.MapAlertColor,
             fontWeight = FontWeight.Black,
         )
     }
@@ -175,15 +171,15 @@ private fun AlertSummaryBanner(
         modifier = modifier
             .fillMaxWidth()
             .background(
-                color = MapMutedCard,
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                color = AgroGemColors.MapMutedCard,
+                shape = RoundedCornerShape(10.dp),
             )
             .padding(horizontal = 12.dp, vertical = 4.5.dp),
         style = MaterialTheme.typography.bodyLarge.copy(
             fontSize = 12.sp,
             lineHeight = 16.sp,
         ),
-        color = MapTextSecondary,
+        color = AgroGemColors.MapTextSecondary,
         fontWeight = FontWeight.Bold,
     )
 }
@@ -193,7 +189,7 @@ private fun MapBrandHeader(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(MapBackground.copy(alpha = 0.86f))
+            .background(AgroGemColors.MapBackground.copy(alpha = 0.86f))
             .padding(horizontal = 24.dp, vertical = 16.dp),
     ) {
         androidx.compose.foundation.layout.Row(
@@ -208,7 +204,7 @@ private fun MapBrandHeader(modifier: Modifier = Modifier) {
                     lineHeight = 32.sp,
                     letterSpacing = (-1.2).sp,
                 ),
-                color = MapPrimary,
+                color = AgroGemColors.MapPrimary,
                 fontWeight = FontWeight.Medium,
             )
         }
@@ -225,21 +221,21 @@ private fun MapBackButton(
             .size(32.dp)
             .background(
                 color = Color.White.copy(alpha = 0.4f),
-                shape = androidx.compose.foundation.shape.CircleShape,
+                shape = CircleShape,
             )
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Canvas(modifier = Modifier.size(18.dp)) {
             drawLine(
-                color = MapTextSecondary,
+                color = AgroGemColors.MapTextSecondary,
                 start = Offset(size.width * 0.68f, size.height * 0.2f),
                 end = Offset(size.width * 0.32f, size.height * 0.5f),
                 strokeWidth = 1.8f,
                 cap = StrokeCap.Round,
             )
             drawLine(
-                color = MapTextSecondary,
+                color = AgroGemColors.MapTextSecondary,
                 start = Offset(size.width * 0.32f, size.height * 0.5f),
                 end = Offset(size.width * 0.68f, size.height * 0.8f),
                 strokeWidth = 1.8f,
@@ -255,14 +251,14 @@ private fun MapLeafMarkIcon() {
         val stroke = size.minDimension * 0.13f
 
         drawOval(
-            color = MapPrimary,
+            color = AgroGemColors.MapPrimary,
             topLeft = Offset(x = size.width * 0.08f, y = size.height * 0.2f),
             size = androidx.compose.ui.geometry.Size(width = size.width * 0.78f, height = size.height * 0.58f),
             style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke),
         )
 
         drawLine(
-            color = MapPrimary,
+            color = AgroGemColors.MapPrimary,
             start = Offset(x = size.width * 0.72f, y = size.height * 0.2f),
             end = Offset(x = size.width * 0.28f, y = size.height * 0.85f),
             strokeWidth = stroke,

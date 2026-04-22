@@ -1,120 +1,65 @@
 # AGENTS.md
 
-## Project Overview
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
-`app/` is the actual AgroGem product workspace. It is a Kotlin Multiplatform project built with Compose Multiplatform and Gradle Kotlin DSL.
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
-Targets currently configured:
+## 1. Think Before Coding
 
-- Android
-- iOS (`iosArm64`, `iosSimulatorArm64`)
-- `wasmJs` for browser preview
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
 
-The main application module is `composeApp`.
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
 
-## Module Layout
+## 2. Simplicity First
 
-- `build.gradle.kts` — top-level Gradle plugin declarations for the app workspace
-- `settings.gradle.kts` — includes `:composeApp`
-- `composeApp/build.gradle.kts` — KMP target configuration and dependencies
-- `composeApp/src/commonMain` — shared app code
-- `composeApp/src/commonTest` — shared unit tests
-- `composeApp/src/androidMain` — Android-specific entry points and resources
-- `composeApp/src/iosMain` — iOS-specific entry points
-- `composeApp/src/wasmJsMain` — browser preview target
-- `iosApp/` — Xcode host app
+**Minimum code that solves the problem. Nothing speculative.**
 
-## Architecture Snapshot
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
 
-This codebase is currently presentation-centric and lives mostly in `commonMain`.
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
-- `App.kt` is the shared entry point.
-- `ui/AppShell.kt` owns the app scaffold and `NavController`.
-- `navigation/` contains route definitions and the shared nav host.
-- `ui/screens/<feature>/` groups screen UI, `UiState`, and `ViewModel` per feature.
-- `ui/components/` contains reusable presentation pieces.
-- `theme/` contains shared design tokens and theme setup.
+## 3. Surgical Changes
 
-Current screens:
+**Touch only what you must. Clean up only your own mess.**
 
-- Dashboard
-- Camera
-- Analysis
-- Map Risk
-- Report
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
 
-## Setup Commands
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
 
-Run commands from `app/`.
+The test: Every changed line should trace directly to the user's request.
 
-- List Gradle tasks: `./gradlew tasks --all`
-- Run shared tests and aggregated target tests: `./gradlew :composeApp:allTests`
-- Run Android lint: `./gradlew :composeApp:lint`
-- Run Android debug unit tests: `./gradlew :composeApp:testDebugUnitTest`
-- Run iOS simulator tests: `./gradlew :composeApp:iosSimulatorArm64Test`
-- Run wasm tests: `./gradlew :composeApp:wasmJsTest`
-- Assemble Android debug app: `./gradlew :composeApp:assembleDebug`
-- Start wasm browser dev server: `./gradlew :composeApp:wasmJsBrowserDevelopmentRun`
+## 4. Goal-Driven Execution
 
-For iOS app execution, open `iosApp/` in Xcode.
+**Define success criteria. Loop until verified.**
 
-## Development Workflow
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
 
-1. Make shared UI and state changes in `composeApp/src/commonMain` by default.
-2. Move to platform source sets only when an API is platform-specific.
-3. Keep route definitions centralized in `navigation/Routes.kt`.
-4. Keep one screen package per feature under `ui/screens/`.
-5. Add or update tests in `composeApp/src/commonTest` when changing shared behavior.
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
 
-## Code Style and Conventions
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
-These conventions are already visible in the codebase and should be preserved.
+---
 
-- Kotlin style is `official` (`gradle.properties`).
-- Prefer immutable UI models annotated with `@Immutable` for screen state.
-- Use `StateFlow` exposed as read-only state from `ViewModel` classes.
-- Feature folders generally follow this pattern:
-  - `FeatureScreen.kt`
-  - `FeatureViewModel.kt`
-  - `FeatureUiState.kt`
-- Routes are modeled as a sealed interface with `data object` entries.
-- Reusable UI pieces go in `ui/components/`, not inside unrelated screens.
-- Shared theme tokens belong in `theme/`.
-
-## Testing Instructions
-
-Tests currently live in `composeApp/src/commonTest/kotlin` and use `kotlin.test`.
-
-- Prefer focused test runs while iterating.
-- For behavior in shared view models or navigation, add tests in `commonTest`.
-- Existing examples include:
-  - `navigation/RoutesTest.kt`
-  - `ui/screens/*/*ViewModelTest.kt`
-
-Recommended validation order:
-
-1. `./gradlew :composeApp:allTests`
-2. `./gradlew :composeApp:lint`
-
-Avoid running broad `build` tasks unless explicitly necessary.
-
-## Platform Guidance
-
-- Android entry point: `composeApp/src/androidMain/kotlin/com/agrogem/app/MainActivity.kt`
-- iOS entry point: `composeApp/src/iosMain/kotlin/com/agrogem/app/MainViewController.kt`
-- Platform abstractions use `Platform.kt` plus platform-specific actual implementations.
-- Camera placeholders are currently implemented per platform/source set rather than through a real camera integration.
-
-## What To Avoid
-
-- Do not edit generated folders: `.gradle/`, `.kotlin/`, `build/`
-- Do not move shared code into platform source sets without a platform requirement
-- Do not introduce a new architectural pattern for a single screen; stay consistent with the existing per-feature structure
-- Do not document commands you did not verify against this project
-
-## Documentation Rules
-
-When you change developer workflow, architecture, or commands here, update both:
-
-- `app/README.md` for humans
-- `app/AGENTS.md` for coding agents
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

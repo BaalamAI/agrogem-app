@@ -8,6 +8,16 @@ import kotlinx.coroutines.flow.asStateFlow
 class MapRiskViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(defaultMapRiskUiState())
     val uiState: StateFlow<MapRiskUiState> = _uiState.asStateFlow()
+
+    fun onEvent(event: MapRiskEvent) {
+        when (event) {
+            MapRiskEvent.OnRefreshRequested -> Unit
+        }
+    }
+}
+
+sealed interface MapRiskEvent {
+    data object OnRefreshRequested : MapRiskEvent
 }
 
 internal fun defaultMapRiskUiState(): MapRiskUiState = MapRiskUiState(
