@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,13 +20,29 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.Text
+import app.composeapp.generated.resources.Res
+import app.composeapp.generated.resources.ic_navigation_fields
+import app.composeapp.generated.resources.ic_navigation_home
+import app.composeapp.generated.resources.ic_navigation_maps
+import app.composeapp.generated.resources.ic_navigation_profile
+import app.composeapp.generated.resources.ic_navigation_scan
 import com.agrogem.app.navigation.AgroGemBottomTab
+import com.agrogem.app.theme.AgroGemColors
+import com.agrogem.app.theme.AgroGemIconSizes
+import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.painterResource
 
-private val NavigationBackground = Color(0xF2FFFFFF)
-private val NavigationActive = Color(0xFF6C9E00)
-private val NavigationInactive = Color(0x99747474)
-private val ScanBackground = Color(0xFF0D631B)
+/**
+ * Maps each bottom tab to its corresponding drawable resource.
+ * Used by tests to verify icon assignments and by the component for rendering.
+ */
+enum class BottomTabIcons(val resourceName: String) {
+    Home("ic_navigation_home"),
+    Fields("ic_navigation_fields"),
+    Scan("ic_navigation_scan"),
+    Maps("ic_navigation_maps"),
+    Profile("ic_navigation_profile"),
+}
 
 @Composable
 fun BottomNavigationBar(
@@ -36,21 +54,21 @@ fun BottomNavigationBar(
         modifier = modifier
             .fillMaxWidth()
             .height(68.dp)
-            .background(NavigationBackground)
+            .background(AgroGemColors.NavBackground)
             .padding(horizontal = 30.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         BottomBarItem(
             tab = AgroGemBottomTab.Home,
             label = "HOME",
-            icon = "⌂",
+            icon = Res.drawable.ic_navigation_home,
             currentTab = currentTab,
             onNavigate = onNavigate,
         )
         BottomBarItem(
             tab = AgroGemBottomTab.Fields,
             label = "FIELDS",
-            icon = "⏚",
+            icon = Res.drawable.ic_navigation_fields,
             currentTab = currentTab,
             onNavigate = onNavigate,
         )
@@ -63,14 +81,14 @@ fun BottomNavigationBar(
         BottomBarItem(
             tab = AgroGemBottomTab.Maps,
             label = "MAPS",
-            icon = "⌖",
+            icon = Res.drawable.ic_navigation_maps,
             currentTab = currentTab,
             onNavigate = onNavigate,
         )
         BottomBarItem(
             tab = AgroGemBottomTab.Profile,
             label = "PROFILE",
-            icon = "◡",
+            icon = Res.drawable.ic_navigation_profile,
             currentTab = currentTab,
             onNavigate = onNavigate,
         )
@@ -81,13 +99,13 @@ fun BottomNavigationBar(
 private fun BottomBarItem(
     tab: AgroGemBottomTab,
     label: String,
-    icon: String,
+    icon: DrawableResource,
     currentTab: AgroGemBottomTab,
     onNavigate: (AgroGemBottomTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val active = currentTab == tab
-    val tint = if (active) NavigationActive else NavigationInactive
+    val tint = if (active) AgroGemColors.PrimaryNavActive else AgroGemColors.NavInactive
 
     Column(
         modifier = modifier
@@ -96,7 +114,12 @@ private fun BottomBarItem(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
     ) {
-        Text(text = icon, color = tint, fontSize = 18.sp)
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = label,
+            tint = tint,
+            modifier = Modifier.size(AgroGemIconSizes.Md),
+        )
         Text(
             text = label,
             color = tint,
@@ -112,17 +135,22 @@ private fun ScanFab(
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val activeGlow = if (selected) Color(0x66ABD557) else Color(0x44ABD557)
+    val activeGlow = if (selected) AgroGemColors.PrimaryNavGlow else AgroGemColors.PrimaryNavGlowDim
 
     Box(
         modifier = Modifier
             .size(64.dp)
             .background(activeGlow, CircleShape)
             .padding(2.dp)
-            .background(ScanBackground, CircleShape)
+            .background(AgroGemColors.ScanBackground, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = "◉", color = Color.White, fontSize = 22.sp)
+        Icon(
+            painter = painterResource(Res.drawable.ic_navigation_scan),
+            contentDescription = "Scan",
+            tint = Color.White,
+            modifier = Modifier.size(AgroGemIconSizes.Lg),
+        )
     }
 }

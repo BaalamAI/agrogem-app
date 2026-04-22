@@ -8,12 +8,15 @@ class RoutesTest {
 
     @Test
     fun `all routes are registered`() {
-        assertEquals(11, AgroGemRoute.all.size)
+        assertEquals(14, AgroGemRoute.all.size)
         assertEquals(
             listOf(
                 "home",
+                "onboarding",
+                "onboarding_chat",
                 "camera",
                 "analysis",
+                "analysis_history",
                 "diagnosis",
                 "treatment_plan",
                 "treatment_products",
@@ -31,5 +34,10 @@ class RoutesTest {
     fun `fromRoute returns home as safe fallback`() {
         assertSame(AgroGemRoute.Home, AgroGemRoute.fromRoute("unknown"))
         assertSame(AgroGemRoute.Home, AgroGemRoute.fromRoute(null))
+    }
+
+    @Test
+    fun `fromRoute resolves analysis history route`() {
+        assertSame(AgroGemRoute.AnalysisHistory, AgroGemRoute.fromRoute("analysis_history"))
     }
 }
