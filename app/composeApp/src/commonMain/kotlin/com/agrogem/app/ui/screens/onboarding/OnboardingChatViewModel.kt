@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlin.random.Random
 
 /**
- * Dedicated state holder for the onboarding chat demo.
+ * Dedicated state holder for the onboarding chat flow.
  *
  * Isolates onboarding-specific state machine and orchestration from the
  * real in-app [com.agrogem.app.ui.screens.chat.ChatViewModel] so the two
@@ -21,55 +21,55 @@ class OnboardingChatViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(OnboardingChatUiState())
     val uiState: StateFlow<OnboardingChatUiState> = _uiState.asStateFlow()
 
-    fun startOnboardingDemo() {
-        if (_uiState.value.onboardingDemoStage != null) return
+    fun startOnboardingChat() {
+        if (_uiState.value.onboardingChatStage != null) return
         _uiState.value = OnboardingChatUiState(
             messages = listOf(
                 assistantMessage("Para empezar, ¿cómo te llamás? 😊"),
             ),
-            onboardingDemoStage = OnboardingDemoStage.Conversation,
+            onboardingChatStage = OnboardingChatStage.Conversation,
             onboardingStep = 0,
         )
     }
 
-    fun continueOnboardingDemoAfterLocationPermission() {
+    fun continueOnboardingAfterLocationPermission() {
         val currentState = _uiState.value
-        if (currentState.onboardingDemoStage == null) return
+        if (currentState.onboardingChatStage == null) return
         _uiState.value = currentState.copy(
-            onboardingDemoStage = OnboardingDemoStage.AlertsPreferences,
+            onboardingChatStage = OnboardingChatStage.AlertsPreferences,
         )
     }
 
-    fun completeOnboardingDemo(alertsEnabled: Boolean = true) {
+    fun completeOnboarding(alertsEnabled: Boolean = true) {
         val currentState = _uiState.value
-        if (currentState.onboardingDemoStage == null) return
+        if (currentState.onboardingChatStage == null) return
         _uiState.value = currentState.copy(
-            onboardingDemoStage = OnboardingDemoStage.Final,
+            onboardingChatStage = OnboardingChatStage.Final,
             alertsEnabled = alertsEnabled,
         )
     }
 
     fun skipOnboardingAlerts() {
         val currentState = _uiState.value
-        if (currentState.onboardingDemoStage == null) return
+        if (currentState.onboardingChatStage == null) return
         _uiState.value = currentState.copy(
-            onboardingDemoStage = OnboardingDemoStage.Final,
+            onboardingChatStage = OnboardingChatStage.Final,
             alertsEnabled = false,
         )
     }
 
     /**
-     * Handles a real user message during the onboarding demo.
+     * Handles a real user message during the onboarding chat.
      * Advances a step-based state machine: each user send triggers the next
      * assistant prompt. After the fourth exchange the flow transitions to
      * the location-permission stage.
      */
-    fun sendOnboardingUserMessage(text: String) {
+    fun sendOnboardingMessage(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
 
         val currentState = _uiState.value
-        if (currentState.onboardingDemoStage != OnboardingDemoStage.Conversation) return
+        if (currentState.onboardingChatStage != OnboardingChatStage.Conversation) return
 
         val step = currentState.onboardingStep
         val userMessage = ChatMessage(
@@ -91,16 +91,16 @@ class OnboardingChatViewModel : ViewModel() {
 
         val nextStep = step + 1
         val nextStage = if (nextStep >= 4) {
-            OnboardingDemoStage.AwaitingLocationPermission
+            OnboardingChatStage.AwaitingLocationPermission
         } else {
-            OnboardingDemoStage.Conversation
+            OnboardingChatStage.Conversation
         }
 
         _uiState.value = currentState.copy(
             messages = currentState.messages + userMessage + assistantMessage,
             inputText = "",
             onboardingStep = nextStep,
-            onboardingDemoStage = nextStage,
+            onboardingChatStage = nextStage,
         )
     }
 
@@ -119,7 +119,7 @@ class OnboardingChatViewModel : ViewModel() {
     }
 
     private fun assistantMessage(text: String): ChatMessage = ChatMessage(
-        id = "demo_assistant_${Random.nextLong()}",
+        id = "onboard_assistant_${Random.nextLong()}",
         text = text,
         sender = MessageSender.Assistant,
         attachments = emptyList(),
@@ -128,17 +128,17 @@ class OnboardingChatViewModel : ViewModel() {
 }
 
 /**
- * Stage progression used by the onboarding chat demo.
+ * Stage progression used by the onboarding chat.
  */
-sealed interface OnboardingDemoStage {
-    data object Conversation : OnboardingDemoStage
-    data object AwaitingLocationPermission : OnboardingDemoStage
-    data object AlertsPreferences : OnboardingDemoStage
-    data object Final : OnboardingDemoStage
+sealed interface OnboardingChatStage {
+    data object Conversation : OnboardingChatStage
+    data object AwaitingLocationPermission : OnboardingChatStage
+    data object AlertsPreferences : OnboardingChatStage
+    data object Final : OnboardingChatStage
 }
 
 /**
- * UI state specific to the onboarding chat demo.
+ * UI state specific to the onboarding chat.
  *
  * Mirrors only the fields needed for the scripted onboarding flow,
  * avoiding any dependency on real-chat concepts (attachments, voice,
@@ -148,7 +148,7 @@ sealed interface OnboardingDemoStage {
 data class OnboardingChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val inputText: String = "",
-    val onboardingDemoStage: OnboardingDemoStage? = null,
+    val onboardingChatStage: OnboardingChatStage? = null,
     val onboardingStep: Int = 0,
     val alertsEnabled: Boolean = false,
 ) {
@@ -158,15 +158,15 @@ data class OnboardingChatUiState(
      * then jumps to stage-based milestones for location, alerts, and final.
      */
     val onboardingProgress: Float
-        get() = when (onboardingDemoStage) {
-            is OnboardingDemoStage.Conversation -> {
+        get() = when (onboardingChatStage) {
+            is OnboardingChatStage.Conversation -> {
                 // 1 initial assistant message + up to 8 more (4 exchanges × 2).
                 // Full flow ≈ 12 conceptual message slots (9 conversation + location + alerts + final).
                 (messages.size.coerceAtMost(9) / 12f).coerceAtLeast(0.04f)
             }
-            is OnboardingDemoStage.AwaitingLocationPermission -> 10f / 12f
-            is OnboardingDemoStage.AlertsPreferences -> 11f / 12f
-            is OnboardingDemoStage.Final -> 1f
+            is OnboardingChatStage.AwaitingLocationPermission -> 10f / 12f
+            is OnboardingChatStage.AlertsPreferences -> 11f / 12f
+            is OnboardingChatStage.Final -> 1f
             null -> 0f
         }
 }

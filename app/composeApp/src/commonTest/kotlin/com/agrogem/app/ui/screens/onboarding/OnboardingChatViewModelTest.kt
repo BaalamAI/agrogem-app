@@ -1,7 +1,7 @@
 package com.agrogem.app.ui.screens.onboarding
 
 import com.agrogem.app.ui.screens.chat.MessageSender
-import com.agrogem.app.ui.screens.onboarding.OnboardingDemoStage
+import com.agrogem.app.ui.screens.onboarding.OnboardingChatStage
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -17,7 +17,7 @@ class OnboardingChatViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(emptyList(), state.messages)
         assertEquals("", state.inputText)
-        assertEquals(null, state.onboardingDemoStage)
+        assertEquals(null, state.onboardingChatStage)
         assertEquals(0, state.onboardingStep)
         assertEquals(false, state.alertsEnabled)
     }
@@ -25,29 +25,29 @@ class OnboardingChatViewModelTest {
     // ========== Onboarding Demo Step-Based Tests ==========
 
     @Test
-    fun `startOnboardingDemo sets only initial assistant message and step 0`() {
+    fun `startOnboardingChat sets only initial assistant message and step 0`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
+        viewModel.startOnboardingChat()
 
         val state = viewModel.uiState.value
         assertEquals(1, state.messages.size)
         assertEquals(MessageSender.Assistant, state.messages[0].sender)
         assertTrue(state.messages[0].text.contains("llamás"))
-        assertEquals(OnboardingDemoStage.Conversation, state.onboardingDemoStage)
+        assertEquals(OnboardingChatStage.Conversation, state.onboardingChatStage)
         assertEquals(0, state.onboardingStep)
     }
 
     @Test
-    fun `startOnboardingDemo is idempotent and does not reset existing onboarding state`() {
+    fun `startOnboardingChat is idempotent and does not reset existing onboarding state`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
-        viewModel.sendOnboardingUserMessage("Me llamo Juan")
+        viewModel.startOnboardingChat()
+        viewModel.sendOnboardingMessage("Me llamo Juan")
 
         val before = viewModel.uiState.value
         assertEquals(3, before.messages.size)
         assertEquals(1, before.onboardingStep)
 
-        viewModel.startOnboardingDemo()
+        viewModel.startOnboardingChat()
 
         val after = viewModel.uiState.value
         assertEquals(3, after.messages.size)
@@ -55,11 +55,11 @@ class OnboardingChatViewModelTest {
     }
 
     @Test
-    fun `sendOnboardingUserMessage step 0 asks for crops and stays in Conversation`() {
+    fun `sendOnboardingMessage step 0 asks for crops and stays in Conversation`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
+        viewModel.startOnboardingChat()
 
-        viewModel.sendOnboardingUserMessage("Me llamo Juan")
+        viewModel.sendOnboardingMessage("Me llamo Juan")
 
         val state = viewModel.uiState.value
         assertEquals(3, state.messages.size)
@@ -67,105 +67,105 @@ class OnboardingChatViewModelTest {
         assertEquals("Me llamo Juan", state.messages[1].text)
         assertEquals(MessageSender.Assistant, state.messages[2].sender)
         assertTrue(state.messages[2].text.contains("cultivo"))
-        assertEquals(OnboardingDemoStage.Conversation, state.onboardingDemoStage)
+        assertEquals(OnboardingChatStage.Conversation, state.onboardingChatStage)
         assertEquals(1, state.onboardingStep)
     }
 
     @Test
-    fun `sendOnboardingUserMessage step 1 asks for size and stays in Conversation`() {
+    fun `sendOnboardingMessage step 1 asks for size and stays in Conversation`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
+        viewModel.startOnboardingChat()
 
-        viewModel.sendOnboardingUserMessage("Me llamo Juan")
-        viewModel.sendOnboardingUserMessage("Tengo tomate y aguacate")
+        viewModel.sendOnboardingMessage("Me llamo Juan")
+        viewModel.sendOnboardingMessage("Tengo tomate y aguacate")
 
         val state = viewModel.uiState.value
         assertEquals(5, state.messages.size)
         assertEquals(MessageSender.Assistant, state.messages[4].sender)
         assertTrue(state.messages[4].text.contains("hectáreas") || state.messages[4].text.contains("dimensiones"))
-        assertEquals(OnboardingDemoStage.Conversation, state.onboardingDemoStage)
+        assertEquals(OnboardingChatStage.Conversation, state.onboardingChatStage)
         assertEquals(2, state.onboardingStep)
     }
 
     @Test
-    fun `sendOnboardingUserMessage step 2 asks for stage and stays in Conversation`() {
+    fun `sendOnboardingMessage step 2 asks for stage and stays in Conversation`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
+        viewModel.startOnboardingChat()
 
-        viewModel.sendOnboardingUserMessage("Me llamo Juan")
-        viewModel.sendOnboardingUserMessage("Tengo tomate")
-        viewModel.sendOnboardingUserMessage("100m2")
+        viewModel.sendOnboardingMessage("Me llamo Juan")
+        viewModel.sendOnboardingMessage("Tengo tomate")
+        viewModel.sendOnboardingMessage("100m2")
 
         val state = viewModel.uiState.value
         assertEquals(7, state.messages.size)
         assertEquals(MessageSender.Assistant, state.messages[6].sender)
         assertTrue(state.messages[6].text.contains("etapa") || state.messages[6].text.contains("Alistando"))
-        assertEquals(OnboardingDemoStage.Conversation, state.onboardingDemoStage)
+        assertEquals(OnboardingChatStage.Conversation, state.onboardingChatStage)
         assertEquals(3, state.onboardingStep)
     }
 
     @Test
-    fun `sendOnboardingUserMessage step 3 asks for location and transitions to AwaitingLocationPermission`() {
+    fun `sendOnboardingMessage step 3 asks for location and transitions to AwaitingLocationPermission`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
+        viewModel.startOnboardingChat()
 
-        viewModel.sendOnboardingUserMessage("Me llamo Juan")
-        viewModel.sendOnboardingUserMessage("Tengo tomate")
-        viewModel.sendOnboardingUserMessage("100m2")
-        viewModel.sendOnboardingUserMessage("Está en crecimiento")
+        viewModel.sendOnboardingMessage("Me llamo Juan")
+        viewModel.sendOnboardingMessage("Tengo tomate")
+        viewModel.sendOnboardingMessage("100m2")
+        viewModel.sendOnboardingMessage("Está en crecimiento")
 
         val state = viewModel.uiState.value
         assertEquals(9, state.messages.size)
         assertEquals(MessageSender.Assistant, state.messages[8].sender)
         assertTrue(state.messages[8].text.contains("ubicación") || state.messages[8].text.contains("zona"))
-        assertEquals(OnboardingDemoStage.AwaitingLocationPermission, state.onboardingDemoStage)
+        assertEquals(OnboardingChatStage.AwaitingLocationPermission, state.onboardingChatStage)
         assertEquals(4, state.onboardingStep)
     }
 
     @Test
-    fun `sendOnboardingUserMessage does nothing when demo has not started`() {
+    fun `sendOnboardingMessage does nothing when chat has not started`() {
         val viewModel = OnboardingChatViewModel()
-        // Default stage is null, demo not started
+        // Default stage is null, chat not started
 
-        viewModel.sendOnboardingUserMessage("Hola")
+        viewModel.sendOnboardingMessage("Hola")
 
         assertEquals(emptyList(), viewModel.uiState.value.messages)
     }
 
     @Test
-    fun `sendOnboardingUserMessage does nothing when not in Conversation stage`() {
+    fun `sendOnboardingMessage does nothing when not in Conversation stage`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
-        viewModel.sendOnboardingUserMessage("Me llamo Juan")
-        viewModel.sendOnboardingUserMessage("Tengo tomate")
-        viewModel.sendOnboardingUserMessage("100m2")
-        viewModel.sendOnboardingUserMessage("Está en crecimiento")
+        viewModel.startOnboardingChat()
+        viewModel.sendOnboardingMessage("Me llamo Juan")
+        viewModel.sendOnboardingMessage("Tengo tomate")
+        viewModel.sendOnboardingMessage("100m2")
+        viewModel.sendOnboardingMessage("Está en crecimiento")
 
         // Now in AwaitingLocationPermission
-        assertEquals(OnboardingDemoStage.AwaitingLocationPermission, viewModel.uiState.value.onboardingDemoStage)
+        assertEquals(OnboardingChatStage.AwaitingLocationPermission, viewModel.uiState.value.onboardingChatStage)
 
-        viewModel.sendOnboardingUserMessage("Mensaje extra")
+        viewModel.sendOnboardingMessage("Mensaje extra")
 
         // Should not add more messages
         assertEquals(9, viewModel.uiState.value.messages.size)
     }
 
     @Test
-    fun `sendOnboardingUserMessage ignores empty input`() {
+    fun `sendOnboardingMessage ignores empty input`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
+        viewModel.startOnboardingChat()
 
-        viewModel.sendOnboardingUserMessage("   ")
+        viewModel.sendOnboardingMessage("   ")
 
         assertEquals(1, viewModel.uiState.value.messages.size)
     }
 
     @Test
-    fun `sendOnboardingUserMessage clears inputText`() {
+    fun `sendOnboardingMessage clears inputText`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
+        viewModel.startOnboardingChat()
 
-        viewModel.sendOnboardingUserMessage("Hola")
+        viewModel.sendOnboardingMessage("Hola")
 
         assertEquals("", viewModel.uiState.value.inputText)
     }
@@ -173,47 +173,47 @@ class OnboardingChatViewModelTest {
     @Test
     fun `location permission flow continues to AlertsPreferences`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
-        viewModel.sendOnboardingUserMessage("Me llamo Juan")
-        viewModel.sendOnboardingUserMessage("Tengo tomate")
-        viewModel.sendOnboardingUserMessage("100m2")
-        viewModel.sendOnboardingUserMessage("Está en crecimiento")
+        viewModel.startOnboardingChat()
+        viewModel.sendOnboardingMessage("Me llamo Juan")
+        viewModel.sendOnboardingMessage("Tengo tomate")
+        viewModel.sendOnboardingMessage("100m2")
+        viewModel.sendOnboardingMessage("Está en crecimiento")
 
-        viewModel.continueOnboardingDemoAfterLocationPermission()
+        viewModel.continueOnboardingAfterLocationPermission()
 
         val state = viewModel.uiState.value
-        assertEquals(OnboardingDemoStage.AlertsPreferences, state.onboardingDemoStage)
+        assertEquals(OnboardingChatStage.AlertsPreferences, state.onboardingChatStage)
     }
 
     @Test
-    fun `completeOnboardingDemo transitions to Final with alerts enabled`() {
+    fun `completeOnboarding transitions to Final with alerts enabled`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
-        viewModel.sendOnboardingUserMessage("Me llamo Juan")
-        viewModel.sendOnboardingUserMessage("Tengo tomate")
-        viewModel.sendOnboardingUserMessage("100m2")
-        viewModel.sendOnboardingUserMessage("Está en crecimiento")
-        viewModel.continueOnboardingDemoAfterLocationPermission()
-        viewModel.completeOnboardingDemo()
+        viewModel.startOnboardingChat()
+        viewModel.sendOnboardingMessage("Me llamo Juan")
+        viewModel.sendOnboardingMessage("Tengo tomate")
+        viewModel.sendOnboardingMessage("100m2")
+        viewModel.sendOnboardingMessage("Está en crecimiento")
+        viewModel.continueOnboardingAfterLocationPermission()
+        viewModel.completeOnboarding()
 
         val state = viewModel.uiState.value
-        assertEquals(OnboardingDemoStage.Final, state.onboardingDemoStage)
+        assertEquals(OnboardingChatStage.Final, state.onboardingChatStage)
         assertEquals(true, state.alertsEnabled)
     }
 
     @Test
     fun `skipOnboardingAlerts transitions to Final with alerts disabled`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
-        viewModel.sendOnboardingUserMessage("Me llamo Juan")
-        viewModel.sendOnboardingUserMessage("Tengo tomate")
-        viewModel.sendOnboardingUserMessage("100m2")
-        viewModel.sendOnboardingUserMessage("Está en crecimiento")
-        viewModel.continueOnboardingDemoAfterLocationPermission()
+        viewModel.startOnboardingChat()
+        viewModel.sendOnboardingMessage("Me llamo Juan")
+        viewModel.sendOnboardingMessage("Tengo tomate")
+        viewModel.sendOnboardingMessage("100m2")
+        viewModel.sendOnboardingMessage("Está en crecimiento")
+        viewModel.continueOnboardingAfterLocationPermission()
         viewModel.skipOnboardingAlerts()
 
         val state = viewModel.uiState.value
-        assertEquals(OnboardingDemoStage.Final, state.onboardingDemoStage)
+        assertEquals(OnboardingChatStage.Final, state.onboardingChatStage)
         assertEquals(false, state.alertsEnabled)
     }
 
@@ -241,7 +241,7 @@ class OnboardingChatViewModelTest {
     // ========== Progress Tests ==========
 
     @Test
-    fun `onboardingProgress is 0 before demo starts`() {
+    fun `onboardingProgress is 0 before chat starts`() {
         val viewModel = OnboardingChatViewModel()
         assertEquals(0f, viewModel.uiState.value.onboardingProgress)
     }
@@ -249,12 +249,12 @@ class OnboardingChatViewModelTest {
     @Test
     fun `onboardingProgress advances during conversation`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
+        viewModel.startOnboardingChat()
 
         val progressAfterStart = viewModel.uiState.value.onboardingProgress
         assertTrue(progressAfterStart > 0f)
 
-        viewModel.sendOnboardingUserMessage("Me llamo Juan")
+        viewModel.sendOnboardingMessage("Me llamo Juan")
         val progressAfterFirstExchange = viewModel.uiState.value.onboardingProgress
         assertTrue(progressAfterFirstExchange > progressAfterStart)
     }
@@ -262,13 +262,13 @@ class OnboardingChatViewModelTest {
     @Test
     fun `onboardingProgress reaches 1f in Final stage`() {
         val viewModel = OnboardingChatViewModel()
-        viewModel.startOnboardingDemo()
-        viewModel.sendOnboardingUserMessage("Me llamo Juan")
-        viewModel.sendOnboardingUserMessage("Tengo tomate")
-        viewModel.sendOnboardingUserMessage("100m2")
-        viewModel.sendOnboardingUserMessage("Está en crecimiento")
-        viewModel.continueOnboardingDemoAfterLocationPermission()
-        viewModel.completeOnboardingDemo()
+        viewModel.startOnboardingChat()
+        viewModel.sendOnboardingMessage("Me llamo Juan")
+        viewModel.sendOnboardingMessage("Tengo tomate")
+        viewModel.sendOnboardingMessage("100m2")
+        viewModel.sendOnboardingMessage("Está en crecimiento")
+        viewModel.continueOnboardingAfterLocationPermission()
+        viewModel.completeOnboarding()
 
         assertEquals(1f, viewModel.uiState.value.onboardingProgress)
     }

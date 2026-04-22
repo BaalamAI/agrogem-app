@@ -9,18 +9,21 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.text.TextStyle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -115,23 +118,30 @@ fun ChatScreen(
             }
 
             // Render messages from state — seed message (assistant) appears first in seeded mode
-            messages.forEach { message ->
-                MessageBubble(message = message)
-                Spacer(modifier = Modifier.height(8.dp))
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(messages, key = { it.id }) { message ->
+                    MessageBubble(message = message)
+                }
             }
 
             if (showComposer) {
-                Spacer(modifier = Modifier.weight(1f))
-
-                ChatInputArea(
-                    inputText = uiState.inputText,
-                    onInputChanged = { viewModel.onEvent(ChatEvent.InputChanged(it)) },
-                    onAttachClick = { viewModel.onEvent(ChatEvent.ToggleAttachmentMenu(true)) },
-                    onMicClick = onMicClick,
-                    onSendClick = { viewModel.onEvent(ChatEvent.SendMessage) },
-                    pendingAttachments = pendingAttachments,
-                )
-                Spacer(modifier = Modifier.height(16.dp))
+                Column(
+                    modifier = Modifier
+                        .imePadding()
+                        .padding(bottom = 16.dp),
+                ) {
+                    ChatInputArea(
+                        inputText = uiState.inputText,
+                        onInputChanged = { viewModel.onEvent(ChatEvent.InputChanged(it)) },
+                        onAttachClick = { viewModel.onEvent(ChatEvent.ToggleAttachmentMenu(true)) },
+                        onMicClick = onMicClick,
+                        onSendClick = { viewModel.onEvent(ChatEvent.SendMessage) },
+                        pendingAttachments = pendingAttachments,
+                    )
+                }
             } else {
                 Spacer(modifier = Modifier.height(20.dp))
             }

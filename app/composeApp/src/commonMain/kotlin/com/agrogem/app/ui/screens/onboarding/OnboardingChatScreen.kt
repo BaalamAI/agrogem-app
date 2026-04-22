@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -50,28 +51,28 @@ import com.agrogem.app.ui.components.FilledPrimaryButton
 import com.agrogem.app.ui.components.RoundIconButton
 import com.agrogem.app.ui.screens.chat.ChatMessage
 import com.agrogem.app.ui.screens.chat.MessageSender
-import com.agrogem.app.ui.screens.onboarding.OnboardingDemoStage
+import com.agrogem.app.ui.screens.onboarding.OnboardingChatStage
 
 @Composable
-fun OnboardingChatDemoScreen(
+fun OnboardingChatScreen(
     viewModel: OnboardingChatViewModel,
     onBack: () -> Unit,
     onFinish: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val stage = uiState.onboardingDemoStage ?: OnboardingDemoStage.Conversation
+    val stage = uiState.onboardingChatStage ?: OnboardingChatStage.Conversation
     var showLoading by remember { mutableStateOf(false) }
 
     val locationRequester = rememberLocationPermissionRequester { _ ->
-        viewModel.continueOnboardingDemoAfterLocationPermission()
+        viewModel.continueOnboardingAfterLocationPermission()
     }
     val notificationRequester = rememberNotificationPermissionRequester { granted ->
-        viewModel.completeOnboardingDemo(alertsEnabled = granted)
+        viewModel.completeOnboarding(alertsEnabled = granted)
     }
 
     LaunchedEffect(Unit) {
-        viewModel.startOnboardingDemo()
+        viewModel.startOnboardingChat()
     }
 
     val progress = uiState.onboardingProgress
@@ -82,34 +83,34 @@ fun OnboardingChatDemoScreen(
             .background(AgroGemColors.Screen),
     ) {
         when (stage) {
-            OnboardingDemoStage.Conversation -> ConversationScreen(
+            OnboardingChatStage.Conversation -> ConversationScreen(
                 messages = uiState.messages,
                 inputText = uiState.inputText,
                 onInputChanged = { viewModel.onInputChanged(it) },
                 onBack = onBack,
-                onSendMessage = { viewModel.sendOnboardingUserMessage(it) },
+                onSendMessage = { viewModel.sendOnboardingMessage(it) },
                 progress = progress,
             )
 
-            OnboardingDemoStage.AwaitingLocationPermission -> ConversationScreen(
+            OnboardingChatStage.AwaitingLocationPermission -> ConversationScreen(
                 messages = uiState.messages,
                 inputText = uiState.inputText,
                 onInputChanged = { viewModel.onInputChanged(it) },
                 onBack = onBack,
-                onSendMessage = { viewModel.sendOnboardingUserMessage(it) },
+                onSendMessage = { viewModel.sendOnboardingMessage(it) },
                 progress = progress,
                 showLocationModal = true,
                 onAllowLocation = { locationRequester.request() },
-                onRejectLocation = { viewModel.continueOnboardingDemoAfterLocationPermission() },
+                onRejectLocation = { viewModel.continueOnboardingAfterLocationPermission() },
             )
 
-            OnboardingDemoStage.AlertsPreferences -> LocationAndAlertsScreen(
+            OnboardingChatStage.AlertsPreferences -> LocationAndAlertsScreen(
                 progress = progress,
                 onSkipAlerts = { viewModel.skipOnboardingAlerts() },
                 onActivateAlerts = { notificationRequester.request() },
             )
 
-            OnboardingDemoStage.Final -> FinalCompletionScreen(
+            OnboardingChatStage.Final -> FinalCompletionScreen(
                 alertsEnabled = uiState.alertsEnabled,
                 onFinish = { showLoading = true },
             )
@@ -143,7 +144,7 @@ private fun ConversationScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 18.dp)
-            .padding(top = 16.dp, bottom = 16.dp),
+            .padding(top = 16.dp),
     ) {
         Spacer(modifier = Modifier.height(40.dp))
 
@@ -179,6 +180,9 @@ private fun ConversationScreen(
 
         if (!showLocationModal) {
             OnboardingChatInput(
+                modifier = Modifier
+                    .imePadding()
+                    .padding(bottom = 16.dp),
                 text = inputText,
                 onTextChange = onInputChanged,
                 onSend = onSendMessage,

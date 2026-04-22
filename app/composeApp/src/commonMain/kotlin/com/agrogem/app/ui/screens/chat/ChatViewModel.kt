@@ -70,12 +70,12 @@ class ChatViewModel(
         return when (mode) {
             ChatMode.Blank -> {
                 when {
-                    fromVoice -> "Recibi tu nota de voz. Estoy en modo demo y listo para seguir ayudandote."
+                    fromVoice -> "Recibí tu nota de voz. Estoy listo para seguir ayudándote."
                     attachmentCount > 0 && userText.isBlank() -> {
                         "Recibi $attachmentCount adjunto(s). Contame que queres validar y lo revisamos juntos."
                     }
                     userText.isNotBlank() -> {
-                        "Entendido. En modo demo ya registre tu consulta: \"$userText\"."
+                        "Entendido. Ya registré tu consulta: \"$userText\"."
                     }
                     else -> "Contame mas detalles del cultivo para poder guiarte mejor."
                 }
