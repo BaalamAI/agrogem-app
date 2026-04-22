@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.agrogem.app.data.OnboardingStateStore
 import com.agrogem.app.data.rememberImagePickerLauncher
 import com.agrogem.app.navigation.AgroGemBottomTab
 import com.agrogem.app.navigation.AgroGemRoute
@@ -21,10 +23,16 @@ import com.agrogem.app.ui.viewmodel.kmpViewModel
 @Composable
 fun AppShell(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
+    val onboardingStateStore = remember { OnboardingStateStore() }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = AgroGemRoute.fromRoute(backStackEntry?.destination?.route)
     val showBottomBar = currentRoute == AgroGemRoute.Home || currentRoute == AgroGemRoute.History
     val currentTab = currentRoute.bottomTab ?: AgroGemBottomTab.Home
+    val startDestination = if (onboardingStateStore.isCompleted()) {
+        AgroGemRoute.Home.route
+    } else {
+        AgroGemRoute.Onboarding.createRoute(0)
+    }
 
     // Shared ViewModel for the analysis flow — lives here so it survives navigation
     val analysisFlowVm = kmpViewModel { AnalysisFlowViewModel() }
@@ -81,6 +89,30 @@ fun AppShell(modifier: Modifier = Modifier) {
             navController = navController,
             analysisFlowVm = analysisFlowVm,
             chatViewModel = chatViewModel,
+            startDestination = startDestination,
+            onOnboardingFinished = {
+                onboardingStateStore.markCompleted()
+                navController.navigate(AgroGemRoute.Home.route) {
+                    popUpTo(AgroGemRoute.Onboarding.createRoute(0)) {
+                        inclusive = true
+                    }
+                    launchSingleTop = true
+                    restoreState = false
+                }
+            },
+            onWelcomeAdvance = {
+                navController.navigate(AgroGemRoute.Onboarding.createRoute(1)) {
+                    popUpTo(AgroGemRoute.Onboarding.createRoute(0)) {
+                        inclusive = true
+                    }
+                    launchSingleTop = true
+                }
+            },
+            onWriteWithAgroGemma = {
+                navController.navigate(AgroGemRoute.OnboardingChat.route) {
+                    launchSingleTop = true
+                }
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),

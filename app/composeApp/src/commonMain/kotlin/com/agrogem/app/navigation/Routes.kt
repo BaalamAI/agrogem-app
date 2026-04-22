@@ -19,6 +19,24 @@ sealed interface AgroGemRoute {
         override val bottomTab: AgroGemBottomTab = AgroGemBottomTab.Home
     }
 
+    data object Onboarding : AgroGemRoute {
+        override val route: String = "onboarding"
+        override val title: String = "Onboarding"
+        override val bottomTab: AgroGemBottomTab? = null
+
+        const val BASE_ROUTE = "onboarding"
+        const val STEP_ARG = "step"
+        const val NAV_ROUTE = "$BASE_ROUTE?$STEP_ARG={$STEP_ARG}"
+
+        fun createRoute(step: Int = 0): String = "$BASE_ROUTE?$STEP_ARG=$step"
+    }
+
+    data object OnboardingChat : AgroGemRoute {
+        override val route: String = "onboarding_chat"
+        override val title: String = "Onboarding chat"
+        override val bottomTab: AgroGemBottomTab? = null
+    }
+
     data object Camera : AgroGemRoute {
         override val route: String = "camera"
         override val title: String = "Cámara"
@@ -101,6 +119,8 @@ sealed interface AgroGemRoute {
     companion object {
         val all = listOf(
             Home,
+            Onboarding,
+            OnboardingChat,
             Camera,
             Analysis,
             AnalysisHistory,

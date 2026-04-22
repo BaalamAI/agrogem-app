@@ -59,6 +59,7 @@ fun ChatScreen(
     onLaunchCamera: () -> Unit = {},
     onLaunchGallery: () -> Unit = {},
     showConfirmDialog: Boolean,
+    showComposer: Boolean = true,
     onConfirmClose: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -119,17 +120,21 @@ fun ChatScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            if (showComposer) {
+                Spacer(modifier = Modifier.weight(1f))
 
-            ChatInputArea(
-                inputText = uiState.inputText,
-                onInputChanged = { viewModel.onEvent(ChatEvent.InputChanged(it)) },
-                onAttachClick = { viewModel.onEvent(ChatEvent.ToggleAttachmentMenu(true)) },
-                onMicClick = onMicClick,
-                onSendClick = { viewModel.onEvent(ChatEvent.SendMessage) },
-                pendingAttachments = pendingAttachments,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+                ChatInputArea(
+                    inputText = uiState.inputText,
+                    onInputChanged = { viewModel.onEvent(ChatEvent.InputChanged(it)) },
+                    onAttachClick = { viewModel.onEvent(ChatEvent.ToggleAttachmentMenu(true)) },
+                    onMicClick = onMicClick,
+                    onSendClick = { viewModel.onEvent(ChatEvent.SendMessage) },
+                    pendingAttachments = pendingAttachments,
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+            } else {
+                Spacer(modifier = Modifier.height(20.dp))
+            }
         }
 
         if (!showConfirmDialog && uiState.showAttachmentMenu) {

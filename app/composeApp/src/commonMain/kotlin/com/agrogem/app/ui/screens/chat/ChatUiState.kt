@@ -14,6 +14,7 @@ data class ChatUiState(
     val attachments: List<ChatAttachment> = emptyList(),
     val showAttachmentMenu: Boolean = attachments.isNotEmpty(),
     val mode: ChatMode = ChatMode.Blank,
+    val onboardingDemoStage: OnboardingDemoStage? = null,
     val voiceState: VoiceState = VoiceState.Idle,
 )
 
@@ -53,6 +54,11 @@ sealed interface ChatMode {
     /** Fresh conversation with no prior context. */
     data object Blank : ChatMode
 
+    /** Scripted onboarding demo used before the first real app session. */
+    data class OnboardingDemo(
+        val completed: Boolean = false,
+    ) : ChatMode
+
     /** Conversation seeded with a prior pest analysis. */
     data class AnalysisSeeded(
         val analysisId: String,
@@ -75,4 +81,14 @@ sealed interface VoiceState {
 
     /** Voice input failed with an error. */
     data class Error(val message: String) : VoiceState
+}
+
+/**
+ * Stage progression used by the onboarding chat demo.
+ */
+sealed interface OnboardingDemoStage {
+    data object Conversation : OnboardingDemoStage
+    data object AwaitingLocationPermission : OnboardingDemoStage
+    data object AlertsPreferences : OnboardingDemoStage
+    data object Final : OnboardingDemoStage
 }

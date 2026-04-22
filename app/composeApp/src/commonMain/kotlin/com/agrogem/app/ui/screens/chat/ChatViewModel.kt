@@ -1,10 +1,14 @@
 package com.agrogem.app.ui.screens.chat
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 class ChatViewModel(
@@ -14,6 +18,7 @@ class ChatViewModel(
 
     private val _uiState = MutableStateFlow(createInitialState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+    private var onboardingDemoJob: Job? = null
 
     private fun createInitialState(): ChatUiState {
         return if (analysisId != null) {
@@ -30,6 +35,101 @@ class ChatViewModel(
             ChatUiState(mode = ChatMode.Blank)
         }
     }
+
+    fun startOnboardingDemo() {
+        onboardingDemoJob?.cancel()
+        _uiState.value = ChatUiState(
+            messages = listOf(
+                demoAssistantMessage("Para empezar, ¿cómo te llamás? 😊"),
+            ),
+            mode = ChatMode.OnboardingDemo(completed = false),
+            onboardingDemoStage = OnboardingDemoStage.Conversation,
+        )
+
+        onboardingDemoJob = viewModelScope.launch {
+            delay(700)
+            appendDemoMessage(demoUserMessage("Me llamo Alejandro"))
+
+            delay(700)
+            appendDemoMessage(
+                demoAssistantMessage(
+                    "Mucho gusto, Alejandro. ¿Qué cultivo o cultivos tenés? Podés mencionar más de uno. 🌱",
+                ),
+            )
+
+            delay(900)
+            appendDemoMessage(demoUserMessage("Tengo aguacate, tomate y arroz"))
+
+            delay(700)
+            appendDemoMessage(
+                demoAssistantMessage(
+                    "¿Cuántas manzanas o hectáreas tiene tu cultivo de aguacate, tomate y arroz? Si puedes dame las dimensiones por separado o sea cuanto mide cada cultivo mejor.",
+                ),
+            )
+
+            delay(900)
+            appendDemoMessage(demoUserMessage("El de aguacate mide 40m2, el de tomate 100m2 y el de arroz mide 500m2"))
+
+            delay(800)
+            appendDemoMessage(
+                demoAssistantMessage(
+                    "¿Cuánto tiempo tiene que lo sembraste? ¿En qué etapa está?\n\n1. Alistando la tierra — preparación y siembra\n2. Saliendo el puyón — nacencia\n3. Poniéndose shule — crecimiento\n4. Dando la flor — floración\n5. Cargando el fruto — llenado\n6. Punto de corte — cosecha",
+                ),
+            )
+
+            delay(900)
+            appendDemoMessage(demoUserMessage("Está en crecimiento, ya tiene como 4 semanas"))
+
+            delay(800)
+            appendDemoMessage(
+                demoAssistantMessage(
+                    "Para darte consejos más exactos necesito saber dónde están tus cultivos. Así puedo ver la temperatura, lluvias y condiciones de tu zona. 📍",
+                ),
+            )
+
+            _uiState.value = _uiState.value.copy(
+                onboardingDemoStage = OnboardingDemoStage.AwaitingLocationPermission,
+            )
+        }
+    }
+
+    fun continueOnboardingDemoAfterLocationPermission() {
+        val currentState = _uiState.value
+        if (currentState.mode !is ChatMode.OnboardingDemo) return
+        _uiState.value = currentState.copy(
+            mode = ChatMode.OnboardingDemo(completed = false),
+            onboardingDemoStage = OnboardingDemoStage.AlertsPreferences,
+        )
+    }
+
+    fun completeOnboardingDemo() {
+        val currentState = _uiState.value
+        if (currentState.mode !is ChatMode.OnboardingDemo) return
+        _uiState.value = currentState.copy(
+            mode = ChatMode.OnboardingDemo(completed = true),
+            onboardingDemoStage = OnboardingDemoStage.Final,
+        )
+    }
+
+    private fun appendDemoMessage(message: ChatMessage) {
+        _uiState.value = _uiState.value.copy(messages = _uiState.value.messages + message)
+    }
+
+    private fun demoAssistantMessage(text: String): ChatMessage = ChatMessage(
+        id = "demo_assistant_${Random.nextLong()}",
+        text = text,
+        sender = MessageSender.Assistant,
+        attachments = emptyList(),
+        timestamp = Random.nextLong(),
+    )
+
+    private fun demoUserMessage(text: String): ChatMessage = ChatMessage(
+        id = "demo_user_${Random.nextLong()}",
+        text = text,
+        sender = MessageSender.User,
+        attachments = emptyList(),
+        timestamp = Random.nextLong(),
+    )
 
     private fun createSeedMessage(diagnosis: DiagnosisResult): ChatMessage {
         return ChatMessage(
@@ -100,6 +200,19 @@ class ChatViewModel(
                     else -> "Con el analisis actual, empeza por $firstTreatment."
                 }
             }
+
+            is ChatMode.OnboardingDemo -> {
+                when {
+                    fromVoice -> "Recibi tu nota de voz. Estoy en modo demo y listo para seguir ayudandote."
+                    attachmentCount > 0 && userText.isBlank() -> {
+                        "Recibi $attachmentCount adjunto(s). Contame que queres validar y lo revisamos juntos."
+                    }
+                    userText.isNotBlank() -> {
+                        "Entendido. En modo demo ya registre tu consulta: \"$userText\"."
+                    }
+                    else -> "Contame mas detalles del cultivo para poder guiarte mejor."
+                }
+            }
         }
     }
 
@@ -141,6 +254,7 @@ class ChatViewModel(
     /** Creates a user message from current input and pending attachments, appends to messages list. */
     private fun handleSendMessage() {
         val currentState = _uiState.value
+        if (currentState.mode is ChatMode.OnboardingDemo) return
         val text = currentState.inputText.trim()
 
         if (text.isEmpty() && currentState.attachments.isEmpty()) return
@@ -246,11 +360,13 @@ class ChatViewModel(
      * with the new analysis context (supporting multiple analysis→chat handoffs).
      */
     fun seedFromAnalysis(analysisId: String, diagnosis: DiagnosisResult) {
+        onboardingDemoJob?.cancel()
         val seedMessage = createSeedMessage(diagnosis)
         val newMode = ChatMode.AnalysisSeeded(analysisId = analysisId, diagnosis = diagnosis)
         _uiState.value = _uiState.value.copy(
             mode = newMode,
             messages = listOf(seedMessage),
+            onboardingDemoStage = null,
         )
     }
 }

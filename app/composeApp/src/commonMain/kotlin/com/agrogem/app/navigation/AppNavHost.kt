@@ -21,9 +21,12 @@ import com.agrogem.app.ui.screens.chat.ChatEvent
 import com.agrogem.app.ui.screens.chat.ChatScreen
 import com.agrogem.app.ui.screens.chat.ChatViewModel
 import com.agrogem.app.ui.screens.chat.VoiceReadyScreen
+import com.agrogem.app.ui.screens.onboarding.OnboardingChatDemoScreen
+import com.agrogem.app.ui.screens.onboarding.OnboardingScreen
 import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.ui.screens.history.HistoryScreen
 import com.agrogem.app.ui.screens.home.HomeScreen
+import com.agrogem.app.ui.viewmodel.kmpViewModel
 
 @Composable
 fun AppNavHost(
@@ -31,7 +34,10 @@ fun AppNavHost(
     navController: NavHostController,
     analysisFlowVm: AnalysisFlowViewModel,
     chatViewModel: ChatViewModel,
-    startDestination: AgroGemRoute = AgroGemRoute.Home,
+    startDestination: String = AgroGemRoute.Home.route,
+    onOnboardingFinished: () -> Unit = {},
+    onWelcomeAdvance: () -> Unit = {},
+    onWriteWithAgroGemma: () -> Unit = {},
 ) {
     val chatImagePicker = rememberImagePickerLauncher { result ->
         if (result != null) {
@@ -41,13 +47,42 @@ fun AppNavHost(
 
     NavHost(
         navController = navController,
-        startDestination = startDestination.route,
+        startDestination = startDestination,
         modifier = modifier,
     ) {
         composable(AgroGemRoute.Home.route) {
             HomeScreen(
                 onOpenCamera = { /* Camera is launched via FAB in AppShell */ },
                 onOpenHistory = { navController.pushTo(AgroGemRoute.History) },
+            )
+        }
+
+        composable(
+            route = AgroGemRoute.Onboarding.NAV_ROUTE,
+            arguments = listOf(
+                navArgument(AgroGemRoute.Onboarding.STEP_ARG) {
+                    type = NavType.IntType
+                    defaultValue = 0
+                },
+            ),
+        ) { backStackEntry ->
+            val step = backStackEntry.arguments?.getInt(AgroGemRoute.Onboarding.STEP_ARG) ?: 0
+            OnboardingScreen(
+                step = step,
+                onFinish = onOnboardingFinished,
+                onWelcomeAdvance = onWelcomeAdvance,
+                onWriteWithAgroGemma = onWriteWithAgroGemma,
+            )
+        }
+
+        composable(AgroGemRoute.OnboardingChat.route) {
+            val onboardingChatViewModel = kmpViewModel { ChatViewModel() }
+            OnboardingChatDemoScreen(
+                viewModel = onboardingChatViewModel,
+                onBack = { navController.popBackStack() },
+                onFinish = {
+                    onOnboardingFinished()
+                },
             )
         }
 
