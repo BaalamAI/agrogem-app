@@ -8,7 +8,7 @@ class RoutesTest {
 
     @Test
     fun `all routes are registered`() {
-        assertEquals(14, AgroGemRoute.all.size)
+        assertEquals(15, AgroGemRoute.all.size)
         assertEquals(
             listOf(
                 "home",
@@ -24,6 +24,7 @@ class RoutesTest {
                 "chat",
                 "chat_confirm",
                 "history",
+                "conversations",
                 "voice_ready",
             ),
             AgroGemRoute.all.map { it.route },

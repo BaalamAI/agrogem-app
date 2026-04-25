@@ -28,8 +28,8 @@ class BottomNavigationBarIconTest {
     }
 
     @Test
-    fun `profile tab uses navigation profile drawable`() {
-        assertEquals("ic_navigation_profile", BottomTabIcons.Profile.resourceName)
+    fun `chat tab uses navigation chat drawable`() {
+        assertEquals("ic_navigation_chat", BottomTabIcons.Chat.resourceName)
     }
 
     @Test

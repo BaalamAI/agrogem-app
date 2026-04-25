@@ -20,6 +20,8 @@ import com.agrogem.app.ui.screens.analysis.PlantAnalysisScreen
 import com.agrogem.app.ui.screens.chat.ChatEvent
 import com.agrogem.app.ui.screens.chat.ChatScreen
 import com.agrogem.app.ui.screens.chat.ChatViewModel
+import com.agrogem.app.ui.screens.chat.ConversationsScreen
+import com.agrogem.app.ui.screens.chat.ConversationsViewModel
 import com.agrogem.app.ui.screens.chat.VoiceReadyScreen
 import com.agrogem.app.ui.screens.onboarding.OnboardingChatScreen
 import com.agrogem.app.ui.screens.onboarding.OnboardingChatViewModel
@@ -99,6 +101,26 @@ fun AppNavHost(
                 onOpenEntry = {
                     analysisFlowVm.loadFromHistory(imageUri = "")
                     navController.pushTo(AgroGemRoute.AnalysisHistory)
+                },
+            )
+        }
+
+        composable(AgroGemRoute.Conversations.route) {
+            val conversationsViewModel = kmpViewModel { ConversationsViewModel() }
+            ConversationsScreen(
+                viewModel = conversationsViewModel,
+                onOpenConversation = { conversation ->
+                    if (conversation.analysisId != null && conversation.diagnosis != null) {
+                        chatViewModel.seedFromAnalysis(conversation.analysisId, conversation.diagnosis)
+                        navController.pushTo(AgroGemRoute.Chat.createRoute(conversation.analysisId))
+                    } else {
+                        chatViewModel.resetToBlank()
+                        navController.pushTo(AgroGemRoute.Chat.createRoute(null))
+                    }
+                },
+                onNewChat = {
+                    chatViewModel.resetToBlank()
+                    navController.pushTo(AgroGemRoute.Chat.createRoute(null))
                 },
             )
         }

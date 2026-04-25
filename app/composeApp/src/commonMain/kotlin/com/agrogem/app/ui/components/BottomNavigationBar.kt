@@ -21,10 +21,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.composeapp.generated.resources.Res
+import app.composeapp.generated.resources.ic_navigation_chat
 import app.composeapp.generated.resources.ic_navigation_fields
 import app.composeapp.generated.resources.ic_navigation_home
 import app.composeapp.generated.resources.ic_navigation_maps
-import app.composeapp.generated.resources.ic_navigation_profile
 import app.composeapp.generated.resources.ic_navigation_scan
 import com.agrogem.app.navigation.AgroGemBottomTab
 import com.agrogem.app.theme.AgroGemColors
@@ -41,7 +41,7 @@ enum class BottomTabIcons(val resourceName: String) {
     Fields("ic_navigation_fields"),
     Scan("ic_navigation_scan"),
     Maps("ic_navigation_maps"),
-    Profile("ic_navigation_profile"),
+    Chat("ic_navigation_chat"),
 }
 
 @Composable
@@ -86,9 +86,9 @@ fun BottomNavigationBar(
             onNavigate = onNavigate,
         )
         BottomBarItem(
-            tab = AgroGemBottomTab.Profile,
-            label = "PROFILE",
-            icon = Res.drawable.ic_navigation_profile,
+            tab = AgroGemBottomTab.Chat,
+            label = "CHAT",
+            icon = Res.drawable.ic_navigation_chat,
             currentTab = currentTab,
             onNavigate = onNavigate,
         )

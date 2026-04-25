@@ -26,7 +26,7 @@ fun AppShell(modifier: Modifier = Modifier) {
     val onboardingStateStore = remember { OnboardingStateStore() }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = AgroGemRoute.fromRoute(backStackEntry?.destination?.route)
-    val showBottomBar = currentRoute == AgroGemRoute.Home || currentRoute == AgroGemRoute.History
+    val showBottomBar = currentRoute == AgroGemRoute.Home || currentRoute == AgroGemRoute.History || currentRoute == AgroGemRoute.Conversations
     val currentTab = currentRoute.bottomTab ?: AgroGemBottomTab.Home
     val startDestination = if (onboardingStateStore.isCompleted()) {
         AgroGemRoute.Home.route
@@ -74,7 +74,7 @@ fun AppShell(modifier: Modifier = Modifier) {
                                 return@BottomNavigationBar
                             }
                             AgroGemBottomTab.Maps -> AgroGemRoute.TreatmentProducts
-                            AgroGemBottomTab.Profile -> AgroGemRoute.VoiceReady
+                            AgroGemBottomTab.Chat -> AgroGemRoute.Conversations
                         }
 
                         if (destination.route != backStackEntry?.destination?.route) {

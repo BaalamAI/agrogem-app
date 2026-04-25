@@ -241,6 +241,14 @@ class ChatViewModel(
     }
 
     /**
+     * Resets the chat to a blank state, clearing messages and mode.
+     * Used when opening a new free chat from the conversations list.
+     */
+    fun resetToBlank() {
+        _uiState.value = ChatUiState(mode = ChatMode.Blank)
+    }
+
+    /**
      * Seeds this ChatViewModel with analysis context at runtime, transitioning from
      * Blank mode (or a prior seeded mode) to AnalysisSeeded mode with the given diagnosis.
      * Called by AppNavHost when navigating from PlantAnalysisScreen → Chat so the
