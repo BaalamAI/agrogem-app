@@ -5,7 +5,7 @@ enum class AgroGemBottomTab {
     Fields,
     Scan,
     Maps,
-    Profile,
+    Chat,
 }
 
 sealed interface AgroGemRoute {
@@ -110,10 +110,16 @@ sealed interface AgroGemRoute {
         override val bottomTab: AgroGemBottomTab = AgroGemBottomTab.Fields
     }
 
+    data object Conversations : AgroGemRoute {
+        override val route: String = "conversations"
+        override val title: String = "Conversaciones"
+        override val bottomTab: AgroGemBottomTab = AgroGemBottomTab.Chat
+    }
+
     data object VoiceReady : AgroGemRoute {
         override val route: String = "voice_ready"
         override val title: String = "Voz"
-        override val bottomTab: AgroGemBottomTab = AgroGemBottomTab.Profile
+        override val bottomTab: AgroGemBottomTab? = null
     }
 
     companion object {
@@ -131,6 +137,7 @@ sealed interface AgroGemRoute {
             Chat,
             ChatConfirm,
             History,
+            Conversations,
             VoiceReady,
         )
 
