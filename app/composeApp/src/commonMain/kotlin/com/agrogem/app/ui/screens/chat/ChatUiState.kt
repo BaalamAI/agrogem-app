@@ -26,9 +26,11 @@ data class ChatUiState(
 data class ChatMessage(
     val id: String,
     val text: String,
+    val thought: String? = null,
     val sender: MessageSender,
     val attachments: List<ChatAttachment> = emptyList(),
     val timestamp: Long,
+    val isStreaming: Boolean = false,
 )
 
 /**

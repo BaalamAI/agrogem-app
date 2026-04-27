@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.agrogem.app.data.chat.domain.ChatFailure
 import com.agrogem.app.data.chat.domain.ChatRepository
 import com.agrogem.app.data.chat.domain.ChatSendResult
+import com.agrogem.app.data.getGemmaManager
+import com.agrogem.app.data.getGemmaModelDownloader
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlin.random.Random
+import kotlin.time.Clock
 
 sealed class ChatEffect {
     data object SessionExpired : ChatEffect()
@@ -53,7 +56,7 @@ class ChatViewModel(
             text = diagnosis.diagnosisText,
             sender = MessageSender.Assistant,
             attachments = emptyList(),
-            timestamp = Random.nextLong(),
+            timestamp = Clock.System.now().toEpochMilliseconds(),
         )
     }
 
@@ -73,7 +76,7 @@ class ChatViewModel(
             ),
             sender = MessageSender.Assistant,
             attachments = emptyList(),
-            timestamp = Random.nextLong(),
+            timestamp = Clock.System.now().toEpochMilliseconds(),
         )
     }
 
@@ -116,8 +119,6 @@ class ChatViewModel(
                     else -> "Con el analisis actual, empeza por $firstTreatment."
                 }
             }
-
-
         }
     }
 
@@ -152,17 +153,10 @@ class ChatViewModel(
         }
     }
 
-    /** Updates inputText in state — mirrors what the user is currently typing. */
     private fun handleInputChanged(text: String) {
         _uiState.value = _uiState.value.copy(inputText = text)
     }
 
-    /** Clears the error banner from state. */
-    private fun handleDismissError() {
-        _uiState.value = _uiState.value.copy(error = null)
-    }
-
-    /** Creates a user message from current input and pending attachments, appends to messages list. */
     private fun handleSendMessage() {
         val currentState = _uiState.value
         val text = currentState.inputText.trim()
@@ -174,7 +168,7 @@ class ChatViewModel(
             text = text,
             sender = MessageSender.User,
             attachments = currentState.attachments,
-            timestamp = Random.nextLong(),
+            timestamp = Clock.System.now().toEpochMilliseconds(),
         )
 
         _uiState.value = currentState.copy(
@@ -216,6 +210,24 @@ class ChatViewModel(
                 }
             }
         }
+    }
+
+
+    private fun updateAssistantMessage(id: String, text: String, thought: String?, isDone: Boolean) {
+        val currentMessages = _uiState.value.messages.toMutableList()
+        val index = currentMessages.indexOfFirst { it.id == id }
+        if (index != -1) {
+            currentMessages[index] = currentMessages[index].copy(
+                text = text,
+                thought = thought,
+                isStreaming = !isDone
+            )
+            _uiState.value = _uiState.value.copy(messages = currentMessages)
+        }
+    }
+
+    private fun handleToggleThinking(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(useThinking = enabled)
     }
 
     /** Toggles visibility of the attachment menu (gallery/camera options). */
@@ -300,13 +312,6 @@ class ChatViewModel(
     /**
      * Seeds this ChatViewModel with analysis context at runtime, transitioning from
      * Blank mode (or a prior seeded mode) to AnalysisSeeded mode with the given diagnosis.
-     * Called by AppNavHost when navigating from PlantAnalysisScreen → Chat so the
-     * shared ChatViewModel instance carries the real analysis context instead of
-     * creating a new blank chat.
-     *
-     * If the chat already has user messages, they are preserved alongside the new seed.
-     * If the chat is already in AnalysisSeeded mode, the seed message is replaced
-     * with the new analysis context (supporting multiple analysis→chat handoffs).
      */
     fun seedFromAnalysis(analysisId: String, diagnosis: DiagnosisResult) {
         val currentState = _uiState.value
@@ -335,31 +340,14 @@ class ChatViewModel(
  * Events that can be dispatched to the ChatViewModel.
  */
 sealed interface ChatEvent {
-    /** User typed or edited text in the input field. */
     data class InputChanged(val text: String) : ChatEvent
-
-    /** User tapped the send button — creates a user message from current input and attachments. */
     data object SendMessage : ChatEvent
-
-    /** User tapped the attachment button — toggles the attachment menu visibility. */
     data class ToggleAttachmentMenu(val show: Boolean) : ChatEvent
-
-    /** User selected camera from the attachment menu — closes menu and triggers camera launcher. */
     data object RequestCamera : ChatEvent
-
-    /** User selected gallery from the attachment menu — closes menu and triggers gallery picker. */
     data object RequestGallery : ChatEvent
-
-    /** Image picker returned a result — appends an image attachment to pending attachments. */
     data class ImageSelected(val result: String?) : ChatEvent
-
-    /** User tapped the microphone button — transitions voiceState to Listening. */
     data object StartVoiceInput : ChatEvent
-
-    /** User tapped stop while recording — creates an audio message and returns to Idle. */
     data object StopVoiceInput : ChatEvent
-
-    /** User dismissed voice input without recording — returns to Idle without a message. */
     data object DismissVoice : ChatEvent
 
     /** User dismissed the error banner. */
