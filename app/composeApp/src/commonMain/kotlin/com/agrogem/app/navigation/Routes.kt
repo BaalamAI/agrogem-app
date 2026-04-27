@@ -104,6 +104,12 @@ sealed interface AgroGemRoute {
         override val bottomTab: AgroGemBottomTab? = null
     }
 
+    data object GemmaDemo : AgroGemRoute {
+        override val route: String = "gemma_demo"
+        override val title: String = "Gemma 4 Demo"
+        override val bottomTab: AgroGemBottomTab? = null
+    }
+
     data object History : AgroGemRoute {
         override val route: String = "history"
         override val title: String = "Historial"
@@ -136,6 +142,7 @@ sealed interface AgroGemRoute {
             ConversationSummary,
             Chat,
             ChatConfirm,
+            GemmaDemo,
             History,
             Conversations,
             VoiceReady,

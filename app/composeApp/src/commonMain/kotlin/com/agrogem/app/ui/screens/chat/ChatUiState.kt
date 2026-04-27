@@ -15,6 +15,7 @@ data class ChatUiState(
     val showAttachmentMenu: Boolean = false,
     val mode: ChatMode = ChatMode.Blank,
     val voiceState: VoiceState = VoiceState.Idle,
+    val useThinking: Boolean = false,
 )
 
 /**
@@ -24,9 +25,11 @@ data class ChatUiState(
 data class ChatMessage(
     val id: String,
     val text: String,
+    val thought: String? = null,
     val sender: MessageSender,
     val attachments: List<ChatAttachment> = emptyList(),
     val timestamp: Long,
+    val isStreaming: Boolean = false,
 )
 
 /**

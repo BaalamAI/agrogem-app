@@ -67,6 +67,36 @@ fun ChatScreen(
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    
+    ChatContent(
+        uiState = uiState,
+        onEvent = { viewModel.onEvent(it) },
+        onBack = onBack,
+        onRequestClose = onRequestClose,
+        onMicClick = onMicClick,
+        onLaunchCamera = onLaunchCamera,
+        onLaunchGallery = onLaunchGallery,
+        showConfirmDialog = showConfirmDialog,
+        showComposer = showComposer,
+        onConfirmClose = onConfirmClose,
+        modifier = modifier
+    )
+}
+
+@Composable
+fun ChatContent(
+    uiState: ChatUiState,
+    onEvent: (ChatEvent) -> Unit,
+    onBack: () -> Unit,
+    onRequestClose: () -> Unit,
+    onMicClick: () -> Unit,
+    onLaunchCamera: () -> Unit = {},
+    onLaunchGallery: () -> Unit = {},
+    showConfirmDialog: Boolean,
+    showComposer: Boolean = true,
+    onConfirmClose: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
     val pendingAttachments = uiState.attachments
     val chatMode = uiState.mode
     val messages = uiState.messages
@@ -93,6 +123,23 @@ fun ChatScreen(
                     fontSize = 10.sp,
                     modifier = Modifier.weight(1f),
                 )
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .background(
+                            if (uiState.useThinking) AgroGemColors.Primary else AgroGemColors.ChatAttachBg, 
+                            CircleShape
+                        )
+                        .clickable { onEvent(ChatEvent.ToggleThinking(!uiState.useThinking)) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    AgroGemIcon(
+                        icon = Res.drawable.ic_action_magic,
+                        contentDescription = "Toggle Thinking",
+                        tint = if (uiState.useThinking) AgroGemColors.IconOnPrimary else AgroGemColors.ChatAttachText,
+                        size = AgroGemIconSizes.Xs,
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .size(28.dp)
@@ -135,10 +182,10 @@ fun ChatScreen(
                 ) {
                     ChatInputArea(
                         inputText = uiState.inputText,
-                        onInputChanged = { viewModel.onEvent(ChatEvent.InputChanged(it)) },
-                        onAttachClick = { viewModel.onEvent(ChatEvent.ToggleAttachmentMenu(true)) },
+                        onInputChanged = { onEvent(ChatEvent.InputChanged(it)) },
+                        onAttachClick = { onEvent(ChatEvent.ToggleAttachmentMenu(true)) },
                         onMicClick = onMicClick,
-                        onSendClick = { viewModel.onEvent(ChatEvent.SendMessage) },
+                        onSendClick = { onEvent(ChatEvent.SendMessage) },
                         pendingAttachments = pendingAttachments,
                     )
                 }
@@ -154,17 +201,17 @@ fun ChatScreen(
                     .clickable(
                         indication = null,
                         interactionSource = remember { MutableInteractionSource() },
-                        onClick = { viewModel.onEvent(ChatEvent.ToggleAttachmentMenu(false)) },
+                        onClick = { onEvent(ChatEvent.ToggleAttachmentMenu(false)) },
                     ),
             )
 
             AttachmentMenu(
                 onPhotosClick = {
-                    viewModel.onEvent(ChatEvent.RequestGallery)
+                    onEvent(ChatEvent.RequestGallery)
                     onLaunchGallery()
                 },
                 onCameraClick = {
-                    viewModel.onEvent(ChatEvent.RequestCamera)
+                    onEvent(ChatEvent.RequestCamera)
                     onLaunchCamera()
                 },
                 modifier = Modifier
@@ -266,13 +313,40 @@ private fun MessageBubble(message: ChatMessage) {
                     tint = AgroGemColors.Primary,
                     size = AgroGemIconSizes.Md,
                 )
-                Text(
-                    text = message.text,
-                    color = AgroGemColors.TextPrimary,
-                    fontSize = 12.sp,
-                    lineHeight = 20.sp,
-                    fontWeight = FontWeight.Medium,
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (message.thought != null && message.thought.isNotBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .background(AgroGemColors.PillTrackSemi, RoundedCornerShape(8.dp))
+                                .padding(8.dp)
+                                .fillMaxWidth()
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Pensando...",
+                                    color = AgroGemColors.Primary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                                Text(
+                                    text = message.thought,
+                                    color = AgroGemColors.TextChatHint,
+                                    fontSize = 11.sp,
+                                    lineHeight = 16.sp,
+                                    fontWeight = FontWeight.Normal,
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = message.text,
+                        color = AgroGemColors.TextPrimary,
+                        fontSize = 12.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
             }
         }
         MessageSender.User -> {

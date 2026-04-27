@@ -4,6 +4,8 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.agrogem.app.data.ImageResult
+import com.agrogem.app.data.getGemmaManager
+import com.agrogem.app.data.getGemmaModelDownloader
 
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -14,6 +16,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class AnalysisFlowViewModel : ViewModel() {
+
+    private val gemmaManager = getGemmaManager()
+    private val modelDownloader = getGemmaModelDownloader()
 
     private val _capturedImage = MutableStateFlow<ImageResult?>(null)
     val capturedImage: StateFlow<ImageResult?> = _capturedImage.asStateFlow()
@@ -28,6 +33,19 @@ class AnalysisFlowViewModel : ViewModel() {
 
     val diagnosisResult: DiagnosisResult = mockDiagnosisResult()
 
+    init {
+        // Pre-initialize when flow starts
+        ensureGemmaInitialized()
+    }
+
+    private fun ensureGemmaInitialized() {
+        viewModelScope.launch {
+            if (modelDownloader.isModelDownloaded()) {
+                gemmaManager.initialize(modelDownloader.getModelPath())
+            }
+        }
+    }
+
     fun setCapturedImage(image: ImageResult) {
         _capturedImage.value = image
     }
@@ -37,6 +55,9 @@ class AnalysisFlowViewModel : ViewModel() {
         _steps.value = defaultSteps()
         analysisJob?.cancel()
         analysisJob = viewModelScope.launch {
+            // Ensure initialized before starting
+            ensureGemmaInitialized()
+
             val stepCount = _steps.value.size
             for (i in 0 until stepCount) {
                 delay(1500L)

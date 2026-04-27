@@ -45,6 +45,7 @@ import org.jetbrains.compose.resources.DrawableResource
 fun HomeScreen(
     onOpenCamera: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenGemmaDemo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -106,7 +107,24 @@ fun HomeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        // SECCIÓN DEMO PARA DESARROLLADORES
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .background(AgroGemColors.Primary, RoundedCornerShape(20.dp))
+                .clickable(onClick = onOpenGemmaDemo),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "PROBAR GEMMA 4 (DEMO)",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 

@@ -11,8 +11,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        
+        // 1. Set the application context for the singletons
         AndroidAppContext.context = applicationContext
-
+        
         setContent {
             App()
         }

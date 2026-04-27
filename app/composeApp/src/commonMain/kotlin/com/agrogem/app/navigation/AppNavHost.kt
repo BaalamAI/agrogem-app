@@ -57,6 +57,9 @@ fun AppNavHost(
             HomeScreen(
                 onOpenCamera = { /* Camera is launched via FAB in AppShell */ },
                 onOpenHistory = { navController.pushTo(AgroGemRoute.History) },
+                onOpenGemmaDemo = {
+                    navController.navigate(AgroGemRoute.GemmaDemo.route)
+                }
             )
         }
 
@@ -96,12 +99,20 @@ fun AppNavHost(
             )
         }
 
-        composable(AgroGemRoute.History.route) {
-            HistoryScreen(
-                onOpenEntry = {
-                    analysisFlowVm.loadFromHistory(imageUri = "")
-                    navController.pushTo(AgroGemRoute.AnalysisHistory)
-                },
+
+        composable(route = AgroGemRoute.GemmaDemo.route) {
+            val demoVm = kmpViewModel { com.agrogem.app.ui.screens.gemma_demo.GemmaDemoViewModel() }
+            val demoImagePicker = com.agrogem.app.data.rememberImagePickerLauncher { result ->
+                if (result != null) {
+                    demoVm.onEvent(com.agrogem.app.ui.screens.chat.ChatEvent.ImageSelected(result.uri))
+                }
+            }
+
+            com.agrogem.app.ui.screens.gemma_demo.GemmaDemoScreen(
+                viewModel = demoVm,
+                onBack = { navController.popBackStack() },
+                onLaunchCamera = { demoImagePicker.launchCamera() },
+                onLaunchGallery = { demoImagePicker.launchGallery() }
             )
         }
 
@@ -129,6 +140,15 @@ fun AppNavHost(
             PlaceholderRouteScreen(
                 title = "Diagnostico",
                 subtitle = "Pantalla en preparacion.",
+            )
+        }
+
+        composable(AgroGemRoute.History.route) {
+            HistoryScreen(
+                onOpenEntry = {
+                    analysisFlowVm.loadFromHistory(imageUri = "")
+                    navController.pushTo(AgroGemRoute.AnalysisHistory)
+                },
             )
         }
 

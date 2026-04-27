@@ -38,6 +38,8 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.litert.lm.android)
+            implementation(libs.androidx.work.runtime)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -50,6 +52,7 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.androidx.navigation.compose)
             implementation(libs.coil.compose)
+            implementation(libs.kotlinx.datetime)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
