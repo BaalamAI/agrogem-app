@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -23,12 +25,22 @@ import com.agrogem.app.ui.screens.chat.ChatViewModel
 import com.agrogem.app.ui.screens.chat.ConversationsScreen
 import com.agrogem.app.ui.screens.chat.ConversationsViewModel
 import com.agrogem.app.ui.screens.chat.VoiceReadyScreen
+import com.agrogem.app.data.climate.domain.ClimateRepository
+import com.agrogem.app.data.climate.domain.createDefaultClimateQuery
+import com.agrogem.app.data.geolocation.domain.GeolocationRepository
+import com.agrogem.app.data.soil.domain.SoilRepository
+import com.agrogem.app.ui.AppSessionViewModel
 import com.agrogem.app.ui.screens.onboarding.OnboardingChatScreen
 import com.agrogem.app.ui.screens.onboarding.OnboardingChatViewModel
 import com.agrogem.app.ui.screens.onboarding.OnboardingScreen
 import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.ui.screens.history.HistoryScreen
 import com.agrogem.app.ui.screens.home.HomeScreen
+import com.agrogem.app.ui.screens.home.HomeViewModel
+import com.agrogem.app.ui.screens.environment.EnvironmentDetailScreen
+import com.agrogem.app.ui.screens.environment.EnvironmentDetailViewModel
+import com.agrogem.app.ui.screens.map.MapRiskScreen
+import com.agrogem.app.ui.screens.map.MapRiskViewModel
 import com.agrogem.app.ui.viewmodel.kmpViewModel
 
 @Composable
@@ -37,6 +49,12 @@ fun AppNavHost(
     navController: NavHostController,
     analysisFlowVm: AnalysisFlowViewModel,
     chatViewModel: ChatViewModel,
+    appSessionViewModel: AppSessionViewModel,
+    homeViewModel: HomeViewModel,
+    mapRiskViewModel: MapRiskViewModel,
+    soilRepository: SoilRepository,
+    climateRepository: ClimateRepository,
+    geolocationRepository: GeolocationRepository,
     startDestination: String = AgroGemRoute.Home.route,
     onOnboardingFinished: () -> Unit = {},
     onWelcomeAdvance: () -> Unit = {},
@@ -55,8 +73,10 @@ fun AppNavHost(
     ) {
         composable(AgroGemRoute.Home.route) {
             HomeScreen(
+                viewModel = homeViewModel,
                 onOpenCamera = { /* Camera is launched via FAB in AppShell */ },
                 onOpenHistory = { navController.pushTo(AgroGemRoute.History) },
+                onOpenEnvironmentDetail = { navController.pushTo(AgroGemRoute.Environment) },
                 onOpenGemmaDemo = {
                     navController.navigate(AgroGemRoute.GemmaDemo.route)
                 }
@@ -72,7 +92,7 @@ fun AppNavHost(
                 },
             ),
         ) { backStackEntry ->
-            val step = backStackEntry.arguments?.getInt(AgroGemRoute.Onboarding.STEP_ARG) ?: 0
+            val step = backStackEntry.savedStateHandle.get<Int>(AgroGemRoute.Onboarding.STEP_ARG) ?: 0
             OnboardingScreen(
                 step = step,
                 onFinish = onOnboardingFinished,
@@ -85,10 +105,8 @@ fun AppNavHost(
             val onboardingChatViewModel = kmpViewModel { OnboardingChatViewModel() }
             OnboardingChatScreen(
                 viewModel = onboardingChatViewModel,
+                appSessionViewModel = appSessionViewModel,
                 onBack = { navController.popBackStack() },
-                onFinish = {
-                    onOnboardingFinished()
-                },
             )
         }
 
@@ -164,6 +182,10 @@ fun AppNavHost(
                 title = "Insumos sugeridos",
                 subtitle = "Pantalla en preparacion.",
             )
+        }
+
+        composable(AgroGemRoute.MapRisk.route) {
+            MapRiskScreen(viewModel = mapRiskViewModel)
         }
 
         composable(AgroGemRoute.ConversationSummary.route) {
@@ -268,6 +290,33 @@ fun AppNavHost(
                     navController.popBackStack(AgroGemRoute.Chat.NAV_ROUTE, inclusive = true)
                 },
             )
+        }
+
+        composable(AgroGemRoute.Environment.route) {
+            val location by geolocationRepository.observeResolvedLocation()
+                .collectAsStateWithLifecycle(initialValue = null)
+            val resolvedLocation = location
+
+            if (resolvedLocation != null) {
+                val query = createDefaultClimateQuery()
+                val envVm = kmpViewModel {
+                    EnvironmentDetailViewModel(
+                        soilRepository = soilRepository,
+                        climateRepository = climateRepository,
+                        location = resolvedLocation,
+                        query = query,
+                    )
+                }
+                EnvironmentDetailScreen(
+                    viewModel = envVm,
+                    onBack = { navController.popBackStack() },
+                )
+            } else {
+                PlaceholderRouteScreen(
+                    title = "Perfil ambiental",
+                    subtitle = "Seleccioná una ubicación para ver el perfil.",
+                )
+            }
         }
     }
 }

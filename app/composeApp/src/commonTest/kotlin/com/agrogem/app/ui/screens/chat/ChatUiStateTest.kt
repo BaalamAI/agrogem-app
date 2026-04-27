@@ -226,6 +226,8 @@ class ChatUiStateTest {
         assertEquals(ChatMode.Blank, state.mode)
         assertEquals(VoiceState.Idle, state.voiceState)
         assertEquals(false, state.showAttachmentMenu)
+        assertEquals(false, state.isLoading)
+        assertEquals(null, state.error)
     }
 
     @Test

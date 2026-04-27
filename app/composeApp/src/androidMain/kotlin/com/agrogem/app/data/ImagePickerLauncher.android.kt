@@ -26,10 +26,12 @@ actual fun rememberImagePickerLauncher(
         contract = ActivityResultContracts.TakePicture(),
     ) { success ->
         if (success && pendingCameraUri != null) {
+            val bytes = readBytesFromUri(context, pendingCameraUri!!)
             onResult(
                 ImageResult(
                     uri = pendingCameraUri.toString(),
                     timestamp = System.currentTimeMillis(),
+                    bytes = bytes,
                 ),
             )
         } else {
@@ -41,10 +43,12 @@ actual fun rememberImagePickerLauncher(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri: Uri? ->
         if (uri != null) {
+            val bytes = readBytesFromUri(context, uri)
             onResult(
                 ImageResult(
                     uri = uri.toString(),
                     timestamp = System.currentTimeMillis(),
+                    bytes = bytes,
                 ),
             )
         } else {
@@ -76,6 +80,14 @@ actual fun rememberImagePickerLauncher(
                 )
             }
         }
+    }
+}
+
+private fun readBytesFromUri(context: Context, uri: Uri): ByteArray? {
+    return try {
+        context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+    } catch (_: Exception) {
+        null
     }
 }
 

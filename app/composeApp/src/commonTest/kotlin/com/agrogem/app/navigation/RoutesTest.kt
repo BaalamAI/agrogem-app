@@ -8,7 +8,7 @@ class RoutesTest {
 
     @Test
     fun `all routes are registered`() {
-        assertEquals(15, AgroGemRoute.all.size)
+        assertEquals(17, AgroGemRoute.all.size)
         assertEquals(
             listOf(
                 "home",
@@ -26,6 +26,8 @@ class RoutesTest {
                 "history",
                 "conversations",
                 "voice_ready",
+                "map_risk",
+                "environment",
             ),
             AgroGemRoute.all.map { it.route },
         )
@@ -40,5 +42,10 @@ class RoutesTest {
     @Test
     fun `fromRoute resolves analysis history route`() {
         assertSame(AgroGemRoute.AnalysisHistory, AgroGemRoute.fromRoute("analysis_history"))
+    }
+
+    @Test
+    fun `fromRoute resolves map risk route`() {
+        assertSame(AgroGemRoute.MapRisk, AgroGemRoute.fromRoute("map_risk"))
     }
 }

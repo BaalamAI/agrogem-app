@@ -2,23 +2,37 @@ package com.agrogem.app.ui.screens.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agrogem.app.data.chat.domain.ChatFailure
+import com.agrogem.app.data.chat.domain.ChatRepository
+import com.agrogem.app.data.chat.domain.ChatSendResult
 import com.agrogem.app.data.getGemmaManager
 import com.agrogem.app.data.getGemmaModelDownloader
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 import kotlin.time.Clock
 
+sealed class ChatEffect {
+    data object SessionExpired : ChatEffect()
+}
+
 class ChatViewModel(
+    private val chatRepository: ChatRepository,
     private val analysisId: String? = null,
     private val diagnosis: DiagnosisResult? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(createInitialState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    private val _effectChannel = Channel<ChatEffect>(Channel.BUFFERED)
+    val effects: Flow<ChatEffect> = _effectChannel.receiveAsFlow()
 
     private fun createInitialState(): ChatUiState {
         return if (analysisId != null) {
@@ -135,7 +149,7 @@ class ChatViewModel(
             is ChatEvent.StartVoiceInput -> handleStartVoiceInput()
             is ChatEvent.StopVoiceInput -> handleStopVoiceInput()
             is ChatEvent.DismissVoice -> handleDismissVoice()
-            is ChatEvent.ToggleThinking -> handleToggleThinking(event.enabled)
+            is ChatEvent.DismissError -> handleDismissError()
         }
     }
 
@@ -149,26 +163,53 @@ class ChatViewModel(
 
         if (text.isEmpty() && currentState.attachments.isEmpty()) return
 
-        val userMessage = ChatMessage(
-            id = "msg_${Random.nextLong()}",
+        val optimisticMessage = ChatMessage(
+            id = "opt_${Random.nextLong()}",
             text = text,
             sender = MessageSender.User,
             attachments = currentState.attachments,
             timestamp = Clock.System.now().toEpochMilliseconds(),
         )
 
-        val assistantMessage = createMockAssistantMessage(
-            userText = text,
-            mode = currentState.mode,
-            attachmentCount = currentState.attachments.size
-        )
-
         _uiState.value = currentState.copy(
-            messages = currentState.messages + userMessage + assistantMessage,
+            messages = currentState.messages + optimisticMessage,
             inputText = "",
             attachments = emptyList(),
             showAttachmentMenu = false,
+            isLoading = true,
+            error = null,
         )
+
+        viewModelScope.launch {
+            val result = chatRepository.sendMessage(
+                text = text,
+                attachments = currentState.attachments,
+                mode = currentState.mode,
+            )
+            when (result) {
+                is ChatSendResult.Success -> {
+                    val assistantMessages = result.messages.filter { it.sender == MessageSender.Assistant }
+                    _uiState.value = _uiState.value.copy(
+                        messages = _uiState.value.messages + assistantMessages,
+                        isLoading = false,
+                    )
+                }
+                is ChatSendResult.Failure -> {
+                    val errorText = when (result.reason) {
+                        is ChatFailure.SessionExpired -> "La sesión ha expirado, iniciá sesión de nuevo"
+                        is ChatFailure.Network -> "Error de red. Verificá tu conexión e intentá de nuevo."
+                        is ChatFailure.Server -> "Error del servidor. Intentá de nuevo en unos momentos."
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = errorText,
+                    )
+                    if (result.reason is ChatFailure.SessionExpired) {
+                        _effectChannel.send(ChatEffect.SessionExpired)
+                    }
+                }
+            }
+        }
     }
 
 
@@ -308,5 +349,7 @@ sealed interface ChatEvent {
     data object StartVoiceInput : ChatEvent
     data object StopVoiceInput : ChatEvent
     data object DismissVoice : ChatEvent
-    data class ToggleThinking(val enabled: Boolean) : ChatEvent
+
+    /** User dismissed the error banner. */
+    data object DismissError : ChatEvent
 }

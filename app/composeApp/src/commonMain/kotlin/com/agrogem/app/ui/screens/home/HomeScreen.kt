@@ -1,5 +1,11 @@
 package com.agrogem.app.ui.screens.home
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,12 +23,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.composeapp.generated.resources.Res
 import app.composeapp.generated.resources.ic_action_notifications
 import app.composeapp.generated.resources.ic_metric_cloud
@@ -34,6 +45,7 @@ import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.theme.AgroGemIconSizes
 import com.agrogem.app.ui.components.AgroGemIcon
 import com.agrogem.app.ui.components.RoundIconButton
+import com.agrogem.app.data.soil.domain.SoilSummary
 import com.agrogem.app.ui.components.SeverityBadge
 import com.agrogem.app.ui.components.LeafThumb
 import com.agrogem.app.ui.components.Pill
@@ -43,11 +55,15 @@ import org.jetbrains.compose.resources.DrawableResource
 
 @Composable
 fun HomeScreen(
+    viewModel: HomeViewModel,
     onOpenCamera: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenEnvironmentDetail: () -> Unit,
     onOpenGemmaDemo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -61,7 +77,11 @@ fun HomeScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            LocationChip(text = "Guatemala, Zacapa")
+            when (uiState) {
+                is HomeUiState.Data -> LocationChip(text = (uiState as HomeUiState.Data).locationInfo.display.primary)
+                is HomeUiState.Loading -> LocationChipShimmer()
+                else -> LocationChip(text = "—")
+            }
             RoundIconButton(
                 label = "🔔",
                 icon = Res.drawable.ic_action_notifications,
@@ -73,8 +93,44 @@ fun HomeScreen(
             )
         }
 
-        WeatherCard()
-        MetricsCard()
+        when (uiState) {
+            is HomeUiState.Loading -> {
+                WeatherCardShimmer()
+                MetricsCardShimmer()
+                EnvironmentCardShimmer()
+            }
+            is HomeUiState.Data -> {
+                val data = uiState as HomeUiState.Data
+                WeatherCard(
+                    locationLabel = data.locationInfo.display.primary.uppercase(),
+                    temperature = data.weather.temperatureCelsius,
+                    description = data.weather.description,
+                    dateLabel = data.weather.dateLabel,
+                )
+                MetricsCard(
+                    humidity = data.metrics.humidity,
+                    cloudCover = data.metrics.cloudCover,
+                    uvIndex = data.metrics.uvIndex,
+                )
+                EnvironmentCard(
+                    soilSummary = data.soilSummary,
+                    elevationMeters = data.locationInfo.elevationMeters,
+                    onOpenDetail = onOpenEnvironmentDetail,
+                )
+            }
+            is HomeUiState.LocationMissing -> MessageCard(
+                title = "Sin ubicación",
+                subtitle = "Seleccioná una ubicación para ver el clima y métricas.",
+                cta = "Seleccionar ubicación",
+                onCta = { /* TODO: wire onboarding location picker */ },
+            )
+            is HomeUiState.Error -> MessageCard(
+                title = "Error de conexión",
+                subtitle = (uiState as HomeUiState.Error).message,
+                cta = "Reintentar",
+                onCta = { viewModel.refresh() },
+            )
+        }
 
         Column(
             modifier = Modifier
@@ -158,7 +214,12 @@ private fun LocationChip(
 }
 
 @Composable
-private fun WeatherCard() {
+private fun WeatherCard(
+    locationLabel: String,
+    temperature: String,
+    description: String,
+    dateLabel: String,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -182,21 +243,21 @@ private fun WeatherCard() {
                         .height(10.dp),
                 )
                 Text(
-                    text = "GUATEMALA, ZACAPA",
+                    text = locationLabel,
                     color = AgroGemColors.TextMedium,
                     fontSize = 10.sp,
                     letterSpacing = 1.sp,
                 )
             }
             Text(
-                text = "24°C",
+                text = temperature,
                 color = AgroGemColors.TextBody,
                 fontSize = 52.sp / 1.75f,
                 lineHeight = 32.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "Día despejado",
+                text = description,
                 color = AgroGemColors.TextMedium,
                 fontSize = 16.sp,
             )
@@ -224,7 +285,7 @@ private fun WeatherCard() {
                 size = AgroGemIconSizes.Lg,
             )
             Text(
-                text = "Monday, 12 Oct",
+                text = dateLabel,
                 color = AgroGemColors.TextLabel,
                 fontSize = 14.sp,
             )
@@ -233,7 +294,11 @@ private fun WeatherCard() {
 }
 
 @Composable
-private fun MetricsCard() {
+private fun MetricsCard(
+    humidity: String,
+    cloudCover: String,
+    uvIndex: String,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -242,22 +307,212 @@ private fun MetricsCard() {
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MetricItem(icon = Res.drawable.ic_metric_water, value = "78%", label = "HUMIDITY")
+        MetricItem(icon = Res.drawable.ic_metric_water, value = humidity, label = "HUMIDITY")
         Box(
             modifier = Modifier
                 .height(44.dp)
                 .width(1.dp)
                 .background(AgroGemColors.MetricDivider),
         )
-        MetricItem(icon = Res.drawable.ic_metric_cloud, value = "65%", label = "CLOUDS")
+        MetricItem(icon = Res.drawable.ic_metric_cloud, value = cloudCover, label = "CLOUDS")
         Box(
             modifier = Modifier
                 .height(44.dp)
                 .width(1.dp)
                 .background(AgroGemColors.MetricDivider),
         )
-        MetricItem(icon = Res.drawable.ic_metric_uv, value = "Low", label = "UV INDEX")
+        MetricItem(icon = Res.drawable.ic_metric_uv, value = uvIndex, label = "UV INDEX")
     }
+}
+
+@Composable
+private fun LocationChipShimmer() {
+    Box(
+        modifier = Modifier
+            .width(120.dp)
+            .height(32.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .shimmerBackground(),
+    )
+}
+
+@Composable
+private fun WeatherCardShimmer() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(110.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .shimmerBackground(),
+    )
+}
+
+@Composable
+private fun MetricsCardShimmer() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(80.dp)
+            .clip(RoundedCornerShape(15.dp))
+            .shimmerBackground(),
+    )
+}
+
+@Composable
+private fun EnvironmentCard(
+    soilSummary: SoilSummary?,
+    elevationMeters: Double?,
+    onOpenDetail: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(AgroGemColors.Surface, RoundedCornerShape(20.dp))
+            .clickable(onClick = onOpenDetail)
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = "Suelo y Elevación",
+            color = AgroGemColors.TextPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            EnvironmentItem(
+                label = "TEXTURA",
+                value = soilSummary?.dominantTexture?.ifBlank { "--" } ?: "--",
+            )
+            Box(
+                modifier = Modifier
+                    .height(44.dp)
+                    .width(1.dp)
+                    .background(AgroGemColors.MetricDivider),
+            )
+            EnvironmentItem(
+                label = "pH SUPERFICIAL",
+                value = soilSummary?.topHorizonPh?.let { formatOneDecimal(it) } ?: "--",
+            )
+            Box(
+                modifier = Modifier
+                    .height(44.dp)
+                    .width(1.dp)
+                    .background(AgroGemColors.MetricDivider),
+            )
+            EnvironmentItem(
+                label = "ELEVACIÓN",
+                value = elevationMeters?.let { "${it.toInt()} m" } ?: "--",
+            )
+        }
+    }
+}
+
+private fun formatOneDecimal(value: Double): String {
+    val scaled = (value * 10).toInt()
+    return "${scaled / 10}.${scaled % 10}"
+}
+
+@Composable
+private fun EnvironmentItem(
+    label: String,
+    value: String,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            text = value,
+            color = AgroGemColors.TextGray,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = label,
+            color = AgroGemColors.MetricTextAlpha,
+            fontSize = 10.sp,
+            letterSpacing = 0.6.sp,
+        )
+    }
+}
+
+@Composable
+private fun EnvironmentCardShimmer() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(90.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .shimmerBackground(),
+    )
+}
+
+@Composable
+private fun MessageCard(
+    title: String,
+    subtitle: String,
+    cta: String,
+    onCta: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(AgroGemColors.Surface, RoundedCornerShape(20.dp))
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = title,
+            color = AgroGemColors.TextPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = subtitle,
+            color = AgroGemColors.TextMedium,
+            fontSize = 14.sp,
+        )
+        Text(
+            text = cta,
+            color = AgroGemColors.TextPrimary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .clickable(onClick = onCta)
+                .padding(vertical = 4.dp),
+        )
+    }
+}
+
+@Composable
+private fun Modifier.shimmerBackground(): Modifier {
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val translateAnim by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "shimmer_translate",
+    )
+    val shimmerColors = listOf(
+        Color.LightGray.copy(alpha = 0.3f),
+        Color.LightGray.copy(alpha = 0.1f),
+        Color.LightGray.copy(alpha = 0.3f),
+    )
+    return this.background(
+        Brush.linearGradient(
+            colors = shimmerColors,
+            start = Offset(translateAnim - 200f, 0f),
+            end = Offset(translateAnim + 200f, 0f),
+        )
+    )
 }
 
 @Composable

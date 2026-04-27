@@ -1,6 +1,7 @@
 package com.agrogem.app.ui.screens.map
 
 import androidx.compose.runtime.Immutable
+import com.agrogem.app.data.risk.domain.RiskSeverity
 import com.agrogem.app.ui.components.Severity
 
 @Immutable
@@ -37,12 +38,6 @@ data class RiskAlert(
     val recommendation: String,
     val severity: RiskSeverity,
 )
-
-enum class RiskSeverity {
-    Optimo,
-    Atencion,
-    Critica,
-}
 
 fun RiskSeverity.toShared(): Severity = when (this) {
     RiskSeverity.Optimo -> Severity.Optimo

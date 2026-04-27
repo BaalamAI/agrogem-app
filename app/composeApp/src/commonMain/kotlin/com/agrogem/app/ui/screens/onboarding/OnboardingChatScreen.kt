@@ -25,10 +25,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
+import com.agrogem.app.ui.AppSessionViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,13 +54,13 @@ import com.agrogem.app.ui.screens.onboarding.OnboardingChatStage
 @Composable
 fun OnboardingChatScreen(
     viewModel: OnboardingChatViewModel,
+    appSessionViewModel: AppSessionViewModel,
     onBack: () -> Unit,
-    onFinish: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val sessionUiState by appSessionViewModel.uiState.collectAsStateWithLifecycle()
     val stage = uiState.onboardingChatStage ?: OnboardingChatStage.Conversation
-    var showLoading by remember { mutableStateOf(false) }
 
     val locationRequester = rememberLocationPermissionRequester { _ ->
         viewModel.continueOnboardingAfterLocationPermission()
@@ -112,12 +110,32 @@ fun OnboardingChatScreen(
 
             OnboardingChatStage.Final -> FinalCompletionScreen(
                 alertsEnabled = uiState.alertsEnabled,
-                onFinish = { showLoading = true },
+                userName = uiState.userName,
+                phone = uiState.userPhone ?: "",
+                onPhoneChanged = { viewModel.onPhoneChanged(it) },
+                password = uiState.userPassword ?: "",
+                onPasswordChanged = { viewModel.onPasswordChanged(it) },
+                isFormValid = uiState.isFormValid,
+                onStart = {
+                    appSessionViewModel.registerOrLogin(
+                        phone = uiState.userPhone ?: "",
+                        password = uiState.userPassword ?: "",
+                    )
+                },
+                isLoading = sessionUiState.isLoading,
+                error = sessionUiState.error,
+                onRetry = {
+                    appSessionViewModel.registerOrLogin(
+                        phone = uiState.userPhone ?: "",
+                        password = uiState.userPassword ?: "",
+                    )
+                },
+                onDismissError = { appSessionViewModel.clearError() },
             )
         }
 
-        if (showLoading) {
-            LoadingOverlay(onFinish = onFinish)
+        if (sessionUiState.isLoading) {
+            LoadingOverlay(onFinish = { /* no-op; navigation handled by AppShell */ })
         }
     }
 }
@@ -622,7 +640,17 @@ private fun LoadingOverlay(onFinish: () -> Unit) {
 @Composable
 private fun FinalCompletionScreen(
     alertsEnabled: Boolean,
-    onFinish: () -> Unit,
+    userName: String?,
+    phone: String,
+    onPhoneChanged: (String) -> Unit,
+    password: String,
+    onPasswordChanged: (String) -> Unit,
+    isFormValid: Boolean,
+    onStart: () -> Unit,
+    isLoading: Boolean,
+    error: String?,
+    onRetry: () -> Unit,
+    onDismissError: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -681,13 +709,92 @@ private fun FinalCompletionScreen(
             modifier = Modifier.fillMaxWidth().padding(start = 28.dp),
         )
 
-        Spacer(modifier = Modifier.height(220.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        Box(modifier = Modifier.width(173.dp)) {
-            FilledPrimaryButton(
-                text = "Empezar",
-                onClick = onFinish,
+        if (error != null) {
+            Text(
+                text = error,
+                color = Color(0xFFD32F2F),
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp),
             )
+            Spacer(modifier = Modifier.height(12.dp))
+            Box(modifier = Modifier.width(173.dp)) {
+                FilledPrimaryButton(
+                    text = "Reintentar",
+                    onClick = onRetry,
+                    enabled = isFormValid,
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Omitir por ahora",
+                color = AgroGemColors.Primary,
+                fontSize = 12.sp,
+                modifier = Modifier.clickable { onDismissError() },
+            )
+        } else {
+            BasicTextField(
+                value = phone,
+                onValueChange = onPhoneChanged,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 28.dp)
+                    .background(Color.White, RoundedCornerShape(12.dp))
+                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                textStyle = TextStyle(
+                    color = AgroGemColors.TextPrimary,
+                    fontSize = 12.sp,
+                ),
+                decorationBox = { innerTextField ->
+                    if (phone.isBlank()) {
+                        Text(
+                            text = "Ingresá tu número de teléfono",
+                            color = AgroGemColors.ChatAttachHint,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    innerTextField()
+                },
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            BasicTextField(
+                value = password,
+                onValueChange = onPasswordChanged,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 28.dp)
+                    .background(Color.White, RoundedCornerShape(12.dp))
+                    .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                textStyle = TextStyle(
+                    color = AgroGemColors.TextPrimary,
+                    fontSize = 12.sp,
+                ),
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                decorationBox = { innerTextField ->
+                    if (password.isBlank()) {
+                        Text(
+                            text = "Ingresá tu contraseña",
+                            color = AgroGemColors.ChatAttachHint,
+                            fontSize = 12.sp,
+                        )
+                    }
+                    innerTextField()
+                },
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Box(modifier = Modifier.width(173.dp)) {
+                FilledPrimaryButton(
+                    text = "Empezar",
+                    onClick = onStart,
+                    enabled = isFormValid,
+                )
+            }
         }
+
+        Spacer(modifier = Modifier.height(220.dp))
     }
 }

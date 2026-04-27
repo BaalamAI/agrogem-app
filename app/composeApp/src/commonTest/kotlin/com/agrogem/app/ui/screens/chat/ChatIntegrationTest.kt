@@ -1,39 +1,64 @@
 package com.agrogem.app.ui.screens.chat
 
+import com.agrogem.app.data.chat.domain.ChatFailure
+import com.agrogem.app.data.chat.domain.ChatRepository
+import com.agrogem.app.data.chat.domain.ChatSendResult
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
-/**
- * Phase 6 — Integration-level tests for chat flows.
- * These tests verify end-to-end state continuity through the ChatViewModel API
- * as would be experienced when ChatScreen, ChatConfirm, and VoiceReady share
- * the same ChatViewModel instance (Phase 5 architecture requirement).
- *
- * 6.1: Chat send flow — text message appears in history
- * 6.2: Attachment send flow — message with image appears, attachments cleared
- * 6.3: Voice continuity — voice message appears after navigating back
- * 6.4: Seeded initialization — chat seeded with analysis context
- */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ChatIntegrationTest {
 
-    // ========== Phase 6.1: Chat Send Flow ==========
+    private val testDispatcher = StandardTestDispatcher()
+
+    @BeforeTest
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+    }
+
+    @AfterTest
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    private fun fakeRepo(
+        result: ChatSendResult = ChatSendResult.Success(
+            conversationId = "conv-1",
+            messages = listOf(
+                ChatMessage(
+                    id = "backend_assistant_1",
+                    text = "Respuesta del asistente",
+                    sender = MessageSender.Assistant,
+                    attachments = emptyList(),
+                    timestamp = 1000L,
+                ),
+            ),
+        ),
+    ): FakeChatRepository = FakeChatRepository(result)
 
     @Test
-    fun `6_1_text_message_appears_in_history_after_send`() {
-        // Simulates: ChatScreen launches, user enters text, sends → message in history
-        val viewModel = ChatViewModel()
+    fun `6_1_text_message_appears_in_history_after_send`() = runTest(testDispatcher) {
+        val viewModel = ChatViewModel(chatRepository = fakeRepo())
         val state0 = viewModel.uiState.value
         assertTrue(state0.messages.isEmpty(), "Initially no messages")
 
-        // User types a message
         viewModel.onEvent(ChatEvent.InputChanged("How do I treat this?"))
         assertEquals("How do I treat this?", viewModel.uiState.value.inputText)
 
-        // User sends
         viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
 
         val state1 = viewModel.uiState.value
         assertEquals(2, state1.messages.size, "User and assistant messages after send")
@@ -44,13 +69,16 @@ class ChatIntegrationTest {
     }
 
     @Test
-    fun `6_1_multiple_messages_appear_in_order`() {
-        val viewModel = ChatViewModel()
+    fun `6_1_multiple_messages_appear_in_order`() = runTest(testDispatcher) {
+        val viewModel = ChatViewModel(chatRepository = fakeRepo())
 
         viewModel.onEvent(ChatEvent.InputChanged("First"))
         viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
+
         viewModel.onEvent(ChatEvent.InputChanged("Second"))
         viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertEquals(4, state.messages.size)
@@ -59,22 +87,20 @@ class ChatIntegrationTest {
     }
 
     @Test
-    fun `6_1_send_with_empty_input_does_nothing`() {
-        val viewModel = ChatViewModel()
+    fun `6_1_send_with_empty_input_does_nothing`() = runTest(testDispatcher) {
+        val viewModel = ChatViewModel(chatRepository = fakeRepo())
         viewModel.onEvent(ChatEvent.SendMessage)
         assertEquals(0, viewModel.uiState.value.messages.size)
     }
 
-    // ========== Phase 6.2: Attachment Send Flow ==========
-
     @Test
-    fun `6_2_send_with_image_creates_message_with_image_attachment`() {
-        // Simulates: ChatScreen with pending attachment, send → message shows text + image
-        val viewModel = ChatViewModel()
+    fun `6_2_send_with_image_creates_message_with_image_attachment`() = runTest(testDispatcher) {
+        val viewModel = ChatViewModel(chatRepository = fakeRepo())
 
         viewModel.onEvent(ChatEvent.ImageSelected("content://media/photo1.jpg"))
         viewModel.onEvent(ChatEvent.InputChanged("Look at this pest"))
         viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertEquals(2, state.messages.size)
@@ -88,12 +114,13 @@ class ChatIntegrationTest {
     }
 
     @Test
-    fun `6_2_send_with_multiple_images_preserves_all_attachments`() {
-        val viewModel = ChatViewModel()
+    fun `6_2_send_with_multiple_images_preserves_all_attachments`() = runTest(testDispatcher) {
+        val viewModel = ChatViewModel(chatRepository = fakeRepo())
 
         viewModel.onEvent(ChatEvent.ImageSelected("content://media/photo1.jpg"))
         viewModel.onEvent(ChatEvent.ImageSelected("content://media/photo2.jpg"))
         viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertEquals(2, state.messages.size)
@@ -102,11 +129,12 @@ class ChatIntegrationTest {
     }
 
     @Test
-    fun `6_2_image_only_message_sends_without_text`() {
-        val viewModel = ChatViewModel()
+    fun `6_2_image_only_message_sends_without_text`() = runTest(testDispatcher) {
+        val viewModel = ChatViewModel(chatRepository = fakeRepo())
 
         viewModel.onEvent(ChatEvent.ImageSelected("content://media/photo1.jpg"))
         viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertEquals(2, state.messages.size)
@@ -115,20 +143,13 @@ class ChatIntegrationTest {
         assertEquals(MessageSender.Assistant, state.messages[1].sender)
     }
 
-    // ========== Phase 6.3: Voice Continuity ==========
-
     @Test
     fun `6_3_stop_voice_creates_audio_message_in_same_viewmodel`() {
-        // This test verifies the core continuity requirement:
-        // When VoiceReady and Chat share the SAME ChatViewModel instance,
-        // a voice message recorded in VoiceReady appears in Chat's message history.
-        val viewModel = ChatViewModel()
+        val viewModel = ChatViewModel(chatRepository = fakeRepo())
 
-        // Simulate: microphone tap → VoiceReady screen (StartVoiceInput)
         viewModel.onEvent(ChatEvent.StartVoiceInput)
         assertIs<VoiceState.Listening>(viewModel.uiState.value.voiceState)
 
-        // Simulate: stop recording in VoiceReady → VoiceState.Processing → Idle + message created
         viewModel.onEvent(ChatEvent.StopVoiceInput)
 
         val state = viewModel.uiState.value
@@ -141,8 +162,7 @@ class ChatIntegrationTest {
 
     @Test
     fun `6_3_voice_with_pending_text_includes_text_in_message`() {
-        // Simulates: user types text in Chat, then navigates to VoiceReady, records, returns
-        val viewModel = ChatViewModel()
+        val viewModel = ChatViewModel(chatRepository = fakeRepo())
 
         viewModel.onEvent(ChatEvent.InputChanged("urgent question"))
         viewModel.onEvent(ChatEvent.StartVoiceInput)
@@ -158,8 +178,7 @@ class ChatIntegrationTest {
 
     @Test
     fun `6_3_dismiss_voice_does_not_create_message`() {
-        // Simulates: user opens VoiceReady, taps dismiss → no message created
-        val viewModel = ChatViewModel()
+        val viewModel = ChatViewModel(chatRepository = fakeRepo())
 
         viewModel.onEvent(ChatEvent.InputChanged("typed text"))
         viewModel.onEvent(ChatEvent.StartVoiceInput)
@@ -173,24 +192,19 @@ class ChatIntegrationTest {
 
     @Test
     fun `6_3_voice_twice_creates_two_messages`() {
-        val viewModel = ChatViewModel()
+        val viewModel = ChatViewModel(chatRepository = fakeRepo())
 
-        // First voice recording
         viewModel.onEvent(ChatEvent.StartVoiceInput)
         viewModel.onEvent(ChatEvent.StopVoiceInput)
 
-        // Second voice recording
         viewModel.onEvent(ChatEvent.StartVoiceInput)
         viewModel.onEvent(ChatEvent.StopVoiceInput)
 
         assertEquals(4, viewModel.uiState.value.messages.size)
     }
 
-    // ========== Phase 6.4: Seeded Initialization ==========
-
     @Test
     fun `6_4_chat_from_analysis_initializes_in_seeded_mode_with_diagnosis`() {
-        // Simulates: analyze pest, tap "chat" → ChatScreen initializes in AnalysisSeeded mode
         val diagnosis = DiagnosisResult(
             pestName = "Roya naranja",
             confidence = 0.87f,
@@ -201,8 +215,8 @@ class ChatIntegrationTest {
             treatmentSteps = listOf("Aplicar fungicida sistémico"),
         )
 
-        // This is how AppShell creates ChatViewModel when navigating from analysis
         val viewModel = ChatViewModel(
+            chatRepository = fakeRepo(),
             analysisId = "analysis_session_001",
             diagnosis = diagnosis,
         )
@@ -212,15 +226,15 @@ class ChatIntegrationTest {
         assertEquals("analysis_session_001", state.mode.analysisId)
         assertEquals("Roya naranja", state.mode.diagnosis.pestName)
 
-        // First message is from assistant with diagnosis context
         assertEquals(1, state.messages.size)
         assertEquals(MessageSender.Assistant, state.messages[0].sender)
         assertTrue(state.messages[0].text.contains("Roya naranja"))
     }
 
     @Test
-    fun `6_4_seeded_chat_allows_follow_up_messages`() {
+    fun `6_4_seeded_chat_allows_follow_up_messages`() = runTest(testDispatcher) {
         val viewModel = ChatViewModel(
+            chatRepository = fakeRepo(),
             analysisId = "analysis_xyz",
             diagnosis = DiagnosisResult(
                 pestName = "Test",
@@ -235,9 +249,9 @@ class ChatIntegrationTest {
 
         assertEquals(1, viewModel.uiState.value.messages.size)
 
-        // User can send follow-up messages
         viewModel.onEvent(ChatEvent.InputChanged("What should I do next?"))
         viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
 
         assertEquals(3, viewModel.uiState.value.messages.size)
         assertEquals("What should I do next?", viewModel.uiState.value.messages[1].text)
@@ -247,29 +261,19 @@ class ChatIntegrationTest {
 
     @Test
     fun `6_4_blank_chat_has_no_initial_message`() {
-        // Simulates: user opens chat directly (no analysis context)
-        val viewModel = ChatViewModel()
+        val viewModel = ChatViewModel(chatRepository = fakeRepo())
 
         val state = viewModel.uiState.value
         assertIs<ChatMode.Blank>(state.mode)
         assertEquals(0, state.messages.size, "Blank chat starts with no messages")
     }
 
-    // ========== Phase 6.5: Runtime Post-Analysis Chat Handoff ==========
-
-    /**
-     * Verifies that a blank ChatViewModel can be seeded at runtime via seedFromAnalysis,
-     * simulating the real navigation handoff from Analysis → Chat where AppNavHost
-     * calls chatViewModel.seedFromAnalysis(...) before navigating to the chat screen.
-     */
     @Test
     fun `6_5_seedFromAnalysis_transitions_blank_to_seeded_mode`() {
-        // Arrange: ChatViewModel created without analysis context (blank mode)
-        val viewModel = ChatViewModel()
+        val viewModel = ChatViewModel(chatRepository = fakeRepo())
         assertIs<ChatMode.Blank>(viewModel.uiState.value.mode)
         assertEquals(0, viewModel.uiState.value.messages.size)
 
-        // Act: AppNavHost calls seedFromAnalysis before navigating to chat
         val analysisId = "analysis_runtime_001"
         val diagnosis = DiagnosisResult(
             pestName = "Roya naranja",
@@ -282,7 +286,6 @@ class ChatIntegrationTest {
         )
         viewModel.seedFromAnalysis(analysisId, diagnosis)
 
-        // Assert: State transitions to AnalysisSeeded with correct context
         val state = viewModel.uiState.value
         assertIs<ChatMode.AnalysisSeeded>(state.mode)
         assertEquals(analysisId, state.mode.analysisId)
@@ -292,21 +295,13 @@ class ChatIntegrationTest {
         assertEquals("Hojas", state.mode.diagnosis.affectedArea)
         assertEquals("Hongo Puccinia", state.mode.diagnosis.cause)
 
-        // Seed message is present (assistant message with diagnosis text)
         assertEquals(1, state.messages.size)
         assertEquals(MessageSender.Assistant, state.messages[0].sender)
         assertTrue(state.messages[0].text.contains("Roya naranja"))
     }
 
-    /**
-     * Verifies that seedFromAnalysis replaces the existing seed with a new analysis context.
-     * This simulates the case where a user does a new analysis and navigates to chat again —
-     * the new analysis seed replaces the previous one, resetting the chat to a fresh
-     * seeded conversation with the new diagnosis.
-     */
     @Test
     fun `6_5_seedFromAnalysis_replaces_existing_seed_with_new_diagnosis`() {
-        // Arrange: ChatViewModel seeded with initial analysis
         val initialDiagnosis = DiagnosisResult(
             pestName = "Initial Pest",
             confidence = 0.80f,
@@ -317,12 +312,12 @@ class ChatIntegrationTest {
             treatmentSteps = listOf("Initial treatment"),
         )
         val viewModel = ChatViewModel(
+            chatRepository = fakeRepo(),
             analysisId = "analysis_first",
             diagnosis = initialDiagnosis,
         )
         assertEquals("Initial Pest", viewModel.uiState.value.mode.let { (it as ChatMode.AnalysisSeeded).diagnosis.pestName })
 
-        // Act: User does new analysis, navigates to chat with new diagnosis
         val newDiagnosis = DiagnosisResult(
             pestName = "Nueva plaga",
             confidence = 0.95f,
@@ -334,7 +329,6 @@ class ChatIntegrationTest {
         )
         viewModel.seedFromAnalysis("analysis_second", newDiagnosis)
 
-        // Assert: New analysis seed replaces the previous one
         val state = viewModel.uiState.value
         assertIs<ChatMode.AnalysisSeeded>(state.mode)
         assertEquals("analysis_second", state.mode.analysisId)
@@ -343,31 +337,19 @@ class ChatIntegrationTest {
         assertEquals("Raíz", state.mode.diagnosis.affectedArea)
         assertEquals("Nematodo", state.mode.diagnosis.cause)
 
-        // Fresh seed message from new analysis
         assertEquals(1, state.messages.size)
         assertEquals(MessageSender.Assistant, state.messages[0].sender)
         assertTrue(state.messages[0].text.contains("Nueva plaga"))
     }
 
-    // ========== Shared Instance Continuity (Phase 5 architecture requirement) ==========
-
     @Test
     fun `shared_viewmodel_voice_then_text_same_history`() {
-        // Critical test: When ChatViewModel is shared between Chat and VoiceReady,
-        // messages from VoiceReady appear in Chat's message list.
-        // This is the core architectural requirement that Phase 5 fixes.
-        val chatViewModel = ChatViewModel()
+        val chatViewModel = ChatViewModel(chatRepository = fakeRepo())
 
-        // User is in Chat, types text
         chatViewModel.onEvent(ChatEvent.InputChanged("I need help with this"))
-
-        // User taps microphone → VoiceReady (same ViewModel)
         chatViewModel.onEvent(ChatEvent.StartVoiceInput)
-
-        // User stops recording → returns to Chat with audio message
         chatViewModel.onEvent(ChatEvent.StopVoiceInput)
 
-        // Result: Chat history has user audio message + mock assistant reply
         val state = chatViewModel.uiState.value
         assertEquals(2, state.messages.size)
         val userMessage = state.messages[0]
@@ -377,5 +359,13 @@ class ChatIntegrationTest {
         assertEquals(1, userMessage.attachments.size)
         assertIs<ChatAttachment.Audio>(userMessage.attachments[0])
         assertEquals(MessageSender.Assistant, assistantMessage.sender)
+    }
+
+    private class FakeChatRepository(
+        var result: ChatSendResult,
+    ) : ChatRepository {
+        override suspend fun sendMessage(text: String, attachments: List<ChatAttachment>, mode: ChatMode): ChatSendResult {
+            return result
+        }
     }
 }

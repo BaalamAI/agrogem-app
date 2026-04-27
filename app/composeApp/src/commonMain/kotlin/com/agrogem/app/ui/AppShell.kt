@@ -4,56 +4,125 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agrogem.app.data.OnboardingStateStore
+import com.agrogem.app.data.auth.createAuthRepository
+import com.agrogem.app.data.chat.createChatRepository
+import com.agrogem.app.data.climate.createClimateRepository
+import com.agrogem.app.data.geolocation.createGeolocationRepository
+import com.agrogem.app.data.pest.createPestRepository
 import com.agrogem.app.data.rememberImagePickerLauncher
+import com.agrogem.app.data.risk.createRiskRepository
+import com.agrogem.app.data.session.SessionLocalStore
+import com.agrogem.app.data.soil.createSoilRepository
+import com.agrogem.app.data.weather.createWeatherRepository
 import com.agrogem.app.navigation.AgroGemBottomTab
 import com.agrogem.app.navigation.AgroGemRoute
 import com.agrogem.app.navigation.AppNavHost
 import com.agrogem.app.navigation.navigateTo
 import com.agrogem.app.ui.components.BottomNavigationBar
 import com.agrogem.app.ui.screens.analysis.AnalysisFlowViewModel
+import com.agrogem.app.ui.screens.chat.ChatEffect
 import com.agrogem.app.ui.screens.chat.ChatViewModel
+import com.agrogem.app.ui.screens.home.HomeViewModel
+import com.agrogem.app.ui.screens.map.MapRiskViewModel
 import com.agrogem.app.ui.viewmodel.kmpViewModel
+import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun AppShell(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
     val onboardingStateStore = remember { OnboardingStateStore() }
+    val sessionLocalStore = remember { SessionLocalStore() }
+    val authRepository = remember { createAuthRepository(sessionLocalStore) }
+    val appSessionViewModel = kmpViewModel {
+        AppSessionViewModel(authRepository, sessionLocalStore)
+    }
+    val sessionUiState by appSessionViewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        appSessionViewModel.bootstrap()
+    }
+
+    LaunchedEffect(sessionUiState.onboardingDone) {
+        if (sessionUiState.onboardingDone) {
+            onboardingStateStore.markCompleted()
+            navController.navigate(AgroGemRoute.Home.route) {
+                popUpTo(AgroGemRoute.Onboarding.createRoute(0)) {
+                    inclusive = true
+                }
+                launchSingleTop = true
+                restoreState = false
+            }
+        }
+    }
+
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = AgroGemRoute.fromRoute(backStackEntry?.destination?.route)
-    val showBottomBar = currentRoute == AgroGemRoute.Home || currentRoute == AgroGemRoute.History || currentRoute == AgroGemRoute.Conversations
+    val showBottomBar = currentRoute == AgroGemRoute.Home || currentRoute == AgroGemRoute.History || currentRoute == AgroGemRoute.Conversations || currentRoute == AgroGemRoute.MapRisk
     val currentTab = currentRoute.bottomTab ?: AgroGemBottomTab.Home
-    val startDestination = if (onboardingStateStore.isCompleted()) {
+    val startDestination = if (onboardingStateStore.isCompleted() || sessionUiState.onboardingDone) {
         AgroGemRoute.Home.route
     } else {
         AgroGemRoute.Onboarding.createRoute(0)
     }
 
+    // Shared repositories for geolocation, weather, soil, and risk — injected into ViewModels
+    val geolocationRepository = remember { createGeolocationRepository() }
+    val weatherRepository = remember { createWeatherRepository() }
+    val soilRepository = remember { createSoilRepository() }
+    val climateRepository = remember { createClimateRepository() }
+    val riskRepository = remember { createRiskRepository() }
+    val homeViewModel = kmpViewModel {
+        HomeViewModel(
+            geolocationRepository = geolocationRepository,
+            weatherRepository = weatherRepository,
+            soilRepository = soilRepository,
+        )
+    }
+    val mapRiskViewModel = kmpViewModel {
+        MapRiskViewModel(
+            geolocationRepository = geolocationRepository,
+            riskRepository = riskRepository,
+        )
+    }
+
     // Shared ViewModel for the analysis flow — lives here so it survives navigation
-    val analysisFlowVm = kmpViewModel { AnalysisFlowViewModel() }
+    val pestRepository = remember { createPestRepository() }
+    val analysisFlowVm = kmpViewModel { AnalysisFlowViewModel(pestRepository = pestRepository) }
 
     // Shared ChatViewModel for the chat/voice flow — lives here so it survives navigation
     // and is shared across Chat, ChatConfirm, and VoiceReady routes (Phase 5 architecture fix).
     // Seeded with null so it starts in Blank mode. When navigating from Analysis → Chat,
     // AppNavHost calls chatViewModel.seedFromAnalysis(...) before pushing the chat route,
     // so the shared instance carries the real analysis context at runtime.
+    val chatRepository = remember { createChatRepository(authRepository) }
     val chatViewModel = kmpViewModel {
         ChatViewModel(
+            chatRepository = chatRepository,
             analysisId = null,
             diagnosis = null,
         )
     }
 
+    LaunchedEffect(Unit) {
+        chatViewModel.effects.collectLatest { effect ->
+            when (effect) {
+                is ChatEffect.SessionExpired -> appSessionViewModel.reportSessionExpired()
+            }
+        }
+    }
+
     // Camera launcher — opens the native camera directly from the Scan FAB
     val imagePicker = rememberImagePickerLauncher { result ->
         if (result != null) {
-            analysisFlowVm.setCapturedImage(result)
-            analysisFlowVm.startSimulatedAnalysis()
+            analysisFlowVm.startAnalysis(result)
             navController.navigateTo(AgroGemRoute.Analysis)
         }
     }
@@ -73,7 +142,7 @@ fun AppShell(modifier: Modifier = Modifier) {
                                 imagePicker.launchCamera()
                                 return@BottomNavigationBar
                             }
-                            AgroGemBottomTab.Maps -> AgroGemRoute.TreatmentProducts
+                            AgroGemBottomTab.Maps -> AgroGemRoute.MapRisk
                             AgroGemBottomTab.Chat -> AgroGemRoute.Conversations
                         }
 
@@ -89,6 +158,12 @@ fun AppShell(modifier: Modifier = Modifier) {
             navController = navController,
             analysisFlowVm = analysisFlowVm,
             chatViewModel = chatViewModel,
+            appSessionViewModel = appSessionViewModel,
+            homeViewModel = homeViewModel,
+            mapRiskViewModel = mapRiskViewModel,
+            soilRepository = soilRepository,
+            climateRepository = climateRepository,
+            geolocationRepository = geolocationRepository,
             startDestination = startDestination,
             onOnboardingFinished = {
                 onboardingStateStore.markCompleted()

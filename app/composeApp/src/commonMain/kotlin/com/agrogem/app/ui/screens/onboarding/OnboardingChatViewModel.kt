@@ -16,6 +16,8 @@ import kotlin.random.Random
  * real in-app [com.agrogem.app.ui.screens.chat.ChatViewModel] so the two
  * can evolve independently.
  */
+private val PHONE_REGEX = Regex("^\\+?[0-9]{7,15}$")
+
 class OnboardingChatViewModel : ViewModel() {
 
     private val _uiState = MutableStateFlow(OnboardingChatUiState())
@@ -29,6 +31,9 @@ class OnboardingChatViewModel : ViewModel() {
             ),
             onboardingChatStage = OnboardingChatStage.Conversation,
             onboardingStep = 0,
+            userName = null,
+            userPhone = null,
+            userPassword = null,
         )
     }
 
@@ -101,11 +106,20 @@ class OnboardingChatViewModel : ViewModel() {
             inputText = "",
             onboardingStep = nextStep,
             onboardingChatStage = nextStage,
+            userName = if (step == 0) trimmed else currentState.userName,
         )
     }
 
     fun onInputChanged(text: String) {
         _uiState.value = _uiState.value.copy(inputText = text)
+    }
+
+    fun onPhoneChanged(text: String) {
+        _uiState.value = _uiState.value.copy(userPhone = text)
+    }
+
+    fun onPasswordChanged(text: String) {
+        _uiState.value = _uiState.value.copy(userPassword = text)
     }
 
     private fun buildOnboardingReply(step: Int, userText: String): String {
@@ -151,7 +165,22 @@ data class OnboardingChatUiState(
     val onboardingChatStage: OnboardingChatStage? = null,
     val onboardingStep: Int = 0,
     val alertsEnabled: Boolean = false,
+    val userName: String? = null,
+    val userPhone: String? = null,
+    val userPassword: String? = null,
 ) {
+    val isPhoneValid: Boolean
+        get() = userPhone?.matches(PHONE_REGEX) ?: false
+
+    val isPasswordValid: Boolean
+        get() {
+            val length = userPassword?.length ?: 0
+            return length >= 8 && length <= 128
+        }
+
+    val isFormValid: Boolean
+        get() = isPhoneValid && isPasswordValid
+
     /**
      * Derives onboarding progress from message count and stage.
      * Progress advances incrementally with each conversation exchange,
