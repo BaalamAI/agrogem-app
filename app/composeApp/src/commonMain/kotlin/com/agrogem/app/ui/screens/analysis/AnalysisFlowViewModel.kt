@@ -4,6 +4,9 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.agrogem.app.data.ImageResult
+import com.agrogem.app.data.pest.domain.PestFailure
+import com.agrogem.app.data.pest.domain.PestRepository
+import com.agrogem.app.data.pest.domain.PestResult
 
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -13,7 +16,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class AnalysisFlowViewModel : ViewModel() {
+class AnalysisFlowViewModel(
+    private var pestRepository: PestRepository? = null,
+) : ViewModel() {
 
     private val _capturedImage = MutableStateFlow<ImageResult?>(null)
     val capturedImage: StateFlow<ImageResult?> = _capturedImage.asStateFlow()
@@ -26,13 +31,28 @@ class AnalysisFlowViewModel : ViewModel() {
 
     private var analysisJob: Job? = null
 
-    val diagnosisResult: DiagnosisResult = mockDiagnosisResult()
+    private var _diagnosisResult: DiagnosisResult = mockDiagnosisResult()
+    val diagnosisResult: DiagnosisResult get() = _diagnosisResult
+
+    fun setPestRepository(repository: PestRepository) {
+        this.pestRepository = repository
+    }
 
     fun setCapturedImage(image: ImageResult) {
         _capturedImage.value = image
     }
 
-    fun startSimulatedAnalysis() {
+    fun startAnalysis(image: ImageResult) {
+        _capturedImage.value = image
+        _phase.value = AnalysisPhase.Analyzing
+        _steps.value = defaultSteps()
+        analysisJob?.cancel()
+        analysisJob = viewModelScope.launch {
+            runRealAnalysis(image)
+        }
+    }
+
+    private fun startSimulatedAnalysis() {
         _phase.value = AnalysisPhase.Analyzing
         _steps.value = defaultSteps()
         analysisJob?.cancel()
@@ -74,11 +94,53 @@ class AnalysisFlowViewModel : ViewModel() {
         _steps.value = defaultSteps().map { it.copy(done = true) }
         _phase.value = AnalysisPhase.Results
     }
+
+    private suspend fun runRealAnalysis(image: ImageResult) {
+        val repo = pestRepository
+        if (repo == null) {
+            startSimulatedAnalysis()
+            return
+        }
+
+        markStepDone(0)
+
+        when (val result = repo.identify(image)) {
+            is PestResult.Success -> {
+                markStepDone(1)
+                _diagnosisResult = result.diagnosis
+                markStepDone(2)
+                _phase.value = AnalysisPhase.Results
+            }
+            is PestResult.Failure -> {
+                val (message, retryable) = mapFailure(result.reason)
+                _phase.value = AnalysisPhase.Error(message = message, retryable = retryable)
+            }
+        }
+    }
+
+    private fun markStepDone(index: Int) {
+        _steps.update { current ->
+            current.mapIndexed { i, step ->
+                if (i == index) step.copy(done = true) else step
+            }
+        }
+    }
+
+    private fun mapFailure(failure: PestFailure): Pair<String, Boolean> = when (failure) {
+        is PestFailure.Network -> "Error de red. Verificá tu conexión e intentá de nuevo." to true
+        is PestFailure.Server -> "Error del servidor. Intentá de nuevo en unos momentos." to true
+        is PestFailure.UploadFailed -> "No se pudo subir la imagen. Intentá de nuevo." to true
+        is PestFailure.ExpiredUrl -> "El enlace de subida expiró. Intentá de nuevo." to true
+        is PestFailure.NoMatchFound -> "No se encontró coincidencia con plagas conocidas." to false
+        is PestFailure.UnsupportedPlatform -> "Esta plataforma no soporta análisis de plagas." to false
+        is PestFailure.MissingImageBytes -> "No se pudieron leer los bytes de la imagen." to true
+    }
 }
 
 sealed interface AnalysisPhase {
     data object Analyzing : AnalysisPhase
     data object Results : AnalysisPhase
+    data class Error(val message: String, val retryable: Boolean) : AnalysisPhase
 }
 
 @Immutable
@@ -101,23 +163,18 @@ data class DiagnosisResult(
 
 private fun defaultSteps(): List<AnalysisStepUi> = listOf(
     AnalysisStepUi(
-        title = "Identificando patrones de hojas...",
-        subtitle = "Analizando irregularidades celulares",
+        title = "Subiendo imagen...",
+        subtitle = "Preparando fotografía para análisis",
         done = false,
     ),
     AnalysisStepUi(
-        title = "Consultando base de datos de plagas...",
+        title = "Identificando plaga...",
         subtitle = "Sincronizando con AgroCloud Index",
         done = false,
     ),
     AnalysisStepUi(
-        title = "Calculando severidad...",
-        subtitle = "Estimación de impacto en cosecha",
-        done = false,
-    ),
-    AnalysisStepUi(
-        title = "Generando recomendaciones...",
-        subtitle = "Análisis de tratamientos disponibles",
+        title = "Procesando resultados...",
+        subtitle = "Generando diagnóstico y tratamiento",
         done = false,
     ),
 )

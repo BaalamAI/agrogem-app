@@ -10,4 +10,8 @@ import androidx.compose.runtime.Immutable
 data class ImageResult(
     val uri: String,
     val timestamp: Long = 0L,
+    val bytes: ByteArray? = null,
 )
+
+/** Returns the pre-populated [bytes] field; the platform picker is responsible for reading bytes at capture time. */
+fun ImageResult.toByteArray(): ByteArray? = bytes

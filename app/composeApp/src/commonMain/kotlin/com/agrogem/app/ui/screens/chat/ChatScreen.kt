@@ -133,13 +133,21 @@ fun ChatScreen(
                         .imePadding()
                         .padding(bottom = 16.dp),
                 ) {
+                    uiState.error?.let { errorMessage ->
+                        ErrorBanner(
+                            message = errorMessage,
+                            onDismiss = { viewModel.onEvent(ChatEvent.DismissError) },
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                     ChatInputArea(
                         inputText = uiState.inputText,
                         onInputChanged = { viewModel.onEvent(ChatEvent.InputChanged(it)) },
                         onAttachClick = { viewModel.onEvent(ChatEvent.ToggleAttachmentMenu(true)) },
                         onMicClick = onMicClick,
-                        onSendClick = { viewModel.onEvent(ChatEvent.SendMessage) },
+                        onSendClick = { if (!uiState.isLoading) viewModel.onEvent(ChatEvent.SendMessage) },
                         pendingAttachments = pendingAttachments,
+                        isLoading = uiState.isLoading,
                     )
                 }
             } else {
@@ -303,6 +311,7 @@ private fun ChatInputArea(
     onMicClick: () -> Unit,
     onSendClick: () -> Unit,
     pendingAttachments: List<ChatAttachment>,
+    isLoading: Boolean,
 ) {
     Column(
         modifier = Modifier
@@ -394,10 +403,10 @@ private fun ChatInputArea(
                 }
 
                 RoundIconButton(
-                    label = "↑",
+                    label = if (isLoading) "○" else "↑",
                     onClick = onSendClick,
-                    background = AgroGemColors.PillTrackSemi,
-                    foreground = AgroGemColors.TextPrimary,
+                    background = if (isLoading) AgroGemColors.PillTrackSemi.copy(alpha = 0.5f) else AgroGemColors.PillTrackSemi,
+                    foreground = if (isLoading) AgroGemColors.TextPrimary.copy(alpha = 0.5f) else AgroGemColors.TextPrimary,
                     size = 24.dp,
                 )
             }
@@ -490,5 +499,36 @@ private fun ConfirmDialog(
             fontWeight = FontWeight.Medium,
         )
         FilledPrimaryButton(text = "Confirmar", onClick = onConfirm)
+    }
+}
+
+@Composable
+private fun ErrorBanner(
+    message: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(AgroGemColors.AlertSoft, RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = message,
+            color = AgroGemColors.Alert,
+            fontSize = 11.sp,
+            lineHeight = 16.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = "✕",
+            color = AgroGemColors.Alert,
+            fontSize = 14.sp,
+            modifier = Modifier.clickable(onClick = onDismiss),
+        )
     }
 }

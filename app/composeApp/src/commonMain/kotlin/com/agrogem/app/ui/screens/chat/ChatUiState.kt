@@ -15,6 +15,8 @@ data class ChatUiState(
     val showAttachmentMenu: Boolean = false,
     val mode: ChatMode = ChatMode.Blank,
     val voiceState: VoiceState = VoiceState.Idle,
+    val isLoading: Boolean = false,
+    val error: String? = null,
 )
 
 /**

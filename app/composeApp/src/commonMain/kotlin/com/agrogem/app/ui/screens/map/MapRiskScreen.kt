@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,66 +31,93 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agrogem.app.theme.AgroGemColors
-import com.agrogem.app.ui.viewmodel.kmpViewModel
 
 @Composable
 fun MapRiskScreen(
     modifier: Modifier = Modifier,
     onBackToDashboard: () -> Unit = {},
-    viewModel: MapRiskViewModel = kmpViewModel { MapRiskViewModel() },
+    viewModel: MapRiskViewModel,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val alertText = "${uiState.alerts.size} Alertas de plagas cercanas\ndetectadas en el valle."
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(AgroGemColors.MapBackground),
     ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp),
-            contentPadding = PaddingValues(
-                top = 96.dp,
-                bottom = 96.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "BUENOS DÍAS, AGRICULTOR",
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontSize = 16.sp,
-                            lineHeight = 24.sp,
-                            letterSpacing = 1.6.sp,
-                        ),
-                        color = AgroGemColors.MapPrimary,
-                    )
-                    Text(
-                        text = uiState.title,
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontSize = 36.sp,
-                            lineHeight = 45.sp,
-                            letterSpacing = (-0.9).sp,
-                        ),
-                        color = AgroGemColors.MapTextPrimary,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+        when (uiState) {
+            is MapRiskViewModelState.Loading -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp),
+                    contentPadding = PaddingValues(
+                        top = 96.dp,
+                        bottom = 96.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                ) {
+                    item {
+                        TitleSection(
+                            title = "Mapa de riesgo\nregional",
+                            subtitle = "Cargando ubicación...",
+                        )
+                    }
+                    item { MapPreviewCard() }
+                    item { AlertSummaryBanner(text = "Cargando alertas...") }
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
                 }
             }
-
-            item {
-                MapPreviewCard()
+            is MapRiskViewModelState.Error -> {
+                val message = (uiState as MapRiskViewModelState.Error).message
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp),
+                    contentPadding = PaddingValues(
+                        top = 96.dp,
+                        bottom = 96.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                ) {
+                    item {
+                        TitleSection(
+                            title = "Mapa de riesgo\nregional",
+                            subtitle = "No se pudieron cargar los datos.",
+                        )
+                    }
+                    item {
+                        ErrorCard(
+                            message = message,
+                            onRetry = { viewModel.onEvent(MapRiskEvent.OnRefreshRequested) },
+                        )
+                    }
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
+                }
             }
-
-            item {
-                AlertSummaryBanner(text = alertText)
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
+            is MapRiskViewModelState.Success -> {
+                val data = (uiState as MapRiskViewModelState.Success).data
+                val alertText = "${data.alerts.size} Alertas de plagas cercanas\ndetectadas en el valle."
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp),
+                    contentPadding = PaddingValues(
+                        top = 96.dp,
+                        bottom = 96.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                ) {
+                    item {
+                        TitleSection(
+                            title = data.title,
+                            subtitle = data.subtitle,
+                        )
+                    }
+                    item { MapPreviewCard() }
+                    item { AlertSummaryBanner(text = alertText) }
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
+                }
             }
         }
 
@@ -101,6 +129,75 @@ fun MapRiskScreen(
         )
 
         MapBrandHeader(modifier = Modifier.align(Alignment.TopCenter))
+    }
+}
+
+@Composable
+private fun TitleSection(
+    title: String,
+    subtitle: String,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = "BUENOS DÍAS, AGRICULTOR",
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = 16.sp,
+                lineHeight = 24.sp,
+                letterSpacing = 1.6.sp,
+            ),
+            color = AgroGemColors.MapPrimary,
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineLarge.copy(
+                fontSize = 36.sp,
+                lineHeight = 45.sp,
+                letterSpacing = (-0.9).sp,
+            ),
+            color = AgroGemColors.MapTextPrimary,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            ),
+            color = AgroGemColors.MapTextSecondary,
+        )
+    }
+}
+
+@Composable
+private fun ErrorCard(
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                color = AgroGemColors.MapMutedCard,
+                shape = RoundedCornerShape(20.dp),
+            )
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+            ),
+            color = AgroGemColors.MapTextPrimary,
+        )
+        Button(
+            onClick = onRetry,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(text = "Reintentar")
+        }
     }
 }
 

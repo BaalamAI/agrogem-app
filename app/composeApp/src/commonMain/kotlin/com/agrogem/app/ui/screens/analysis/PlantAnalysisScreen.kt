@@ -126,6 +126,13 @@ fun PlantAnalysisScreen(
                         onTalkToAgent = onTalkToAgent,
                         analysisId = "analysis_current",
                     )
+
+                    is AnalysisPhase.Error -> ErrorContent(
+                        message = currentPhase.message,
+                        retryable = currentPhase.retryable,
+                        onRetry = { viewModel.startAnalysis(viewModel.capturedImage.value ?: return@ErrorContent) },
+                        onCancel = onCancel,
+                    )
                 }
             }
         }
@@ -146,7 +153,7 @@ private fun AnalyzingContent(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             steps.forEachIndexed { index, step ->
-                val alphas = listOf(1f, 0.65f, 0.42f, 0.32f)
+                val alphas = listOf(1f, 0.65f, 0.42f)
                 val alpha = if (step.done) 1f else alphas.getOrElse(index) { 0.32f }
                 val iconBg = if (step.done) AgroGemColors.AnalysisStepDone else AgroGemColors.AnalysisStepPending
                 val titleColor = if (step.done) AgroGemColors.Primary else AgroGemColors.TextPrimary
@@ -162,6 +169,40 @@ private fun AnalyzingContent(
         }
 
         OutlinedPrimaryButton(text = "Cancelar Análisis", onClick = onCancel)
+    }
+}
+
+@Composable
+private fun ErrorContent(
+    message: String,
+    retryable: Boolean,
+    onRetry: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = message,
+            color = AgroGemColors.TextPrimary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+        if (retryable) {
+            FilledPrimaryButton(
+                text = "Reintentar",
+                onClick = onRetry,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        OutlinedPrimaryButton(
+            text = "Cancelar",
+            onClick = onCancel,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

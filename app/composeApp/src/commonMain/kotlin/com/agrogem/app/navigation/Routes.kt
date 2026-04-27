@@ -122,6 +122,18 @@ sealed interface AgroGemRoute {
         override val bottomTab: AgroGemBottomTab? = null
     }
 
+    data object MapRisk : AgroGemRoute {
+        override val route: String = "map_risk"
+        override val title: String = "Mapa de riesgo"
+        override val bottomTab: AgroGemBottomTab = AgroGemBottomTab.Maps
+    }
+
+    data object Environment : AgroGemRoute {
+        override val route: String = "environment"
+        override val title: String = "Perfil ambiental"
+        override val bottomTab: AgroGemBottomTab? = null
+    }
+
     companion object {
         val all = listOf(
             Home,
@@ -139,6 +151,8 @@ sealed interface AgroGemRoute {
             History,
             Conversations,
             VoiceReady,
+            MapRisk,
+            Environment,
         )
 
         fun fromRoute(route: String?): AgroGemRoute {

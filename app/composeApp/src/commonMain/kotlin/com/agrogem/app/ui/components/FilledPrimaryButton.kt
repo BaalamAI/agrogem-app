@@ -21,15 +21,24 @@ internal fun FilledPrimaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(36.dp)
-            .background(AgroGemColors.PrimaryButton, RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick),
+            .background(
+                if (enabled) AgroGemColors.PrimaryButton else AgroGemColors.PrimaryButton.copy(alpha = 0.5f),
+                RoundedCornerShape(10.dp)
+            )
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = text, color = Color.White, fontSize = 12.sp, textAlign = TextAlign.Center)
+        Text(
+            text = text,
+            color = if (enabled) Color.White else Color.White.copy(alpha = 0.7f),
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center
+        )
     }
 }
