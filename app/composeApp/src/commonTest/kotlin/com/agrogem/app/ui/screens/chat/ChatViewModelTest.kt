@@ -15,6 +15,8 @@ import com.agrogem.app.data.geolocation.domain.ResolvedLocation
 import com.agrogem.app.data.risk.domain.DiseaseRisk
 import com.agrogem.app.data.risk.domain.RiskRepository
 import com.agrogem.app.data.risk.domain.RiskSeverity
+import com.agrogem.app.data.session.SessionLocalStore
+import com.agrogem.app.data.session.SessionSnapshot
 import com.agrogem.app.data.shared.domain.LatLng
 import com.agrogem.app.data.soil.domain.SoilProfile
 import com.agrogem.app.data.soil.domain.SoilRepository
@@ -822,10 +824,20 @@ class ChatViewModelTest {
         val gemma = FakeGemmaManager(initialInitialized = true)
         val downloader = FakeGemmaModelDownloader(downloaded = true)
         val repo = fakeRepo()
+        val sessionStore = SessionLocalStore()
+        sessionStore.write(
+            SessionSnapshot(
+                name = "Kevin",
+                crops = "maíz",
+                area = "3 hectáreas",
+                stage = "floración",
+            )
+        )
         val viewModel = ChatViewModel(
             chatRepository = repo,
             gemmaManager = gemma,
             gemmaModelDownloader = downloader,
+            sessionLocalStore = sessionStore,
         )
 
         viewModel.onEvent(ChatEvent.InputChanged("Hello"))
@@ -835,6 +847,8 @@ class ChatViewModelTest {
         assertEquals(0, repo.sendMessageCallCount, "Backend should NOT be called when Gemma is available")
         assertEquals("Hello", gemma.lastUserPrompt)
         assertTrue(gemma.lastSystemPrompt?.contains("asistente agronómico experto") == true, "System prompt should be general agricultural assistant")
+        assertTrue(gemma.lastSystemPrompt?.contains("Contexto base del productor") == true, "System prompt should include onboarding profile context")
+        assertTrue(gemma.lastSystemPrompt?.contains("Cultivos: maíz") == true, "System prompt should include onboarding crops")
         assertEquals(2, viewModel.uiState.value.messages.size)
     }
 

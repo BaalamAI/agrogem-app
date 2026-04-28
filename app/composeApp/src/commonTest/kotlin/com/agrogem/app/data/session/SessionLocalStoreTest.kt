@@ -21,11 +21,19 @@ class SessionSnapshotTest {
         val snapshot = SessionSnapshot(
             onboardingDone = true,
             phone = "+50255550000",
-            sessionId = "abc-123"
+            sessionId = "abc-123",
+            name = "Kevin",
+            crops = "maíz",
+            area = "3 hectáreas",
+            stage = "floración",
         )
         assertEquals(true, snapshot.onboardingDone)
         assertEquals("+50255550000", snapshot.phone)
         assertEquals("abc-123", snapshot.sessionId)
+        assertEquals("Kevin", snapshot.name)
+        assertEquals("maíz", snapshot.crops)
+        assertEquals("3 hectáreas", snapshot.area)
+        assertEquals("floración", snapshot.stage)
     }
 
     @Test
@@ -68,7 +76,11 @@ class SessionLocalStoreContractTest {
         val expected = SessionSnapshot(
             onboardingDone = true,
             phone = "+50255550000",
-            sessionId = "session-abc"
+            sessionId = "session-abc",
+            name = "Kevin",
+            crops = "maíz",
+            area = "3 hectáreas",
+            stage = "floración",
         )
         store.write(expected)
         val result = store.read()

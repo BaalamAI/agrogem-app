@@ -16,6 +16,8 @@ import com.agrogem.app.data.risk.domain.RiskRepository
 import com.agrogem.app.data.risk.domain.RiskSeverity
 import com.agrogem.app.data.soil.domain.SoilRepository
 import com.agrogem.app.data.weather.domain.WeatherRepository
+import com.agrogem.app.data.session.SessionLocalStore
+import com.agrogem.app.data.session.SessionSnapshot
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -43,6 +45,7 @@ class ChatViewModel(
     private val weatherRepository: WeatherRepository? = null,
     private val soilRepository: SoilRepository? = null,
     private val connectivityMonitor: ConnectivityMonitor? = null,
+    private val sessionLocalStore: SessionLocalStore? = null,
     private val speechRecognizer: SpeechRecognizer? = null,
     private val speechSynthesizer: SpeechSynthesizer? = null,
 ) : ViewModel() {
@@ -258,7 +261,8 @@ class ChatViewModel(
         val systemPrompt = when (mode) {
             ChatMode.Blank -> {
                 val envContext = fetchGeneralEnvironmentContext()
-                buildGeneralSystemPrompt(envContext)
+                val profileContext = fetchOnboardingProfileContext()
+                buildGeneralSystemPrompt(envContext, profileContext)
             }
             is ChatMode.AnalysisSeeded -> {
                 val pestRiskContext = fetchPestRiskContext(mode.diagnosis)
@@ -295,7 +299,10 @@ class ChatViewModel(
         }
     }
 
-    private fun buildGeneralSystemPrompt(environmentContext: String? = null): String {
+    private fun buildGeneralSystemPrompt(
+        environmentContext: String? = null,
+        onboardingProfileContext: String? = null,
+    ): String {
         return buildString {
             append("Eres un asistente agronómico experto. ")
             append("Responde de forma clara, práctica y basada en evidencia sobre agricultura, ")
@@ -305,6 +312,28 @@ class ChatViewModel(
             if (!environmentContext.isNullOrBlank()) {
                 append(environmentContext)
             }
+            if (!onboardingProfileContext.isNullOrBlank()) {
+                append(onboardingProfileContext)
+            }
+        }
+    }
+
+    private suspend fun fetchOnboardingProfileContext(): String? {
+        val snapshot = sessionLocalStore?.read() ?: return null
+        return snapshot.toOnboardingContextBlock()
+    }
+
+    private fun SessionSnapshot.toOnboardingContextBlock(): String? {
+        val compactFields = buildList {
+            name?.trim().takeUnless { it.isNullOrEmpty() }?.let { add("- Nombre: $it") }
+            crops?.trim().takeUnless { it.isNullOrEmpty() }?.let { add("- Cultivos: $it") }
+            area?.trim().takeUnless { it.isNullOrEmpty() }?.let { add("- Área: $it") }
+            stage?.trim().takeUnless { it.isNullOrEmpty() }?.let { add("- Etapa: $it") }
+        }
+        if (compactFields.isEmpty()) return null
+        return buildString {
+            append("\n\nContexto base del productor (onboarding):\n")
+            compactFields.forEach { appendLine(it) }
         }
     }
 

@@ -91,6 +91,7 @@ fun AppShell(modifier: Modifier = Modifier) {
             geolocationRepository = geolocationRepository,
             weatherRepository = weatherRepository,
             soilRepository = soilRepository,
+            sessionLocalStore = sessionLocalStore,
         )
     }
     val mapRiskViewModel = kmpViewModel {
@@ -136,6 +137,7 @@ fun AppShell(modifier: Modifier = Modifier) {
             weatherRepository = weatherRepository,
             soilRepository = soilRepository,
             connectivityMonitor = connectivityMonitor,
+            sessionLocalStore = sessionLocalStore,
             speechRecognizer = speechRecognizer,
             speechSynthesizer = speechSynthesizer,
         )

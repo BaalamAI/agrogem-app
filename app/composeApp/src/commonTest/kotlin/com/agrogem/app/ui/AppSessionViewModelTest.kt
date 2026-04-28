@@ -101,6 +101,33 @@ class AppSessionViewModelTest {
     }
 
     @Test
+    fun `registerOrLogin keeps persisted onboarding profile fields`() = runTest(testDispatcher) {
+        val store = SessionLocalStore()
+        store.write(
+            SessionSnapshot(
+                onboardingDone = true,
+                name = "Kevin",
+                crops = "maíz",
+                area = "3 hectáreas",
+                stage = "floración",
+            )
+        )
+        val repo = FakeAuthRepository(
+            registerResult = AuthResult.Success(SessionInfo("sess-reg", "+50255550000"))
+        )
+        val viewModel = AppSessionViewModel(repo, store)
+
+        viewModel.registerOrLogin(phone = "+50255550000", password = "secret123")
+        advanceUntilIdle()
+
+        val stored = store.read()
+        assertEquals("Kevin", stored.name)
+        assertEquals("maíz", stored.crops)
+        assertEquals("3 hectáreas", stored.area)
+        assertEquals("floración", stored.stage)
+    }
+
+    @Test
     fun `registerOrLogin with duplicate falls back to login`() = runTest(testDispatcher) {
         val store = SessionLocalStore()
         store.clearSession()
