@@ -20,11 +20,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import com.agrogem.app.ui.AppSessionViewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,12 +45,15 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.composeapp.generated.resources.Res
 import app.composeapp.generated.resources.ic_action_magic
+import com.agrogem.app.data.GemmaPreparationStatus
 import com.agrogem.app.data.rememberLocationPermissionRequester
 import com.agrogem.app.data.rememberNotificationPermissionRequester
 import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.theme.AgroGemIconSizes
 import com.agrogem.app.ui.components.AgroGemIcon
 import com.agrogem.app.ui.components.FilledPrimaryButton
+import com.agrogem.app.ui.components.GemmaPreparationHint
+import com.agrogem.app.ui.components.GemmaPreparationStatusScreen
 import com.agrogem.app.ui.components.RoundIconButton
 import com.agrogem.app.ui.screens.chat.ChatMessage
 import com.agrogem.app.ui.screens.chat.MessageSender
@@ -58,7 +67,7 @@ fun OnboardingChatScreen(
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val stage = uiState.onboardingChatStage ?: OnboardingChatStage.Conversation
+    val stage = uiState.onboardingChatStage ?: OnboardingChatStage.Preparing
 
     val locationRequester = rememberLocationPermissionRequester { _ ->
         viewModel.continueOnboardingAfterLocationPermission()
@@ -79,6 +88,11 @@ fun OnboardingChatScreen(
             .background(AgroGemColors.Screen),
     ) {
         when (stage) {
+            OnboardingChatStage.Preparing -> PreparingOnboardingScreen(
+                gemmaPreparationStatus = uiState.gemmaPreparationStatus,
+                onBack = onBack,
+            )
+
             OnboardingChatStage.Conversation -> ConversationScreen(
                 messages = uiState.messages,
                 inputText = uiState.inputText,
@@ -86,6 +100,8 @@ fun OnboardingChatScreen(
                 onBack = onBack,
                 onSendMessage = { viewModel.sendOnboardingMessage(it) },
                 progress = progress,
+                isLoading = uiState.isLoading,
+                gemmaPreparationStatus = uiState.gemmaPreparationStatus,
             )
 
             OnboardingChatStage.AwaitingLocationPermission -> ConversationScreen(
@@ -95,6 +111,8 @@ fun OnboardingChatScreen(
                 onBack = onBack,
                 onSendMessage = { viewModel.sendOnboardingMessage(it) },
                 progress = progress,
+                isLoading = uiState.isLoading,
+                gemmaPreparationStatus = uiState.gemmaPreparationStatus,
                 showLocationModal = true,
                 onAllowLocation = { locationRequester.request() },
                 onRejectLocation = { viewModel.continueOnboardingAfterLocationPermission() },
@@ -123,6 +141,36 @@ fun OnboardingChatScreen(
 }
 
 @Composable
+private fun PreparingOnboardingScreen(
+    gemmaPreparationStatus: GemmaPreparationStatus,
+    onBack: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 18.dp)
+            .padding(top = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        GemmaPreparationStatusScreen(
+            productName = "AgroGemma",
+            status = gemmaPreparationStatus,
+            modifier = Modifier.weight(1f),
+        )
+
+        if (gemmaPreparationStatus !is GemmaPreparationStatus.Downloading && gemmaPreparationStatus != GemmaPreparationStatus.Preparing && gemmaPreparationStatus != GemmaPreparationStatus.NotPrepared) {
+            GemmaPreparationHint(status = gemmaPreparationStatus)
+            Spacer(modifier = Modifier.height(16.dp))
+            FilledPrimaryButton(
+                text = "Volver",
+                onClick = onBack,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
 private fun ConversationScreen(
     messages: List<ChatMessage>,
     inputText: String,
@@ -130,6 +178,8 @@ private fun ConversationScreen(
     onBack: () -> Unit,
     onSendMessage: (String) -> Unit,
     progress: Float,
+    isLoading: Boolean,
+    gemmaPreparationStatus: GemmaPreparationStatus,
     showLocationModal: Boolean = false,
     onAllowLocation: (() -> Unit)? = null,
     onRejectLocation: (() -> Unit)? = null,
@@ -161,6 +211,8 @@ private fun ConversationScreen(
 
         OnboardingProgressBar(progress = progress)
 
+        GemmaPreparationHint(status = gemmaPreparationStatus)
+
         Spacer(modifier = Modifier.height(30.dp))
 
         Column(
@@ -186,6 +238,7 @@ private fun ConversationScreen(
                 text = inputText,
                 onTextChange = onInputChanged,
                 onSend = onSendMessage,
+                isLoading = isLoading,
             )
         }
     }
@@ -274,13 +327,17 @@ private fun MessageRow(message: ChatMessage) {
                     size = AgroGemIconSizes.Sm,
                     modifier = Modifier.padding(top = 2.dp),
                 )
-                Text(
-                    text = message.text,
-                    color = AgroGemColors.TextPrimary,
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp,
-                    modifier = Modifier.padding(top = 1.dp),
-                )
+                if (message.isStreaming && message.text == "AgroGemma está pensando...") {
+                    ThinkingBubble()
+                } else {
+                    Text(
+                        text = message.text,
+                        color = AgroGemColors.TextPrimary,
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.padding(top = 1.dp),
+                    )
+                }
             }
         }
 
@@ -319,6 +376,39 @@ private fun MessageRow(message: ChatMessage) {
                         ),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ThinkingBubble() {
+    val transition = rememberInfiniteTransition(label = "onboarding_thinking")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "onboarding_thinking_progress",
+    )
+
+    Row(
+        modifier = Modifier
+            .padding(top = 1.dp)
+            .background(Color.White, RoundedCornerShape(12.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(3) { index ->
+            val phase = (progress + (index * 0.2f)) % 1f
+            val alpha = 0.35f + (0.65f * phase)
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .background(AgroGemColors.Primary.copy(alpha = alpha), CircleShape),
+            )
         }
     }
 }
@@ -541,6 +631,7 @@ private fun OnboardingChatInput(
     text: String,
     onTextChange: (String) -> Unit,
     onSend: (String) -> Unit,
+    isLoading: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -563,7 +654,7 @@ private fun OnboardingChatInput(
             decorationBox = { innerTextField ->
                 if (text.isBlank()) {
                     Text(
-                        text = "Preguntale algo sobre tus cultivos",
+                        text = if (isLoading) "AgroGemma está pensando..." else "Preguntale algo sobre tus cultivos",
                         color = AgroGemColors.ChatAttachHint,
                         fontSize = 12.sp,
                     )
@@ -573,16 +664,16 @@ private fun OnboardingChatInput(
         )
 
         RoundIconButton(
-            label = "↑",
+            label = if (isLoading) "○" else "↑",
             icon = Res.drawable.ic_action_magic,
             contentDescription = "Send",
             onClick = {
-                if (text.isNotBlank()) {
+                if (!isLoading && text.isNotBlank()) {
                     onSend(text)
                 }
             },
-            background = AgroGemColors.PillTrackSemi,
-            foreground = AgroGemColors.TextPrimary,
+            background = if (isLoading) AgroGemColors.PillTrackSemi.copy(alpha = 0.5f) else AgroGemColors.PillTrackSemi,
+            foreground = if (isLoading) AgroGemColors.TextPrimary.copy(alpha = 0.5f) else AgroGemColors.TextPrimary,
             size = 24.dp,
         )
     }

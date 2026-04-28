@@ -2,6 +2,7 @@ package com.agrogem.app.ui.screens.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agrogem.app.data.GemmaPreparationStateHolder
 import com.agrogem.app.data.GemmaManager
 import com.agrogem.app.data.GemmaModelDownloader
 import com.agrogem.app.data.SpeechSynthesizer
@@ -40,6 +41,7 @@ class ChatViewModel(
     private val diagnosis: DiagnosisResult? = null,
     private val gemmaManager: GemmaManager? = null,
     private val gemmaModelDownloader: GemmaModelDownloader? = null,
+    private val gemmaPreparationStateHolder: GemmaPreparationStateHolder? = null,
     private val geolocationRepository: GeolocationRepository? = null,
     private val riskRepository: RiskRepository? = null,
     private val weatherRepository: WeatherRepository? = null,
@@ -49,6 +51,13 @@ class ChatViewModel(
     private val speechRecognizer: SpeechRecognizer? = null,
     private val speechSynthesizer: SpeechSynthesizer? = null,
 ) : ViewModel() {
+
+    private val gemmaPreparation = gemmaPreparationStateHolder
+        ?: if (gemmaManager != null && gemmaModelDownloader != null) {
+            GemmaPreparationStateHolder(gemmaManager = gemmaManager, modelDownloader = gemmaModelDownloader)
+        } else {
+            null
+        }
 
     private val _uiState = MutableStateFlow(createInitialState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -221,25 +230,16 @@ class ChatViewModel(
         attachments: List<ChatAttachment>,
     ) {
         val manager = gemmaManager
-        val downloader = gemmaModelDownloader
+        val holder = gemmaPreparation
 
-        val canUseGemma = manager != null && downloader != null && downloader.isModelDownloaded()
+        val canUseGemma = manager != null && holder != null
 
         if (!canUseGemma) {
             sendViaBackend(text, attachments, mode)
             return
         }
 
-        try {
-            if (!manager.isInitialized.first()) {
-                manager.initialize(downloader.getModelPath())
-            }
-        } catch (_: Exception) {
-            sendViaBackend(text, attachments, mode)
-            return
-        }
-
-        if (!manager.isInitialized.first()) {
+        if (!holder.ensureReady()) {
             sendViaBackend(text, attachments, mode)
             return
         }
