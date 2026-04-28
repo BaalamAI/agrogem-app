@@ -9,7 +9,6 @@ This directory contains the actual AgroGem application. It is a Kotlin Multiplat
 - [`composeApp/src/commonTest`](./composeApp/src/commonTest/kotlin) — shared tests for navigation and view models
 - [`composeApp/src/androidMain`](./composeApp/src/androidMain/kotlin) — Android-specific entry points
 - [`composeApp/src/iosMain`](./composeApp/src/iosMain/kotlin) — iOS-specific entry points
-- [`composeApp/src/wasmJsMain`](./composeApp/src/wasmJsMain/kotlin) — browser preview target
 - [`iosApp`](./iosApp/) — Xcode host application for running on iOS
 
 ## Current product surface
@@ -52,18 +51,32 @@ Run all commands from this `app/` directory.
 ### Android
 
 ```sh
+make android-open
+make android-sync
+make android-run
+
+# or script form
+./scripts/android-dev.sh open
+./scripts/android-dev.sh sync
+./scripts/android-dev.sh run
+
+# raw Gradle
 ./gradlew :composeApp:assembleDebug
-```
-
-### WebAssembly preview
-
-```sh
-./gradlew :composeApp:wasmJsBrowserDevelopmentRun
+./gradlew :composeApp:installDebug
 ```
 
 ### iOS
 
-Open [`iosApp`](./iosApp/) in Xcode and run from there.
+```sh
+make ios-open
+make ios-sim-list
+make ios-run IOS_SIMULATOR="iPhone 16e"
+
+# build only
+make ios-build IOS_SIMULATOR="iPhone 16e"
+```
+
+You can also open [`iosApp`](./iosApp/) in Xcode and run from there.
 
 ## Testing notes
 
