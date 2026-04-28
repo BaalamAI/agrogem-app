@@ -26,15 +26,6 @@ kotlin {
         }
     }
 
-    wasmJs {
-        browser {
-            commonWebpackConfig {
-                outputFileName = "composeApp.js"
-            }
-        }
-        binaries.executable()
-    }
-
     sourceSets {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)

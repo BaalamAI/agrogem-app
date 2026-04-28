@@ -89,7 +89,7 @@ class ChatRepositoryImpl(
 
 /**
  * Minimal ISO-8601 parser for the backend format `YYYY-MM-DDTHH:MM:SSZ`.
- * Pure Kotlin — works on all KMP targets including wasmJs.
+ * Pure Kotlin — works on all configured KMP targets.
  */
 internal fun parseIso8601ToEpochMillis(iso: String): Long {
     // Expected: 2026-04-27T10:00:00Z
