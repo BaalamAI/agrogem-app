@@ -2,12 +2,15 @@ package com.agrogem.app.ui.screens.gemma_demo
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agrogem.app.data.GemmaPreparationStateHolder
+import com.agrogem.app.data.GemmaPreparationStatus
 import com.agrogem.app.data.getGemmaManager
 import com.agrogem.app.data.getGemmaModelDownloader
 import com.agrogem.app.ui.screens.chat.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 import kotlin.time.Clock
@@ -15,31 +18,30 @@ import kotlin.time.Clock
 class GemmaDemoViewModel : ViewModel() {
 
     private val gemmaManager = getGemmaManager()
-    private val modelDownloader = getGemmaModelDownloader()
+    private val gemmaPreparation = GemmaPreparationStateHolder(
+        gemmaManager = gemmaManager,
+        modelDownloader = getGemmaModelDownloader(),
+    )
 
     private val _uiState = MutableStateFlow(ChatUiState(mode = ChatMode.Blank))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    private val _isDownloading = MutableStateFlow(false)
-    val isDownloading: StateFlow<Boolean> = _isDownloading.asStateFlow()
+    private val _preparationStatus = MutableStateFlow<GemmaPreparationStatus>(GemmaPreparationStatus.NotPrepared)
+    val preparationStatus: StateFlow<GemmaPreparationStatus> = _preparationStatus.asStateFlow()
 
     init {
         println("[GemmaDemo] ViewModel inicializado. Verificando modelo...")
-        checkModelAndInit()
+        prepareGemma()
     }
 
-    private fun checkModelAndInit() {
+    private fun prepareGemma() {
         viewModelScope.launch {
-            if (!modelDownloader.isModelDownloaded()) {
-                println("[GemmaDemo] Modelo no encontrado. Iniciando descarga...")
-                _isDownloading.value = true
-                val url = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/7fa1d78473894f7e736a21d920c3aa80f950c0db/gemma-4-E2B-it.litertlm?download=true"
-                modelDownloader.downloadModel(url)
-            } else {
-                println("[GemmaDemo] Modelo encontrado en local. Inicializando motor...")
-                gemmaManager.initialize(modelDownloader.getModelPath())
-                println("[GemmaDemo] Motor inicializado correctamente.")
+            gemmaPreparation.status.collect { status ->
+                _preparationStatus.value = status
             }
+        }
+        viewModelScope.launch {
+            gemmaPreparation.ensureReady()
         }
     }
 
@@ -108,6 +110,11 @@ class GemmaDemoViewModel : ViewModel() {
         )
 
         viewModelScope.launch {
+            if (!gemmaPreparation.ensureReady()) {
+                updateAssistantMessage(assistantMessageId, "Gemma no está disponible en este dispositivo.", null, true)
+                return@launch
+            }
+
             // Lógica de Thinking: si NO está habilitado, cerramos el tag de pensamiento en el system prompt
             val systemPrompt = buildString {
                 append("Eres un experto Fitopatólogo Especialista en enfermedades de cultivos. ")

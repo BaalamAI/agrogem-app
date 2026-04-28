@@ -1,11 +1,10 @@
 package com.agrogem.app.data.pest.domain
 
 import com.agrogem.app.data.GemmaManager
-import com.agrogem.app.data.GemmaModelDownloader
+import com.agrogem.app.data.GemmaPreparationStateHolder
 import com.agrogem.app.data.ImageResult
 import com.agrogem.app.data.connectivity.ConnectivityMonitor
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
-import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -15,7 +14,7 @@ interface PlantAnalysisRepository {
 
 class PlantAnalysisRepositoryImpl(
     private val gemmaManager: GemmaManager,
-    private val modelDownloader: GemmaModelDownloader,
+    private val gemmaPreparationStateHolder: GemmaPreparationStateHolder,
     private val pestRepository: PestRepository,
     private val connectivityMonitor: ConnectivityMonitor,
 ) : PlantAnalysisRepository {
@@ -55,14 +54,7 @@ class PlantAnalysisRepositoryImpl(
         return gemmaResult ?: backendResult ?: PestResult.Failure(PestFailure.Server)
     }
 
-    private suspend fun initializeGemmaIfPossible(): Boolean = try {
-        if (modelDownloader.isModelDownloaded()) {
-            gemmaManager.initialize(modelDownloader.getModelPath())
-        }
-        gemmaManager.isInitialized.first()
-    } catch (e: Exception) {
-        false
-    }
+    private suspend fun initializeGemmaIfPossible(): Boolean = gemmaPreparationStateHolder.ensureReady()
 
     private fun buildSystemPrompt(backendResult: PestResult.Success?): String = buildString {
         append("Eres un experto Fitopatólogo Especialista en enfermedades de cultivos. ")

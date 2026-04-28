@@ -1,18 +1,47 @@
 package com.agrogem.app.ui.screens.onboarding
 
+import com.agrogem.app.data.GemmaPreparationStatus
 import com.agrogem.app.ui.screens.chat.MessageSender
 import com.agrogem.app.ui.screens.onboarding.OnboardingChatStage
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class OnboardingChatViewModelTest {
 
+    private fun readyViewModel(): OnboardingChatViewModel =
+        OnboardingChatViewModel(assistant = FakeOnboardingAssistant(GemmaPreparationStatus.Ready))
+
+    @Test
+    fun `startOnboardingChat exposes preparing status when assistant is preparing`() {
+        val assistant = FakeOnboardingAssistant(GemmaPreparationStatus.Preparing)
+        val viewModel = OnboardingChatViewModel(assistant = assistant)
+
+        viewModel.startOnboardingChat()
+
+        assertEquals(GemmaPreparationStatus.Preparing, viewModel.uiState.value.gemmaPreparationStatus)
+        assertEquals(OnboardingChatStage.Preparing, viewModel.uiState.value.onboardingChatStage)
+    }
+
+    @Test
+    fun `ui state reflects unavailable status for fallback mode messaging`() {
+        val assistant = FakeOnboardingAssistant(GemmaPreparationStatus.Unavailable("model missing"))
+        val viewModel = OnboardingChatViewModel(assistant = assistant)
+
+        viewModel.startOnboardingChat()
+
+        assertTrue(viewModel.uiState.value.gemmaPreparationStatus is GemmaPreparationStatus.Unavailable)
+        assertEquals(OnboardingChatStage.Conversation, viewModel.uiState.value.onboardingChatStage)
+        assertTrue(viewModel.uiState.value.messages.first().text.contains("guiando"))
+    }
+
     // ========== Initialization Tests ==========
 
     @Test
     fun `default initialization starts with empty messages and null stage`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
 
         val state = viewModel.uiState.value
         assertEquals(emptyList(), state.messages)
@@ -26,7 +55,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `startOnboardingChat sets only initial assistant message and step 0`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
 
         val state = viewModel.uiState.value
@@ -39,7 +68,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `startOnboardingChat is idempotent and does not reset existing onboarding state`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
         viewModel.sendOnboardingMessage("Me llamo Juan")
 
@@ -56,7 +85,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `sendOnboardingMessage step 0 asks for crops and stays in Conversation`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
 
         viewModel.sendOnboardingMessage("Me llamo Juan")
@@ -73,7 +102,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `sendOnboardingMessage step 1 asks for size and stays in Conversation`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
 
         viewModel.sendOnboardingMessage("Me llamo Juan")
@@ -89,7 +118,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `sendOnboardingMessage step 2 asks for stage and stays in Conversation`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
 
         viewModel.sendOnboardingMessage("Me llamo Juan")
@@ -106,7 +135,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `sendOnboardingMessage step 3 asks for location and transitions to AwaitingLocationPermission`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
 
         viewModel.sendOnboardingMessage("Me llamo Juan")
@@ -124,7 +153,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `sendOnboardingMessage does nothing when chat has not started`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         // Default stage is null, chat not started
 
         viewModel.sendOnboardingMessage("Hola")
@@ -134,7 +163,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `sendOnboardingMessage does nothing when not in Conversation stage`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
         viewModel.sendOnboardingMessage("Me llamo Juan")
         viewModel.sendOnboardingMessage("Tengo tomate")
@@ -152,7 +181,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `sendOnboardingMessage ignores empty input`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
 
         viewModel.sendOnboardingMessage("   ")
@@ -162,7 +191,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `sendOnboardingMessage clears inputText`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
 
         viewModel.sendOnboardingMessage("Hola")
@@ -172,7 +201,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `location permission flow continues to AlertsPreferences`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
         viewModel.sendOnboardingMessage("Me llamo Juan")
         viewModel.sendOnboardingMessage("Tengo tomate")
@@ -187,7 +216,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `completeOnboarding transitions to Final with alerts enabled`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
         viewModel.sendOnboardingMessage("Me llamo Juan")
         viewModel.sendOnboardingMessage("Tengo tomate")
@@ -203,7 +232,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `skipOnboardingAlerts transitions to Final with alerts disabled`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
         viewModel.sendOnboardingMessage("Me llamo Juan")
         viewModel.sendOnboardingMessage("Tengo tomate")
@@ -221,7 +250,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `onInputChanged updates inputText in state`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
 
         viewModel.onInputChanged("Hello world")
 
@@ -230,7 +259,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `onInputChanged with empty text clears input`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
 
         viewModel.onInputChanged("Some text")
         viewModel.onInputChanged("")
@@ -242,13 +271,13 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `onboardingProgress is 0 before chat starts`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         assertEquals(0f, viewModel.uiState.value.onboardingProgress)
     }
 
     @Test
     fun `onboardingProgress advances during conversation`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
 
         val progressAfterStart = viewModel.uiState.value.onboardingProgress
@@ -261,7 +290,7 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `onboardingProgress reaches 1f in Final stage`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
         viewModel.sendOnboardingMessage("Me llamo Juan")
         viewModel.sendOnboardingMessage("Tengo tomate")
@@ -277,27 +306,27 @@ class OnboardingChatViewModelTest {
 
     @Test
     fun `sendOnboardingMessage step 0 captures userName`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
 
         viewModel.sendOnboardingMessage("Me llamo Juan")
 
-        assertEquals("Me llamo Juan", viewModel.uiState.value.userName)
+        assertEquals("Juan", viewModel.uiState.value.userName)
     }
 
     @Test
     fun `sendOnboardingMessage step 1 does not overwrite userName`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
         viewModel.sendOnboardingMessage("Me llamo Juan")
         viewModel.sendOnboardingMessage("Tengo tomate")
 
-        assertEquals("Me llamo Juan", viewModel.uiState.value.userName)
+        assertEquals("Juan", viewModel.uiState.value.userName)
     }
 
     @Test
     fun `step based flow captures structured onboarding fields`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
         viewModel.sendOnboardingMessage("Juan")
         viewModel.sendOnboardingMessage("Tomate y maiz")
@@ -312,8 +341,40 @@ class OnboardingChatViewModelTest {
     }
 
     @Test
+    fun `single message can capture name crops and area then asks for stage`() {
+        val viewModel = readyViewModel()
+        viewModel.startOnboardingChat()
+
+        viewModel.sendOnboardingMessage("Me llamo Juan, tengo tomate y maiz en 3 hectareas")
+
+        val state = viewModel.uiState.value
+        assertEquals("Juan", state.userName)
+        assertEquals("Me llamo Juan, tengo tomate y maiz en 3 hectareas", state.userCrops)
+        assertEquals("Me llamo Juan, tengo tomate y maiz en 3 hectareas", state.userArea)
+        assertEquals(3, state.onboardingStep)
+        assertEquals(OnboardingChatStage.Conversation, state.onboardingChatStage)
+        assertTrue(state.messages.last().text.contains("etapa"))
+    }
+
+    @Test
+    fun `single message can capture all onboarding fields and skip to location permission`() {
+        val viewModel = readyViewModel()
+        viewModel.startOnboardingChat()
+
+        viewModel.sendOnboardingMessage("Soy Ana, cultivo tomate, 2 ha, etapa de crecimiento")
+
+        val state = viewModel.uiState.value
+        assertEquals("Ana", state.userName)
+        assertEquals("Soy Ana, cultivo tomate, 2 ha, etapa de crecimiento", state.userCrops)
+        assertEquals("Soy Ana, cultivo tomate, 2 ha, etapa de crecimiento", state.userArea)
+        assertEquals("Soy Ana, cultivo tomate, 2 ha, etapa de crecimiento", state.userStage)
+        assertEquals(4, state.onboardingStep)
+        assertEquals(OnboardingChatStage.AwaitingLocationPermission, state.onboardingChatStage)
+    }
+
+    @Test
     fun `location and alerts are captured explicitly in final state`() {
-        val viewModel = OnboardingChatViewModel()
+        val viewModel = readyViewModel()
         viewModel.startOnboardingChat()
         viewModel.sendOnboardingMessage("Juan")
         viewModel.sendOnboardingMessage("Tomate")
@@ -328,4 +389,22 @@ class OnboardingChatViewModelTest {
         assertEquals(false, state.alertsEnabled)
         assertEquals(OnboardingChatStage.Final, state.onboardingChatStage)
     }
+}
+
+private class FakeOnboardingAssistant(
+    initialStatus: GemmaPreparationStatus,
+) : OnboardingAssistant {
+    private val _status = MutableStateFlow(initialStatus)
+    override val preparationStatus: StateFlow<GemmaPreparationStatus> = _status
+
+    override suspend fun prepareIfNeeded() = Unit
+
+    override suspend fun reply(step: Int, userText: String, draftState: OnboardingChatUiState): String =
+        when (step) {
+            1 -> "¿Qué cultivo o cultivos tenés?"
+            2 -> "¿Cuántas hectáreas tiene tu cultivo?"
+            3 -> "¿En qué etapa está tu cultivo?"
+            4 -> "Necesito tu ubicación para darte recomendaciones locales."
+            else -> "Seguimos con el onboarding."
+        }
 }

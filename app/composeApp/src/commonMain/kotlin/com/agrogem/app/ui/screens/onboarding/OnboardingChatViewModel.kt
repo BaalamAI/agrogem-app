@@ -1,18 +1,31 @@
 package com.agrogem.app.ui.screens.onboarding
 
 import androidx.lifecycle.ViewModel
+import com.agrogem.app.data.GemmaPreparationStateHolder
 import com.agrogem.app.data.GemmaManager
-import com.agrogem.app.data.GemmaModelDownloader
+import com.agrogem.app.data.GemmaPreparationStatus
 import com.agrogem.app.data.getGemmaManager
 import com.agrogem.app.data.getGemmaModelDownloader
 import com.agrogem.app.ui.screens.chat.ChatMessage
 import com.agrogem.app.ui.screens.chat.MessageSender
 
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import kotlin.random.Random
+
+private enum class OnboardingField {
+    Name,
+    Crops,
+    Area,
+    Stage,
+}
 
 /**
  * Dedicated state holder for the onboarding chat flow.
@@ -25,24 +38,45 @@ class OnboardingChatViewModel(
     private val assistant: OnboardingAssistant = GemmaOnboardingAssistant(),
 ) : ViewModel() {
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     private val _uiState = MutableStateFlow(OnboardingChatUiState())
     val uiState: StateFlow<OnboardingChatUiState> = _uiState.asStateFlow()
 
     fun startOnboardingChat() {
         if (_uiState.value.onboardingChatStage != null) return
         _uiState.value = OnboardingChatUiState(
-            messages = listOf(
-                assistantMessage("Para empezar, ¿cómo te llamás? 😊"),
-            ),
-            onboardingChatStage = OnboardingChatStage.Conversation,
-            onboardingStep = 0,
-            userName = null,
-            userCrops = null,
-            userArea = null,
-            userStage = null,
-            locationEnabled = false,
-            locationShared = false,
+            onboardingChatStage = OnboardingChatStage.Preparing,
+            gemmaPreparationStatus = currentPreparationStatus(),
         )
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            runCatching { assistant.prepareIfNeeded() }
+            val status = currentPreparationStatus()
+            _uiState.value = when (status) {
+                GemmaPreparationStatus.Ready,
+                is GemmaPreparationStatus.Unavailable,
+                -> OnboardingChatUiState(
+                    messages = listOf(initialAssistantMessage(status)),
+                    onboardingChatStage = OnboardingChatStage.Conversation,
+                    onboardingStep = 0,
+                    userName = null,
+                    userCrops = null,
+                    userArea = null,
+                    userStage = null,
+                    locationEnabled = false,
+                    locationShared = false,
+                    gemmaPreparationStatus = status,
+                )
+
+                GemmaPreparationStatus.NotPrepared,
+                GemmaPreparationStatus.Downloading,
+                GemmaPreparationStatus.Preparing,
+                -> _uiState.value.copy(
+                    onboardingChatStage = OnboardingChatStage.Preparing,
+                    gemmaPreparationStatus = status,
+                )
+            }
+        }
     }
 
     fun continueOnboardingAfterLocationPermission() {
@@ -86,6 +120,7 @@ class OnboardingChatViewModel(
 
         val currentState = _uiState.value
         if (currentState.onboardingChatStage != OnboardingChatStage.Conversation) return
+        if (currentState.isLoading) return
 
         val step = currentState.onboardingStep
         val userMessage = ChatMessage(
@@ -96,43 +131,111 @@ class OnboardingChatViewModel(
             timestamp = Random.nextLong(),
         )
 
-        val nextStep = step + 1
+        val extracted = extractObviousOnboardingFields(trimmed)
+        val nextName = when {
+            currentState.userName != null -> currentState.userName
+            step == 0 -> extracted.name ?: trimmed
+            else -> extracted.name
+        }
+        val nextCrops = when {
+            currentState.userCrops != null -> currentState.userCrops
+            step == 1 -> extracted.crops ?: trimmed
+            else -> extracted.crops
+        }
+        val nextArea = when {
+            currentState.userArea != null -> currentState.userArea
+            step == 2 -> extracted.area ?: trimmed
+            else -> extracted.area
+        }
+        val nextUserStage = when {
+            currentState.userStage != null -> currentState.userStage
+            step == 3 -> extracted.stage ?: trimmed
+            else -> extracted.stage
+        }
+
+        val nextStep = nextMissingStep(
+            userName = nextName,
+            userCrops = nextCrops,
+            userArea = nextArea,
+            userStage = nextUserStage,
+        )
         val nextStage = if (nextStep >= 4) {
             OnboardingChatStage.AwaitingLocationPermission
         } else {
             OnboardingChatStage.Conversation
         }
 
-        val nextState = currentState.copy(
+        val baseNextState = currentState.copy(
             messages = currentState.messages + userMessage,
             inputText = "",
             onboardingStep = nextStep,
-            onboardingChatStage = nextStage,
-            userName = if (step == 0) trimmed else currentState.userName,
-            userCrops = if (step == 1) trimmed else currentState.userCrops,
-            userArea = if (step == 2) trimmed else currentState.userArea,
-            userStage = if (step == 3) trimmed else currentState.userStage,
+            onboardingChatStage = OnboardingChatStage.Conversation,
+            userName = nextName,
+            userCrops = nextCrops,
+            userArea = nextArea,
+            userStage = nextUserStage,
         )
-        val replyText = runBlocking {
-            assistant.reply(
-                step = step,
-                userText = trimmed,
-                draftState = nextState,
-            )
-        }
-        _uiState.value = nextState.copy(
-            messages = nextState.messages + ChatMessage(
-                id = "onboard_assistant_${Random.nextLong()}",
-                text = replyText,
+        val thinkingMessageId = "onboard_assistant_thinking_${Random.nextLong()}"
+        val thinkingState = baseNextState.copy(
+            gemmaPreparationStatus = currentPreparationStatus(),
+            isLoading = true,
+            messages = baseNextState.messages + ChatMessage(
+                id = thinkingMessageId,
+                text = "AgroGemma está pensando...",
                 sender = MessageSender.Assistant,
                 attachments = emptyList(),
                 timestamp = Random.nextLong(),
+                isStreaming = true,
             ),
         )
+        _uiState.value = thinkingState
+
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            val replyText = assistant.reply(
+                step = nextStep,
+                userText = trimmed,
+                draftState = baseNextState,
+            )
+            _uiState.value = thinkingState.copy(
+                gemmaPreparationStatus = currentPreparationStatus(),
+                isLoading = false,
+                onboardingChatStage = nextStage,
+                messages = thinkingState.messages.replaceMessage(
+                    messageId = thinkingMessageId,
+                    replacement = ChatMessage(
+                        id = "onboard_assistant_${Random.nextLong()}",
+                        text = replyText,
+                        sender = MessageSender.Assistant,
+                        attachments = emptyList(),
+                        timestamp = Random.nextLong(),
+                    ),
+                ),
+            )
+        }
     }
 
     fun onInputChanged(text: String) {
         _uiState.value = _uiState.value.copy(inputText = text)
+    }
+
+    override fun onCleared() {
+        scope.coroutineContext.cancel()
+    }
+
+    private fun currentPreparationStatus(): GemmaPreparationStatus =
+        runCatching { assistant.preparationStatus.value }
+            .getOrDefault(GemmaPreparationStatus.NotPrepared)
+
+    private fun initialAssistantMessage(status: GemmaPreparationStatus): ChatMessage {
+        val text = when (status) {
+            GemmaPreparationStatus.Ready -> "Para empezar, ¿cómo te llamás? 😊"
+            is GemmaPreparationStatus.Unavailable -> "AgroGemma no está disponible ahora mismo, pero igual te voy guiando paso a paso. Para empezar, ¿cómo te llamás? 😊"
+            GemmaPreparationStatus.NotPrepared,
+            GemmaPreparationStatus.Downloading,
+            GemmaPreparationStatus.Preparing,
+            -> "Para empezar, ¿cómo te llamás? 😊"
+        }
+        return assistantMessage(text)
     }
 
     private fun assistantMessage(text: String): ChatMessage = ChatMessage(
@@ -148,6 +251,7 @@ class OnboardingChatViewModel(
  * Stage progression used by the onboarding chat.
  */
 sealed interface OnboardingChatStage {
+    data object Preparing : OnboardingChatStage
     data object Conversation : OnboardingChatStage
     data object AwaitingLocationPermission : OnboardingChatStage
     data object AlertsPreferences : OnboardingChatStage
@@ -174,6 +278,8 @@ data class OnboardingChatUiState(
     val userStage: String? = null,
     val locationShared: Boolean = false,
     val locationEnabled: Boolean = false,
+    val gemmaPreparationStatus: GemmaPreparationStatus = GemmaPreparationStatus.NotPrepared,
+    val isLoading: Boolean = false,
 ) {
 
     /**
@@ -183,6 +289,7 @@ data class OnboardingChatUiState(
      */
     val onboardingProgress: Float
         get() = when (onboardingChatStage) {
+            is OnboardingChatStage.Preparing -> 0.04f
             is OnboardingChatStage.Conversation -> {
                 // 1 initial assistant message + up to 8 more (4 exchanges × 2).
                 // Full flow ≈ 12 conceptual message slots (9 conversation + location + alerts + final).
@@ -195,18 +302,31 @@ data class OnboardingChatUiState(
         }
 }
 
+private fun List<ChatMessage>.replaceMessage(messageId: String, replacement: ChatMessage): List<ChatMessage> =
+    map { message -> if (message.id == messageId) replacement else message }
+
 interface OnboardingAssistant {
+    val preparationStatus: StateFlow<GemmaPreparationStatus>
+    suspend fun prepareIfNeeded()
     suspend fun reply(step: Int, userText: String, draftState: OnboardingChatUiState): String
 }
 
 private class GemmaOnboardingAssistant(
     private val gemmaProvider: () -> GemmaManager = { getGemmaManager() },
-    private val modelDownloaderProvider: () -> GemmaModelDownloader = { getGemmaModelDownloader() },
+    private val preparationProvider: () -> GemmaPreparationStateHolder = {
+        GemmaPreparationStateHolder(getGemmaManager(), getGemmaModelDownloader())
+    },
 ) : OnboardingAssistant {
 
-    private var isReady = false
+    private var preparationHolder: GemmaPreparationStateHolder? = null
     private var gemmaManager: GemmaManager? = null
-    private var modelDownloader: GemmaModelDownloader? = null
+
+    override val preparationStatus: StateFlow<GemmaPreparationStatus>
+        get() = holder().status
+
+    override suspend fun prepareIfNeeded() {
+        ensureReady()
+    }
 
     override suspend fun reply(step: Int, userText: String, draftState: OnboardingChatUiState): String {
         val fallback = scriptedReply(step)
@@ -221,27 +341,24 @@ private class GemmaOnboardingAssistant(
     }
 
     private suspend fun ensureReady(): Boolean {
-        if (isReady) return true
-        val downloader = runCatching {
-            modelDownloader ?: modelDownloaderProvider().also { modelDownloader = it }
-        }.getOrNull() ?: return false
-        val manager = runCatching {
+        val holder = runCatching { holder() }.getOrNull() ?: return false
+
+        gemmaManager = runCatching {
             gemmaManager ?: gemmaProvider().also { gemmaManager = it }
-        }.getOrNull() ?: return false
-        if (!downloader.isModelDownloaded()) return false
-        return runCatching {
-            manager.initialize(downloader.getModelPath())
-            isReady = true
-            true
-        }.getOrDefault(false)
+        }.getOrNull()
+
+        return holder.ensureReady()
     }
+
+    private fun holder(): GemmaPreparationStateHolder =
+        preparationHolder ?: preparationProvider().also { preparationHolder = it }
 
     private fun buildPrompt(step: Int, userText: String, state: OnboardingChatUiState): String {
         val objective = when (step) {
-            0 -> "Agradecé su nombre y preguntá solo por cultivos"
-            1 -> "Agradecé y preguntá solo por área"
-            2 -> "Agradecé y preguntá solo por etapa del cultivo"
-            3 -> "Agradecé y explicá brevemente que ahora pediremos ubicación"
+            1 -> "Agradecé y preguntá solo por cultivos. Si ya mencionó alguno, podés nombrarlo y pedir que complete si falta algo."
+            2 -> "Agradecé y preguntá solo por el área. Sé explícita: preguntá cuántas manzanas o hectáreas tiene cada cultivo y aclarale que, si puede, te diga las dimensiones por separado de cada uno."
+            3 -> "Agradecé y preguntá solo por la etapa del cultivo. Sé explícita y ofrecé opciones claras como: alistando la tierra (preparación y siembra), saliendo el puyón (nacencia), poniéndose shule (crecimiento), dando la flor (floración), cargando el fruto (llenado), punto de corte (cosecha)."
+            4 -> "Agradecé y explicá brevemente que ahora pediremos ubicación"
             else -> "Mantené foco en onboarding"
         }
         return """
@@ -265,10 +382,68 @@ No pidas teléfono, contraseña ni crear cuenta.
 Objetivo exclusivo: completar onboarding con nombre, cultivos, área, etapa y preparar permiso de ubicación.
 """
 
+private data class OnboardingExtractedFields(
+    val name: String? = null,
+    val crops: String? = null,
+    val area: String? = null,
+    val stage: String? = null,
+)
+
+private fun nextMissingStep(
+    userName: String?,
+    userCrops: String?,
+    userArea: String?,
+    userStage: String?,
+): Int = when {
+    userName.isNullOrBlank() -> 0
+    userCrops.isNullOrBlank() -> 1
+    userArea.isNullOrBlank() -> 2
+    userStage.isNullOrBlank() -> 3
+    else -> 4
+}
+
+private fun extractObviousOnboardingFields(text: String): OnboardingExtractedFields {
+    val lower = text.lowercase()
+    return OnboardingExtractedFields(
+        name = extractName(text),
+        crops = extractCrops(text, lower),
+        area = extractArea(text, lower),
+        stage = extractStage(text, lower),
+    )
+}
+
+private fun extractName(text: String): String? {
+    val pattern = Regex("(?i)(?:me\\s+llamo|soy)\\s+([a-záéíóúñ][a-záéíóúñ' -]{1,40})")
+    val value = pattern.find(text)?.groupValues?.getOrNull(1)?.trim() ?: return null
+    return value.takeIf { it.length >= 2 }
+}
+
+private fun extractCrops(text: String, lower: String): String? {
+    val startsWithCropsSignal = listOf("tengo", "cultivo", "siembro", "sembré", "sembrado", "produzco").any {
+        lower.contains(it)
+    }
+    if (!startsWithCropsSignal) return null
+    return text.trim().takeIf { it.isNotBlank() }
+}
+
+private fun extractArea(text: String, lower: String): String? {
+    val hasNumber = Regex("\\d").containsMatchIn(text)
+    val hasAreaUnit = listOf("ha", "hect", "m2", "m²", "manzana", "acre", "acres").any { lower.contains(it) }
+    return text.trim().takeIf { hasNumber && hasAreaUnit }
+}
+
+private fun extractStage(text: String, lower: String): String? {
+    val stageKeywords = listOf(
+        "alistando", "preparación", "preparacion", "siembra", "nacencia", "puyón", "puyon",
+        "crecimiento", "floración", "floracion", "llenado", "cosecha", "etapa",
+    )
+    return text.trim().takeIf { stageKeywords.any { keyword -> lower.contains(keyword) } }
+}
+
 private fun scriptedReply(step: Int): String = when (step) {
-    0 -> "Mucho gusto. ¿Qué cultivo o cultivos tenés? Podés mencionar más de uno. 🌱"
-    1 -> "¡Buenísimo! ¿Cuántas manzanas o hectáreas tiene tu cultivo? Si podés dame las dimensiones por separado mejor. 📐"
-    2 -> "¿Cuánto tiempo tiene que lo sembraste? ¿En qué etapa está?\n\n1. Alistando la tierra — preparación y siembra\n2. Saliendo el puyón — nacencia\n3. Poniéndose shule — crecimiento\n4. Dando la flor — floración\n5. Cargando el fruto — llenado\n6. Punto de corte — cosecha"
-    3 -> "Para darte consejos más exactos necesito saber dónde están tus cultivos. Así puedo ver la temperatura, lluvias y condiciones de tu zona. 📍"
+    1 -> "Mucho gusto. ¿Qué cultivo o cultivos tenés? Podés mencionar más de uno. 🌱"
+    2 -> "¡Buenísimo! ¿Cuántas manzanas o hectáreas tiene cada cultivo? Si podés, decime las dimensiones por separado; o sea, cuánto mide cada cultivo. 📐"
+    3 -> "¿En qué etapa está tu cultivo? Puede ser:\n\n1. Alistando la tierra — preparación y siembra\n2. Saliendo el puyón — nacencia\n3. Poniéndose shule — crecimiento\n4. Dando la flor — floración\n5. Cargando el fruto — llenado\n6. Punto de corte — cosecha"
+    4 -> "Para darte consejos más exactos necesito saber dónde están tus cultivos. Así puedo ver la temperatura, lluvias y condiciones de tu zona. 📍"
     else -> "Entendido. Para seguir, necesito saber dónde están tus cultivos así te doy info de tu zona. 📍"
 }

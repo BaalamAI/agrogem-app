@@ -2,6 +2,7 @@ package com.agrogem.app.data.pest.domain
 
 import com.agrogem.app.data.GemmaManager
 import com.agrogem.app.data.GemmaModelDownloader
+import com.agrogem.app.data.GemmaPreparationStateHolder
 import com.agrogem.app.data.GemmaResponse
 import com.agrogem.app.data.ImageResult
 import com.agrogem.app.data.connectivity.ConnectivityMonitor
@@ -26,7 +27,12 @@ class PlantAnalysisRepositoryTest {
             PestResult.Success(backendDiagnosis(pestName = "BackendPest", confidence = 0.6f))
         )
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(
+            gemma,
+            GemmaPreparationStateHolder(gemma, downloader),
+            pestRepo,
+            connectivity,
+        )
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -42,7 +48,7 @@ class PlantAnalysisRepositoryTest {
         val downloader = FakeGemmaModelDownloader(downloaded = true)
         val pestRepo = FakePestRepository(PestResult.Failure(PestFailure.Network(Exception("timeout"))))
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -58,7 +64,7 @@ class PlantAnalysisRepositoryTest {
             PestResult.Success(backendDiagnosis(pestName = "FallbackPest", confidence = 0.7f))
         )
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -73,7 +79,7 @@ class PlantAnalysisRepositoryTest {
         val downloader = FakeGemmaModelDownloader(downloaded = true)
         val pestRepo = FakePestRepository(PestResult.Failure(PestFailure.Server))
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -89,7 +95,7 @@ class PlantAnalysisRepositoryTest {
             PestResult.Success(backendDiagnosis(pestName = "BackendOnly", confidence = 0.5f))
         )
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -103,7 +109,7 @@ class PlantAnalysisRepositoryTest {
         val downloader = FakeGemmaModelDownloader(downloaded = false)
         val pestRepo = FakePestRepository(PestResult.Failure(PestFailure.Network(Exception("offline"))))
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -119,7 +125,7 @@ class PlantAnalysisRepositoryTest {
             PestResult.Success(backendDiagnosis(pestName = "BackendPest", confidence = 0.6f))
         )
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -134,7 +140,7 @@ class PlantAnalysisRepositoryTest {
         val downloader = FakeGemmaModelDownloader(downloaded = true)
         val pestRepo = FakePestRepository(PestResult.Failure(PestFailure.Server))
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -149,7 +155,7 @@ class PlantAnalysisRepositoryTest {
         val downloader = FakeGemmaModelDownloader(downloaded = true)
         val pestRepo = FakePestRepository(PestResult.Failure(PestFailure.Server))
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -164,7 +170,7 @@ class PlantAnalysisRepositoryTest {
         val downloader = FakeGemmaModelDownloader(downloaded = true)
         val pestRepo = FakePestRepository(PestResult.Failure(PestFailure.Server))
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -178,7 +184,7 @@ class PlantAnalysisRepositoryTest {
         val downloader = FakeGemmaModelDownloader(downloaded = true)
         val pestRepo = FakePestRepository(PestResult.Failure(PestFailure.Server))
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -192,7 +198,7 @@ class PlantAnalysisRepositoryTest {
         val downloader = FakeGemmaModelDownloader(downloaded = true)
         val pestRepo = FakePestRepository(PestResult.Failure(PestFailure.Server))
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -206,7 +212,7 @@ class PlantAnalysisRepositoryTest {
         val downloader = FakeGemmaModelDownloader(downloaded = true)
         val pestRepo = FakePestRepository(PestResult.Failure(PestFailure.Server))
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -222,7 +228,7 @@ class PlantAnalysisRepositoryTest {
             PestResult.Success(backendDiagnosis(pestName = "FallbackPest", confidence = 0.8f))
         )
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -240,7 +246,7 @@ class PlantAnalysisRepositoryTest {
             PestResult.Success(backendDiagnosis(pestName = "FallbackPest", confidence = 0.8f))
         )
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -256,7 +262,7 @@ class PlantAnalysisRepositoryTest {
         val downloader = FakeGemmaModelDownloader(downloaded = true)
         val pestRepo = FakePestRepository(PestResult.Failure(PestFailure.Server))
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -272,7 +278,7 @@ class PlantAnalysisRepositoryTest {
         val downloader = FakeGemmaModelDownloader(downloaded = true)
         val pestRepo = FakePestRepository(PestResult.Failure(PestFailure.Server))
         val connectivity = FakeConnectivityMonitor(online = true)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -288,7 +294,7 @@ class PlantAnalysisRepositoryTest {
             PestResult.Success(backendDiagnosis(pestName = "BackendPest", confidence = 0.6f))
         )
         val connectivity = FakeConnectivityMonitor(online = false)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -305,7 +311,7 @@ class PlantAnalysisRepositoryTest {
             PestResult.Success(backendDiagnosis(pestName = "BackendPest", confidence = 0.6f))
         )
         val connectivity = FakeConnectivityMonitor(online = false)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
@@ -322,7 +328,7 @@ class PlantAnalysisRepositoryTest {
             PestResult.Success(backendDiagnosis(pestName = "FallbackPest", confidence = 0.7f))
         )
         val connectivity = FakeConnectivityMonitor(online = false)
-        val repo = PlantAnalysisRepositoryImpl(gemma, downloader, pestRepo, connectivity)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
 
         val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 

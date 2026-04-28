@@ -12,6 +12,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agrogem.app.data.OnboardingStateStore
+import com.agrogem.app.data.GemmaPreparationStateHolder
 import com.agrogem.app.data.auth.createAuthRepository
 import com.agrogem.app.data.chat.createChatRepository
 import com.agrogem.app.data.climate.createClimateRepository
@@ -104,10 +105,18 @@ fun AppShell(modifier: Modifier = Modifier) {
     // Shared ViewModel for the analysis flow — lives here so it survives navigation
     val pestRepository = remember { createPestRepository() }
     val connectivityMonitor = remember { createConnectivityMonitor() }
+    val gemmaManager = remember { getGemmaManager() }
+    val gemmaDownloader = remember { getGemmaModelDownloader() }
+    val gemmaPreparationStateHolder = remember {
+        GemmaPreparationStateHolder(
+            gemmaManager = gemmaManager,
+            modelDownloader = gemmaDownloader,
+        )
+    }
     val plantAnalysisRepository = remember {
         PlantAnalysisRepositoryImpl(
-            gemmaManager = getGemmaManager(),
-            modelDownloader = getGemmaModelDownloader(),
+            gemmaManager = gemmaManager,
+            gemmaPreparationStateHolder = gemmaPreparationStateHolder,
             pestRepository = pestRepository,
             connectivityMonitor = connectivityMonitor,
         )
@@ -130,8 +139,9 @@ fun AppShell(modifier: Modifier = Modifier) {
             chatRepository = chatRepository,
             analysisId = null,
             diagnosis = null,
-            gemmaManager = getGemmaManager(),
-            gemmaModelDownloader = getGemmaModelDownloader(),
+            gemmaManager = gemmaManager,
+            gemmaModelDownloader = gemmaDownloader,
+            gemmaPreparationStateHolder = gemmaPreparationStateHolder,
             geolocationRepository = geolocationRepository,
             riskRepository = riskRepository,
             weatherRepository = weatherRepository,
