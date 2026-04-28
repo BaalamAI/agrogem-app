@@ -17,6 +17,8 @@ data class ChatUiState(
     val voiceState: VoiceState = VoiceState.Idle,
     val isLoading: Boolean = false,
     val error: String? = null,
+    val useThinking: Boolean = false,
+    val speakingMessageId: String? = null,
 )
 
 /**

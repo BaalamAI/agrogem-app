@@ -169,12 +169,82 @@ class RiskRepositoryTest {
         assertEquals("Roya del café", mapDiseaseBackend("coffee_rust"))
         assertEquals("Tizón tardío", mapDiseaseBackend("late_blight"))
         assertEquals("Roya del maíz", mapDiseaseBackend("corn_rust"))
+        assertEquals("Ácaro arañero", mapDiseaseBackend("spider_mite"))
+        assertEquals("Mosca blanca", mapDiseaseBackend("whitefly"))
+        assertEquals("Broca del café", mapDiseaseBackend("coffee_berry_borer"))
         assertEquals("Otra enfermedad", mapDiseaseBackend("otra_enfermedad"))
+    }
+
+    @Test
+    fun `getPestRisks maps all fields on happy path`() = runTest {
+        val fakeApi = FakeRiskApi(
+            pestResponses = mapOf(
+                "spider_mite" to PestRiskResponse(
+                    pest = "spider_mite",
+                    riskScore = 0.75,
+                    riskLevel = "moderate",
+                    factors = listOf("baja humedad"),
+                    interpretation = "Riesgo moderado de ácaro arañero",
+                ),
+                "whitefly" to PestRiskResponse(
+                    pest = "whitefly",
+                    riskScore = 0.88,
+                    riskLevel = "high",
+                    factors = listOf("temperatura alta"),
+                    interpretation = "Riesgo alto de mosca blanca",
+                ),
+            )
+        )
+        val repo = RiskRepositoryImpl(api = fakeApi)
+
+        val result = repo.getPestRisks(LatLng(14.9726, -89.5301))
+
+        assertTrue(result.isSuccess)
+        val risks = result.getOrNull()!!
+        assertTrue(risks.size >= 2)
+
+        val spider = risks.first { it.diseaseName == "spider_mite" }
+        assertEquals("Ácaro arañero", spider.displayName)
+        assertEquals(0.75, spider.score)
+        assertEquals(RiskSeverity.Atencion, spider.severity)
+        assertEquals("Riesgo moderado de ácaro arañero", spider.interpretation)
+
+        val whitefly = risks.first { it.diseaseName == "whitefly" }
+        assertEquals("Mosca blanca", whitefly.displayName)
+        assertEquals(0.88, whitefly.score)
+        assertEquals(RiskSeverity.Critica, whitefly.severity)
+    }
+
+    @Test
+    fun `getPestRisks returns failure when latLng is null`() = runTest {
+        val fakeApi = FakeRiskApi()
+        val repo = RiskRepositoryImpl(api = fakeApi)
+
+        val result = repo.getPestRisks(null)
+
+        assertTrue(result.isFailure)
+        val error = result.exceptionOrNull()!!
+        assertIs<IllegalStateException>(error)
+        assertEquals("Sin ubicación", error.message)
+    }
+
+    @Test
+    fun `getPestRisks returns failure on API error`() = runTest {
+        val fakeApi = FakeRiskApi(pestError = ApiError.ServerError)
+        val repo = RiskRepositoryImpl(api = fakeApi)
+
+        val result = repo.getPestRisks(LatLng(0.0, 0.0))
+
+        assertTrue(result.isFailure)
+        val error = result.exceptionOrNull()!!
+        assertIs<ApiError.ServerError>(error)
     }
 
     private class FakeRiskApi(
         private val diseaseResponses: Map<String, DiseaseRiskResponse> = emptyMap(),
+        private val pestResponses: Map<String, PestRiskResponse> = emptyMap(),
         private val diseaseError: ApiError? = null,
+        private val pestError: ApiError? = null,
     ) : RiskApi {
         override suspend fun getDiseaseRisk(lat: Double, lon: Double, disease: String): DiseaseRiskResponse {
             if (diseaseError != null) throw diseaseError
@@ -182,7 +252,8 @@ class RiskRepositoryTest {
         }
 
         override suspend fun getPestRisk(lat: Double, lon: Double, pest: String): PestRiskResponse {
-            throw UnsupportedOperationException("Not used in first slice")
+            if (pestError != null) throw pestError
+            return pestResponses[pest] ?: PestRiskResponse()
         }
     }
 }

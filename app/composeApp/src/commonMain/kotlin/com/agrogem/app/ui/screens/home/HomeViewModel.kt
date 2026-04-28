@@ -3,6 +3,8 @@ package com.agrogem.app.ui.screens.home
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agrogem.app.data.session.SessionSnapshot
+import com.agrogem.app.data.session.SessionLocalStore
 import com.agrogem.app.data.geolocation.domain.GeolocationRepository
 import com.agrogem.app.data.geolocation.domain.ResolvedLocation
 import com.agrogem.app.data.shared.domain.LatLng
@@ -25,6 +27,8 @@ sealed interface HomeUiState {
         val weather: CurrentWeather,
         val metrics: WeatherMetrics,
         val soilSummary: SoilSummary?,
+        val profileGreeting: String?,
+        val cropContext: String?,
     ) : HomeUiState
 }
 
@@ -39,6 +43,7 @@ class HomeViewModel(
     private val geolocationRepository: GeolocationRepository,
     private val weatherRepository: WeatherRepository,
     private val soilRepository: SoilRepository,
+    private val sessionLocalStore: SessionLocalStore,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
@@ -63,6 +68,9 @@ class HomeViewModel(
             val weatherResult = weatherRepository.getCurrentWeather(location.coordinates)
             weatherResult.fold(
                 onSuccess = { weather ->
+                    val profile = sessionLocalStore.read()
+                    val profileGreeting = buildProfileGreeting(profile)
+                    val cropContext = buildCropContext(profile)
                     val soilResult = soilRepository.getSoil(location.coordinates)
                     val soilSummary = soilResult.getOrNull()?.summary
                     _uiState.value = HomeUiState.Data(
@@ -74,6 +82,8 @@ class HomeViewModel(
                             uvIndex = weather.uvIndex,
                         ),
                         soilSummary = soilSummary,
+                        profileGreeting = profileGreeting,
+                        cropContext = cropContext,
                     )
                 },
                 onFailure = { error ->
@@ -84,5 +94,27 @@ class HomeViewModel(
                 },
             )
         }
+    }
+
+    private fun buildProfileGreeting(snapshot: SessionSnapshot): String? {
+        val crops = snapshot.crops?.trim().takeUnless { it.isNullOrEmpty() } ?: return null
+        val name = snapshot.name?.trim().takeUnless { it.isNullOrEmpty() }
+        val area = snapshot.area?.trim().takeUnless { it.isNullOrEmpty() }
+        val stage = snapshot.stage?.trim().takeUnless { it.isNullOrEmpty() }
+        return buildString {
+            append("Hola")
+            if (name != null) append(", $name")
+            append(". Hoy te acompaño con $crops")
+            if (stage != null) append(" en etapa $stage")
+            if (area != null) append(" en $area")
+            append('.')
+        }
+    }
+
+    private fun buildCropContext(snapshot: SessionSnapshot): String? {
+        val crops = snapshot.crops?.trim().takeUnless { it.isNullOrEmpty() }
+        val stage = snapshot.stage?.trim().takeUnless { it.isNullOrEmpty() }
+        if (crops == null && stage == null) return null
+        return listOfNotNull(crops, stage).joinToString(" · ")
     }
 }

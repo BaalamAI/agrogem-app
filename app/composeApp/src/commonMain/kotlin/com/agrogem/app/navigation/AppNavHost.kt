@@ -17,11 +17,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.agrogem.app.data.rememberImagePickerLauncher
+import com.agrogem.app.data.rememberMicrophonePermissionRequester
 import com.agrogem.app.ui.screens.analysis.AnalysisFlowViewModel
 import com.agrogem.app.ui.screens.analysis.PlantAnalysisScreen
 import com.agrogem.app.ui.screens.chat.ChatEvent
 import com.agrogem.app.ui.screens.chat.ChatScreen
 import com.agrogem.app.ui.screens.chat.ChatViewModel
+import com.agrogem.app.ui.screens.chat.ConversationStore
 import com.agrogem.app.ui.screens.chat.ConversationsScreen
 import com.agrogem.app.ui.screens.chat.ConversationsViewModel
 import com.agrogem.app.ui.screens.chat.VoiceReadyScreen
@@ -49,6 +51,7 @@ fun AppNavHost(
     navController: NavHostController,
     analysisFlowVm: AnalysisFlowViewModel,
     chatViewModel: ChatViewModel,
+    conversationStore: ConversationStore,
     appSessionViewModel: AppSessionViewModel,
     homeViewModel: HomeViewModel,
     mapRiskViewModel: MapRiskViewModel,
@@ -63,6 +66,15 @@ fun AppNavHost(
     val chatImagePicker = rememberImagePickerLauncher { result ->
         if (result != null) {
             chatViewModel.onEvent(ChatEvent.ImageSelected(result.uri))
+        }
+    }
+
+    val micPermissionRequester = rememberMicrophonePermissionRequester { granted ->
+        if (granted) {
+            chatViewModel.onEvent(ChatEvent.StartVoiceInput)
+            navController.pushTo(AgroGemRoute.VoiceReady)
+        } else {
+            chatViewModel.onEvent(ChatEvent.VoicePermissionDenied)
         }
     }
 
@@ -135,7 +147,7 @@ fun AppNavHost(
         }
 
         composable(AgroGemRoute.Conversations.route) {
-            val conversationsViewModel = kmpViewModel { ConversationsViewModel() }
+            val conversationsViewModel = kmpViewModel { ConversationsViewModel(conversationStore) }
             ConversationsScreen(
                 viewModel = conversationsViewModel,
                 onOpenConversation = { conversation ->
@@ -209,8 +221,9 @@ fun AppNavHost(
                     navController.navigateTo(AgroGemRoute.Home)
                 },
                 onTalkToAgent = { analysisId, diagnosis ->
-                    // Post-analysis handoff: seed the shared ChatViewModel with the
-                    // analysis context, then navigate to the chat screen.
+                    // Post-analysis handoff: persist to store, seed the shared ChatViewModel,
+                    // then navigate to the chat screen.
+                    conversationStore.save(analysisId, diagnosis)
                     chatViewModel.seedFromAnalysis(analysisId, diagnosis)
                     navController.pushTo(AgroGemRoute.Chat.createRoute(analysisId))
                 },
@@ -235,8 +248,10 @@ fun AppNavHost(
 
         composable(AgroGemRoute.VoiceReady.route) {
             // Use shared chatViewModel from AppShell — same instance as Chat and ChatConfirm
+            val uiState = chatViewModel.uiState.value
             VoiceReadyScreen(
-                voiceState = chatViewModel.uiState.value.voiceState,
+                voiceState = uiState.voiceState,
+                partialText = uiState.inputText,
                 onDismiss = {
                     chatViewModel.onEvent(ChatEvent.DismissVoice)
                     navController.popBackStack()
@@ -257,16 +272,27 @@ fun AppNavHost(
                     defaultValue = null
                 },
             ),
-        ) {
+        ) { backStackEntry ->
+            // Recover context from store when navigating directly to a chat route
+            // with an analysisId that does not match the current VM state.
+            val navAnalysisId = backStackEntry.arguments?.getString(AgroGemRoute.Chat.ANALYSIS_ID_ARG)
+            if (navAnalysisId != null) {
+                val currentMode = chatViewModel.uiState.value.mode
+                val isAlreadySeeded = currentMode is com.agrogem.app.ui.screens.chat.ChatMode.AnalysisSeeded &&
+                    currentMode.analysisId == navAnalysisId
+                if (!isAlreadySeeded) {
+                    conversationStore.get(navAnalysisId)?.diagnosis?.let { diagnosis ->
+                        chatViewModel.seedFromAnalysis(navAnalysisId, diagnosis)
+                    }
+                }
+            }
+
             // Use shared chatViewModel from AppShell — same instance as VoiceReady
             ChatScreen(
                 viewModel = chatViewModel,
                 onBack = { navController.popBackStack() },
                 onRequestClose = { navController.pushTo(AgroGemRoute.ChatConfirm) },
-                onMicClick = {
-                    chatViewModel.onEvent(ChatEvent.StartVoiceInput)
-                    navController.pushTo(AgroGemRoute.VoiceReady)
-                },
+                onMicClick = { micPermissionRequester.request() },
                 onLaunchCamera = { chatImagePicker.launchCamera() },
                 onLaunchGallery = { chatImagePicker.launchGallery() },
                 showConfirmDialog = false,
@@ -279,10 +305,7 @@ fun AppNavHost(
                 viewModel = chatViewModel,
                 onBack = { navController.popBackStack() },
                 onRequestClose = {},
-                onMicClick = {
-                    chatViewModel.onEvent(ChatEvent.StartVoiceInput)
-                    navController.pushTo(AgroGemRoute.VoiceReady)
-                },
+                onMicClick = { micPermissionRequester.request() },
                 onLaunchCamera = { chatImagePicker.launchCamera() },
                 onLaunchGallery = { chatImagePicker.launchGallery() },
                 showConfirmDialog = true,

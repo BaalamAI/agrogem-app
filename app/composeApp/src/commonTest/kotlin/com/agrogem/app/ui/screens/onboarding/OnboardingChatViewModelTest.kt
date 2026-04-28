@@ -296,99 +296,36 @@ class OnboardingChatViewModelTest {
     }
 
     @Test
-    fun `onPhoneChanged updates userPhone`() {
+    fun `step based flow captures structured onboarding fields`() {
         val viewModel = OnboardingChatViewModel()
+        viewModel.startOnboardingChat()
+        viewModel.sendOnboardingMessage("Juan")
+        viewModel.sendOnboardingMessage("Tomate y maiz")
+        viewModel.sendOnboardingMessage("3 hectareas")
+        viewModel.sendOnboardingMessage("Floracion")
 
-        viewModel.onPhoneChanged("+50255550000")
-
-        assertEquals("+50255550000", viewModel.uiState.value.userPhone)
+        val state = viewModel.uiState.value
+        assertEquals("Juan", state.userName)
+        assertEquals("Tomate y maiz", state.userCrops)
+        assertEquals("3 hectareas", state.userArea)
+        assertEquals("Floracion", state.userStage)
     }
 
     @Test
-    fun `onPhoneChanged with empty string clears userPhone`() {
+    fun `location and alerts are captured explicitly in final state`() {
         val viewModel = OnboardingChatViewModel()
+        viewModel.startOnboardingChat()
+        viewModel.sendOnboardingMessage("Juan")
+        viewModel.sendOnboardingMessage("Tomate")
+        viewModel.sendOnboardingMessage("3 hectareas")
+        viewModel.sendOnboardingMessage("Floracion")
+        viewModel.continueOnboardingAfterLocationPermission()
+        viewModel.completeOnboarding(alertsEnabled = false)
 
-        viewModel.onPhoneChanged("+50255550000")
-        viewModel.onPhoneChanged("")
-
-        assertEquals("", viewModel.uiState.value.userPhone)
-    }
-
-    @Test
-    fun `onPasswordChanged updates userPassword`() {
-        val viewModel = OnboardingChatViewModel()
-
-        viewModel.onPasswordChanged("secret123")
-
-        assertEquals("secret123", viewModel.uiState.value.userPassword)
-    }
-
-    @Test
-    fun `onPasswordChanged with empty string clears userPassword`() {
-        val viewModel = OnboardingChatViewModel()
-
-        viewModel.onPasswordChanged("secret123")
-        viewModel.onPasswordChanged("")
-
-        assertEquals("", viewModel.uiState.value.userPassword)
-    }
-
-    @Test
-    fun `isPhoneValid returns true for valid phone`() {
-        val viewModel = OnboardingChatViewModel()
-        viewModel.onPhoneChanged("+50255550000")
-
-        assertEquals(true, viewModel.uiState.value.isPhoneValid)
-    }
-
-    @Test
-    fun `isPhoneValid returns false for too short phone`() {
-        val viewModel = OnboardingChatViewModel()
-        viewModel.onPhoneChanged("+5025")
-
-        assertEquals(false, viewModel.uiState.value.isPhoneValid)
-    }
-
-    @Test
-    fun `isPasswordValid returns true for 8 char password`() {
-        val viewModel = OnboardingChatViewModel()
-        viewModel.onPasswordChanged("abcdefgh")
-
-        assertEquals(true, viewModel.uiState.value.isPasswordValid)
-    }
-
-    @Test
-    fun `isPasswordValid returns false for short password`() {
-        val viewModel = OnboardingChatViewModel()
-        viewModel.onPasswordChanged("short")
-
-        assertEquals(false, viewModel.uiState.value.isPasswordValid)
-    }
-
-    @Test
-    fun `isFormValid requires both phone and password`() {
-        val viewModel = OnboardingChatViewModel()
-        viewModel.onPhoneChanged("+50255550000")
-        viewModel.onPasswordChanged("abcdefgh")
-
-        assertEquals(true, viewModel.uiState.value.isFormValid)
-    }
-
-    @Test
-    fun `isFormValid is false when only phone is valid`() {
-        val viewModel = OnboardingChatViewModel()
-        viewModel.onPhoneChanged("+50255550000")
-        viewModel.onPasswordChanged("short")
-
-        assertEquals(false, viewModel.uiState.value.isFormValid)
-    }
-
-    @Test
-    fun `isFormValid is false when only password is valid`() {
-        val viewModel = OnboardingChatViewModel()
-        viewModel.onPhoneChanged("+5025")
-        viewModel.onPasswordChanged("abcdefgh")
-
-        assertEquals(false, viewModel.uiState.value.isFormValid)
+        val state = viewModel.uiState.value
+        assertEquals(true, state.locationShared)
+        assertEquals(true, state.locationEnabled)
+        assertEquals(false, state.alertsEnabled)
+        assertEquals(OnboardingChatStage.Final, state.onboardingChatStage)
     }
 }

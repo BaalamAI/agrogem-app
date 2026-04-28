@@ -29,6 +29,7 @@ import com.agrogem.app.ui.components.RoundIconButton
 @Composable
 fun VoiceReadyScreen(
     voiceState: VoiceState,
+    partialText: String = "",
     onDismiss: () -> Unit,
     onStopRecording: () -> Unit,
     modifier: Modifier = Modifier,
@@ -75,6 +76,7 @@ fun VoiceReadyScreen(
                 .align(Alignment.Center)
                 .offset(y = 86.dp),
             voiceState = voiceState,
+            partialText = partialText,
         )
 
         Row(
@@ -111,6 +113,7 @@ fun VoiceReadyScreen(
 @Composable
 private fun VoiceReadyHint(
     voiceState: VoiceState,
+    partialText: String = "",
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -121,8 +124,9 @@ private fun VoiceReadyHint(
         SoundWaveIcon()
         when (voiceState) {
             is VoiceState.Listening -> {
+                val text = partialText.ifBlank { "Ya puedes hablar" }
                 Text(
-                    text = "Ya puedes hablar",
+                    text = text,
                     color = AgroGemColors.TextPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Normal,

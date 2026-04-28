@@ -101,6 +101,13 @@ fun HomeScreen(
             }
             is HomeUiState.Data -> {
                 val data = uiState as HomeUiState.Data
+                data.profileGreeting?.let { greeting ->
+                    Text(
+                        text = greeting,
+                        color = AgroGemColors.TextPrimary,
+                        fontSize = 14.sp,
+                    )
+                }
                 WeatherCard(
                     locationLabel = data.locationInfo.display.primary.uppercase(),
                     temperature = data.weather.temperatureCelsius,
@@ -115,6 +122,7 @@ fun HomeScreen(
                 EnvironmentCard(
                     soilSummary = data.soilSummary,
                     elevationMeters = data.locationInfo.elevationMeters,
+                    cropContext = data.cropContext,
                     onOpenDetail = onOpenEnvironmentDetail,
                 )
             }
@@ -362,6 +370,7 @@ private fun MetricsCardShimmer() {
 private fun EnvironmentCard(
     soilSummary: SoilSummary?,
     elevationMeters: Double?,
+    cropContext: String?,
     onOpenDetail: () -> Unit,
 ) {
     Column(
@@ -378,6 +387,13 @@ private fun EnvironmentCard(
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
         )
+        cropContext?.let { context ->
+            Text(
+                text = "Contexto cultivo: $context",
+                color = AgroGemColors.TextMedium,
+                fontSize = 12.sp,
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,

@@ -4,23 +4,21 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.agrogem.app.data.ImageResult
-import com.agrogem.app.data.getGemmaManager
-import com.agrogem.app.data.getGemmaModelDownloader
-
+import com.agrogem.app.data.pest.domain.PestFailure
+import com.agrogem.app.data.pest.domain.PestResult
+import com.agrogem.app.data.pest.domain.PlantAnalysisRepository
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.random.Random
+import kotlin.time.Clock
 
 class AnalysisFlowViewModel(
-    private var pestRepository: PestRepository? = null,
+    private val plantAnalysisRepository: PlantAnalysisRepository,
 ) : ViewModel() {
-
-    private val gemmaManager = getGemmaManager()
-    private val modelDownloader = getGemmaModelDownloader()
 
     private val _capturedImage = MutableStateFlow<ImageResult?>(null)
     val capturedImage: StateFlow<ImageResult?> = _capturedImage.asStateFlow()
@@ -33,25 +31,11 @@ class AnalysisFlowViewModel(
 
     private var analysisJob: Job? = null
 
-    private var _diagnosisResult: DiagnosisResult = mockDiagnosisResult()
+    private var _diagnosisResult: DiagnosisResult = defaultDiagnosisResult()
     val diagnosisResult: DiagnosisResult get() = _diagnosisResult
 
-    fun setPestRepository(repository: PestRepository) {
-        this.pestRepository = repository
-    }
-
-    init {
-        // Pre-initialize when flow starts
-        ensureGemmaInitialized()
-    }
-
-    private fun ensureGemmaInitialized() {
-        viewModelScope.launch {
-            if (modelDownloader.isModelDownloaded()) {
-                gemmaManager.initialize(modelDownloader.getModelPath())
-            }
-        }
-    }
+    private val _analysisId = MutableStateFlow<String?>(null)
+    val analysisId: StateFlow<String?> = _analysisId.asStateFlow()
 
     fun setCapturedImage(image: ImageResult) {
         _capturedImage.value = image
@@ -67,33 +51,12 @@ class AnalysisFlowViewModel(
         }
     }
 
-    private fun startSimulatedAnalysis() {
-        _phase.value = AnalysisPhase.Analyzing
-        _steps.value = defaultSteps()
-        analysisJob?.cancel()
-        analysisJob = viewModelScope.launch {
-            // Ensure initialized before starting
-            ensureGemmaInitialized()
-
-            val stepCount = _steps.value.size
-            for (i in 0 until stepCount) {
-                delay(1500L)
-                _steps.update { current ->
-                    current.mapIndexed { index, step ->
-                        if (index == i) step.copy(done = true) else step
-                    }
-                }
-            }
-            delay(500L)
-            _phase.value = AnalysisPhase.Results
-        }
-    }
-
     fun cancelAnalysis() {
         analysisJob?.cancel()
         _phase.value = AnalysisPhase.Analyzing
         _steps.value = defaultSteps()
         _capturedImage.value = null
+        _analysisId.value = null
     }
 
     fun clearAll() {
@@ -101,6 +64,7 @@ class AnalysisFlowViewModel(
         _capturedImage.value = null
         _phase.value = AnalysisPhase.Analyzing
         _steps.value = defaultSteps()
+        _analysisId.value = null
     }
 
     /**
@@ -114,18 +78,13 @@ class AnalysisFlowViewModel(
     }
 
     private suspend fun runRealAnalysis(image: ImageResult) {
-        val repo = pestRepository
-        if (repo == null) {
-            startSimulatedAnalysis()
-            return
-        }
-
         markStepDone(0)
 
-        when (val result = repo.identify(image)) {
+        when (val result = plantAnalysisRepository.analyze(image)) {
             is PestResult.Success -> {
                 markStepDone(1)
                 _diagnosisResult = result.diagnosis
+                _analysisId.value = generateAnalysisId()
                 markStepDone(2)
                 _phase.value = AnalysisPhase.Results
             }
@@ -135,6 +94,9 @@ class AnalysisFlowViewModel(
             }
         }
     }
+
+    private fun generateAnalysisId(): String =
+        "analysis_${Clock.System.now().toEpochMilliseconds()}_${Random.nextInt(10000)}"
 
     private fun markStepDone(index: Int) {
         _steps.update { current ->
@@ -197,21 +159,12 @@ private fun defaultSteps(): List<AnalysisStepUi> = listOf(
     ),
 )
 
-private fun mockDiagnosisResult(): DiagnosisResult = DiagnosisResult(
-    pestName = "Plaga detectada",
-    confidence = 0.95f,
-    severity = "Problema iniciando",
-    affectedArea = "Tallo y hoja",
-    cause = "Hongo, Hemileia vastatrix",
-    diagnosisText = "Se ha detectado una infección avanzada por Hemileia vastatrix. " +
-        "El 45% del follaje muestra pústulas activas. Se requiere intervención " +
-        "inmediata para evitar la pérdida total de la cosecha.",
-    treatmentSteps = listOf(
-        "Se ha detectado una infección avanzada por Hemileia vastatrix. " +
-            "El 45% del follaje muestra pústulas activas. Se requiere intervención " +
-            "inmediata para evitar la pérdida total de la cosecha.",
-        "Se ha detectado una infección avanzada por Hemileia vastatrix. " +
-            "El 45% del follaje muestra pústulas activas. Se requiere intervención " +
-            "inmediata para evitar la pérdida total de la cosecha.",
-    ),
+private fun defaultDiagnosisResult(): DiagnosisResult = DiagnosisResult(
+    pestName = "Esperando análisis",
+    confidence = 0f,
+    severity = "—",
+    affectedArea = "—",
+    cause = "—",
+    diagnosisText = "Realizá un análisis para obtener el diagnóstico completo.",
+    treatmentSteps = emptyList(),
 )

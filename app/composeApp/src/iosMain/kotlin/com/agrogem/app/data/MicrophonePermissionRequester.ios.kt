@@ -3,10 +3,10 @@ package com.agrogem.app.data
 import androidx.compose.runtime.Composable
 
 @Composable
-actual fun rememberLocationPermissionRequester(
+actual fun rememberMicrophonePermissionRequester(
     onResult: (Boolean) -> Unit,
-): LocationPermissionRequester {
-    return object : LocationPermissionRequester {
+): MicrophonePermissionRequester {
+    return object : MicrophonePermissionRequester {
         override fun request() {
             onResult(true)
         }

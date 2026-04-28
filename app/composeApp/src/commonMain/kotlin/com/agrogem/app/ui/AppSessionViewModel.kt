@@ -64,6 +64,31 @@ class AppSessionViewModel(
         _uiState.value = _uiState.value.copy(error = null)
     }
 
+    fun completeOnboardingLocally(
+        name: String? = null,
+        crops: String? = null,
+        area: String? = null,
+        stage: String? = null,
+    ) {
+        viewModelScope.launch {
+            val current = sessionLocalStore.read()
+            sessionLocalStore.write(
+                current.copy(
+                    onboardingDone = true,
+                    name = name ?: current.name,
+                    crops = crops ?: current.crops,
+                    area = area ?: current.area,
+                    stage = stage ?: current.stage,
+                )
+            )
+            _uiState.value = _uiState.value.copy(
+                onboardingDone = true,
+                isLoading = false,
+                error = null,
+            )
+        }
+    }
+
     fun reportSessionExpired() {
         _uiState.value = _uiState.value.copy(
             error = "La sesión ha expirado, iniciá sesión de nuevo",
@@ -71,8 +96,9 @@ class AppSessionViewModel(
     }
 
     private suspend fun markDone(session: SessionInfo) {
+        val current = sessionLocalStore.read()
         sessionLocalStore.write(
-            SessionSnapshot(
+            current.copy(
                 onboardingDone = true,
                 phone = session.phone,
                 sessionId = session.sessionId,

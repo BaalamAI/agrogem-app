@@ -67,6 +67,7 @@ fun PlantAnalysisScreen(
     val capturedImage by viewModel.capturedImage.collectAsStateWithLifecycle()
     val phase by viewModel.phase.collectAsStateWithLifecycle()
     val steps by viewModel.steps.collectAsStateWithLifecycle()
+    val currentAnalysisId by viewModel.analysisId.collectAsStateWithLifecycle()
     val isAnalyzing = phase is AnalysisPhase.Analyzing
 
     Box(
@@ -124,7 +125,7 @@ fun PlantAnalysisScreen(
                         exitLabel = if (fromHistory) "Regresar" else "Guardar y salir",
                         onExit = onExit,
                         onTalkToAgent = onTalkToAgent,
-                        analysisId = "analysis_current",
+                        analysisId = currentAnalysisId ?: "analysis_current",
                     )
 
                     is AnalysisPhase.Error -> ErrorContent(

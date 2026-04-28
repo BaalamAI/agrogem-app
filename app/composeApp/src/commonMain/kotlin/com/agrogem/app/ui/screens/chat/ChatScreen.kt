@@ -170,7 +170,11 @@ fun ChatContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(messages, key = { it.id }) { message ->
-                    MessageBubble(message = message)
+                    MessageBubble(
+                        message = message,
+                        isSpeaking = uiState.speakingMessageId == message.id,
+                        onPlayAssistantMessage = { onEvent(ChatEvent.PlayAssistantMessage(message.id)) },
+                    )
                 }
             }
 
@@ -183,7 +187,7 @@ fun ChatContent(
                     uiState.error?.let { errorMessage ->
                         ErrorBanner(
                             message = errorMessage,
-                            onDismiss = { viewModel.onEvent(ChatEvent.DismissError) },
+                            onDismiss = { onEvent(ChatEvent.DismissError) },
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                     }
@@ -192,7 +196,7 @@ fun ChatContent(
                         onInputChanged = { onEvent(ChatEvent.InputChanged(it)) },
                         onAttachClick = { onEvent(ChatEvent.ToggleAttachmentMenu(true)) },
                         onMicClick = onMicClick,
-                        onSendClick = { if (!uiState.isLoading) viewModel.onEvent(ChatEvent.SendMessage) },
+                        onSendClick = { if (!uiState.isLoading) onEvent(ChatEvent.SendMessage) },
                         pendingAttachments = pendingAttachments,
                         isLoading = uiState.isLoading,
                     )
@@ -308,7 +312,11 @@ private fun SeededChatHeader(diagnosis: DiagnosisResult) {
  * Renders a single chat message bubble, styled according to sender.
  */
 @Composable
-private fun MessageBubble(message: ChatMessage) {
+private fun MessageBubble(
+    message: ChatMessage,
+    isSpeaking: Boolean,
+    onPlayAssistantMessage: () -> Unit,
+) {
     when (message.sender) {
         MessageSender.Assistant -> {
             Row(
@@ -321,6 +329,23 @@ private fun MessageBubble(message: ChatMessage) {
                     tint = AgroGemColors.Primary,
                     size = AgroGemIconSizes.Md,
                 )
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .background(
+                            if (isSpeaking) AgroGemColors.Primary else AgroGemColors.ChatAttachBg,
+                            CircleShape,
+                        )
+                        .clickable(enabled = !message.isStreaming && message.text.isNotBlank()) { onPlayAssistantMessage() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    AgroGemIcon(
+                        icon = Res.drawable.ic_action_sound,
+                        contentDescription = "Reproducir respuesta",
+                        tint = if (isSpeaking) AgroGemColors.IconOnPrimary else AgroGemColors.ChatAttachText,
+                        size = AgroGemIconSizes.Xs,
+                    )
+                }
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (message.thought != null && message.thought.isNotBlank()) {
                         Box(

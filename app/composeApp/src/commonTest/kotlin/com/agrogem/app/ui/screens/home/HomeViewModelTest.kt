@@ -6,6 +6,8 @@ import com.agrogem.app.data.geolocation.domain.ResolvedLocation
 import com.agrogem.app.data.shared.domain.LatLng
 import com.agrogem.app.data.soil.domain.SoilProfile
 import com.agrogem.app.data.soil.domain.SoilRepository
+import com.agrogem.app.data.session.SessionLocalStore
+import com.agrogem.app.data.session.SessionSnapshot
 import com.agrogem.app.data.weather.domain.CurrentWeather
 import com.agrogem.app.data.weather.domain.WeatherRepository
 import kotlinx.coroutines.Dispatchers
@@ -70,7 +72,7 @@ class HomeViewModelTest {
             domainHorizons = emptyList(),
         )
         val soilRepo = FakeSoilRepository(Result.success(soilProfile))
-        val viewModel = HomeViewModel(geoRepo, weatherRepo, soilRepo)
+        val viewModel = HomeViewModel(geoRepo, weatherRepo, soilRepo, SessionLocalStore())
 
         advanceUntilIdle()
 
@@ -81,6 +83,8 @@ class HomeViewModelTest {
         assertEquals("78%", state.metrics.humidity)
         assertEquals("Clay loam", state.soilSummary?.dominantTexture)
         assertEquals(0.0, state.soilSummary?.topHorizonPh)
+        assertNull(state.profileGreeting)
+        assertNull(state.cropContext)
     }
 
     @Test
@@ -88,7 +92,7 @@ class HomeViewModelTest {
         val geoRepo = FakeGeolocationRepository(null)
         val weatherRepo = FakeWeatherRepository(Result.failure(Exception("no-op")))
         val soilRepo = FakeSoilRepository(Result.failure(Exception("no-op")))
-        val viewModel = HomeViewModel(geoRepo, weatherRepo, soilRepo)
+        val viewModel = HomeViewModel(geoRepo, weatherRepo, soilRepo, SessionLocalStore())
 
         advanceUntilIdle()
 
@@ -117,7 +121,7 @@ class HomeViewModelTest {
             domainHorizons = emptyList(),
         )
         val soilRepo = FakeSoilRepository(Result.success(soilProfile))
-        val viewModel = HomeViewModel(geoRepo, weatherRepo, soilRepo)
+        val viewModel = HomeViewModel(geoRepo, weatherRepo, soilRepo, SessionLocalStore())
 
         advanceUntilIdle()
 
@@ -159,7 +163,7 @@ class HomeViewModelTest {
             domainHorizons = emptyList(),
         )
         val soilRepo = FakeSoilRepository(Result.success(soilProfile))
-        val viewModel = HomeViewModel(geoRepo, weatherRepo, soilRepo)
+        val viewModel = HomeViewModel(geoRepo, weatherRepo, soilRepo, SessionLocalStore())
 
         advanceUntilIdle()
         assertIs<HomeUiState.Error>(viewModel.uiState.value)
@@ -197,7 +201,7 @@ class HomeViewModelTest {
         val geoRepo = FakeGeolocationRepository(location)
         val weatherRepo = FakeWeatherRepository(Result.success(weather))
         val soilRepo = FakeSoilRepository(Result.failure(Exception("soil error")))
-        val viewModel = HomeViewModel(geoRepo, weatherRepo, soilRepo)
+        val viewModel = HomeViewModel(geoRepo, weatherRepo, soilRepo, SessionLocalStore())
 
         advanceUntilIdle()
 
@@ -205,6 +209,56 @@ class HomeViewModelTest {
         assertIs<HomeUiState.Data>(state)
         assertEquals("24.5°C", state.weather.temperatureCelsius)
         assertNull(state.soilSummary)
+    }
+
+    @Test
+    fun `init includes onboarding profile greeting when crops exist`() = runTest(testDispatcher) {
+        val location = ResolvedLocation(
+            coordinates = LatLng(14.9726, -89.5301),
+            display = LocationDisplay(
+                primary = "Zacapa, Guatemala",
+                municipality = "Zacapa",
+                state = "Zacapa Department",
+                country = "Guatemala",
+            ),
+            elevationMeters = 230.5,
+        )
+        val weather = CurrentWeather(
+            temperatureCelsius = "24.5°C",
+            humidity = "78%",
+            cloudCover = "65%",
+            uvIndex = "3.0",
+            description = "Día despejado",
+            locationName = "",
+            dateLabel = "2026-04-27",
+        )
+        val geoRepo = FakeGeolocationRepository(location)
+        val weatherRepo = FakeWeatherRepository(Result.success(weather))
+        val soilProfile = SoilProfile(
+            lat = 14.9726,
+            lon = -89.5301,
+            dominantTexture = "Clay loam",
+            domainHorizons = emptyList(),
+        )
+        val soilRepo = FakeSoilRepository(Result.success(soilProfile))
+        val sessionStore = SessionLocalStore()
+        sessionStore.write(
+            SessionSnapshot(
+                onboardingDone = true,
+                name = "Kevin",
+                crops = "maíz y frijol",
+                area = "Parcela Norte",
+                stage = "floración",
+            )
+        )
+        val viewModel = HomeViewModel(geoRepo, weatherRepo, soilRepo, sessionStore)
+
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertIs<HomeUiState.Data>(state)
+        assertEquals("Hola, Kevin. Hoy te acompaño con maíz y frijol en etapa floración en Parcela Norte.", state.profileGreeting)
+        assertEquals("maíz y frijol · floración", state.cropContext)
     }
 
     private class FakeGeolocationRepository(

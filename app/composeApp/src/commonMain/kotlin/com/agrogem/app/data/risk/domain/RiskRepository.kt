@@ -88,8 +88,27 @@ fun mapDiseaseBackend(disease: String): String = when (disease) {
     "coffee_rust" -> "Roya del café"
     "late_blight" -> "Tizón tardío"
     "corn_rust" -> "Roya del maíz"
+    "spider_mite" -> "Ácaro arañero"
+    "whitefly" -> "Mosca blanca"
+    "broad_mite" -> "Ácaro ancho"
+    "white_grub" -> "Gusano blanco"
+    "thrips" -> "Trips"
+    "leafminer" -> "Minador de hoja"
+    "fall_armyworm" -> "Gusano cogollero"
+    "root_knot_nematode" -> "Nematodo del nudo"
+    "coffee_berry_borer" -> "Broca del café"
     else -> disease.replace("_", " ").replaceFirstChar { it.uppercase() }
 }
 
 private val DEFAULT_DISEASES = listOf("coffee_rust", "late_blight", "corn_rust")
-private val DEFAULT_PESTS = listOf("spider_mite")
+private val DEFAULT_PESTS = listOf(
+    "spider_mite",
+    "whitefly",
+    "broad_mite",
+    "white_grub",
+    "thrips",
+    "leafminer",
+    "fall_armyworm",
+    "root_knot_nematode",
+    "coffee_berry_borer",
+)
