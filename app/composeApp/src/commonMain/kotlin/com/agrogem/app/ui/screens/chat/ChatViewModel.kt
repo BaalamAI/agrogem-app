@@ -2,17 +2,27 @@ package com.agrogem.app.ui.screens.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agrogem.app.data.GemmaManager
+import com.agrogem.app.data.GemmaModelDownloader
+import com.agrogem.app.data.SpeechSynthesizer
+import com.agrogem.app.data.SpeechRecognizer
 import com.agrogem.app.data.chat.domain.ChatFailure
 import com.agrogem.app.data.chat.domain.ChatRepository
 import com.agrogem.app.data.chat.domain.ChatSendResult
-import com.agrogem.app.data.getGemmaManager
-import com.agrogem.app.data.getGemmaModelDownloader
+import com.agrogem.app.data.connectivity.ConnectivityMonitor
+import com.agrogem.app.data.geolocation.domain.GeolocationRepository
+import com.agrogem.app.data.risk.domain.DiseaseRisk
+import com.agrogem.app.data.risk.domain.RiskRepository
+import com.agrogem.app.data.risk.domain.RiskSeverity
+import com.agrogem.app.data.soil.domain.SoilRepository
+import com.agrogem.app.data.weather.domain.WeatherRepository
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlin.random.Random
@@ -26,6 +36,15 @@ class ChatViewModel(
     private val chatRepository: ChatRepository,
     private val analysisId: String? = null,
     private val diagnosis: DiagnosisResult? = null,
+    private val gemmaManager: GemmaManager? = null,
+    private val gemmaModelDownloader: GemmaModelDownloader? = null,
+    private val geolocationRepository: GeolocationRepository? = null,
+    private val riskRepository: RiskRepository? = null,
+    private val weatherRepository: WeatherRepository? = null,
+    private val soilRepository: SoilRepository? = null,
+    private val connectivityMonitor: ConnectivityMonitor? = null,
+    private val speechRecognizer: SpeechRecognizer? = null,
+    private val speechSynthesizer: SpeechSynthesizer? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(createInitialState())
@@ -60,65 +79,25 @@ class ChatViewModel(
         )
     }
 
-    private fun createMockAssistantMessage(
-        userText: String,
-        mode: ChatMode,
-        attachmentCount: Int,
-        fromVoice: Boolean = false,
-    ): ChatMessage {
-        return ChatMessage(
-            id = "assistant_${Random.nextLong()}",
-            text = buildMockAssistantReply(
-                userText = userText,
-                mode = mode,
-                attachmentCount = attachmentCount,
-                fromVoice = fromVoice,
-            ),
-            sender = MessageSender.Assistant,
-            attachments = emptyList(),
-            timestamp = Clock.System.now().toEpochMilliseconds(),
-        )
-    }
 
-    private fun buildMockAssistantReply(
-        userText: String,
-        mode: ChatMode,
-        attachmentCount: Int,
-        fromVoice: Boolean,
-    ): String {
-        return when (mode) {
-            ChatMode.Blank -> {
-                when {
-                    fromVoice -> "Recibí tu nota de voz. Estoy listo para seguir ayudándote."
-                    attachmentCount > 0 && userText.isBlank() -> {
-                        "Recibi $attachmentCount adjunto(s). Contame que queres validar y lo revisamos juntos."
-                    }
-                    userText.isNotBlank() -> {
-                        "Entendido. Ya registré tu consulta: \"$userText\"."
-                    }
-                    else -> "Contame mas detalles del cultivo para poder guiarte mejor."
+
+    private fun buildBackendFallbackText(userText: String, diagnosis: DiagnosisResult): String {
+        return buildString {
+            appendLine("[Contexto del análisis previo]")
+            appendLine("- Plaga/Enfermedad: ${diagnosis.pestName}")
+            appendLine("- Severidad: ${diagnosis.severity}")
+            appendLine("- Área afectada: ${diagnosis.affectedArea}")
+            appendLine("- Causa: ${diagnosis.cause}")
+            appendLine("- Diagnóstico: ${diagnosis.diagnosisText}")
+            if (diagnosis.treatmentSteps.isNotEmpty()) {
+                appendLine("- Tratamiento:")
+                diagnosis.treatmentSteps.forEachIndexed { index, step ->
+                    appendLine("  ${index + 1}. $step")
                 }
             }
-
-            is ChatMode.AnalysisSeeded -> {
-                val firstTreatment = mode.diagnosis.treatmentSteps.firstOrNull()
-                    ?: "hacer una verificacion de campo y aplicar el tratamiento indicado"
-                when {
-                    fromVoice -> {
-                        "Escuche tu nota de voz. Segun el analisis de ${mode.diagnosis.pestName}, te recomiendo empezar por $firstTreatment."
-                    }
-
-                    attachmentCount > 0 && userText.isBlank() -> {
-                        "Recibi $attachmentCount adjunto(s). Con el contexto de ${mode.diagnosis.pestName}, mi primer paso sugerido es $firstTreatment."
-                    }
-
-                    userText.isNotBlank() -> {
-                        "Perfecto. Sobre \"$userText\", y en base a ${mode.diagnosis.pestName}, empeza por $firstTreatment."
-                    }
-
-                    else -> "Con el analisis actual, empeza por $firstTreatment."
-                }
-            }
+            appendLine("[/Contexto del análisis previo]")
+            appendLine()
+            append(userText)
         }
     }
 
@@ -149,8 +128,16 @@ class ChatViewModel(
             is ChatEvent.StartVoiceInput -> handleStartVoiceInput()
             is ChatEvent.StopVoiceInput -> handleStopVoiceInput()
             is ChatEvent.DismissVoice -> handleDismissVoice()
+            is ChatEvent.VoicePermissionDenied -> handleVoicePermissionDenied()
             is ChatEvent.DismissError -> handleDismissError()
+            is ChatEvent.ToggleThinking -> handleToggleThinking(event.enabled)
+            is ChatEvent.PlayAssistantMessage -> handlePlayAssistantMessage(event.messageId)
         }
+    }
+
+    override fun onCleared() {
+        speechSynthesizer?.stop()
+        super.onCleared()
     }
 
     private fun handleInputChanged(text: String) {
@@ -180,36 +167,311 @@ class ChatViewModel(
             error = null,
         )
 
+        val mode = currentState.mode
         viewModelScope.launch {
-            val result = chatRepository.sendMessage(
-                text = text,
-                attachments = currentState.attachments,
-                mode = currentState.mode,
-            )
-            when (result) {
-                is ChatSendResult.Success -> {
-                    val assistantMessages = result.messages.filter { it.sender == MessageSender.Assistant }
-                    _uiState.value = _uiState.value.copy(
-                        messages = _uiState.value.messages + assistantMessages,
-                        isLoading = false,
-                    )
+            trySendGemmaOrFallback(mode, text, currentState.attachments)
+        }
+    }
+
+    private suspend fun sendViaBackend(
+        text: String,
+        attachments: List<ChatAttachment>,
+        mode: ChatMode,
+    ) {
+        val enrichedText = when (mode) {
+            is ChatMode.AnalysisSeeded -> buildBackendFallbackText(text, mode.diagnosis)
+            ChatMode.Blank -> text
+        }
+        val result = chatRepository.sendMessage(
+            text = enrichedText,
+            attachments = attachments,
+            mode = mode,
+        )
+        when (result) {
+            is ChatSendResult.Success -> {
+                val assistantMessages = result.messages.filter { it.sender == MessageSender.Assistant }
+                _uiState.value = _uiState.value.copy(
+                    messages = _uiState.value.messages + assistantMessages,
+                    isLoading = false,
+                )
+            }
+            is ChatSendResult.Failure -> {
+                val errorText = when (result.reason) {
+                    is ChatFailure.SessionExpired -> "La sesión ha expirado, iniciá sesión de nuevo"
+                    is ChatFailure.Network -> "Error de red. Verificá tu conexión e intentá de nuevo."
+                    is ChatFailure.Server -> "Error del servidor. Intentá de nuevo en unos momentos."
                 }
-                is ChatSendResult.Failure -> {
-                    val errorText = when (result.reason) {
-                        is ChatFailure.SessionExpired -> "La sesión ha expirado, iniciá sesión de nuevo"
-                        is ChatFailure.Network -> "Error de red. Verificá tu conexión e intentá de nuevo."
-                        is ChatFailure.Server -> "Error del servidor. Intentá de nuevo en unos momentos."
-                    }
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        error = errorText,
-                    )
-                    if (result.reason is ChatFailure.SessionExpired) {
-                        _effectChannel.send(ChatEffect.SessionExpired)
-                    }
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = errorText,
+                )
+                if (result.reason is ChatFailure.SessionExpired) {
+                    _effectChannel.send(ChatEffect.SessionExpired)
                 }
             }
         }
+    }
+
+    private suspend fun trySendGemmaOrFallback(
+        mode: ChatMode,
+        text: String,
+        attachments: List<ChatAttachment>,
+    ) {
+        val manager = gemmaManager
+        val downloader = gemmaModelDownloader
+
+        val canUseGemma = manager != null && downloader != null && downloader.isModelDownloaded()
+
+        if (!canUseGemma) {
+            sendViaBackend(text, attachments, mode)
+            return
+        }
+
+        try {
+            if (!manager.isInitialized.first()) {
+                manager.initialize(downloader.getModelPath())
+            }
+        } catch (_: Exception) {
+            sendViaBackend(text, attachments, mode)
+            return
+        }
+
+        if (!manager.isInitialized.first()) {
+            sendViaBackend(text, attachments, mode)
+            return
+        }
+
+        val assistantMessageId = "assistant_${Random.nextLong()}"
+        val assistantPlaceholder = ChatMessage(
+            id = assistantMessageId,
+            text = "...",
+            sender = MessageSender.Assistant,
+            attachments = emptyList(),
+            timestamp = Clock.System.now().toEpochMilliseconds(),
+            isStreaming = true,
+        )
+
+        _uiState.value = _uiState.value.copy(
+            messages = _uiState.value.messages + assistantPlaceholder,
+        )
+
+        val systemPrompt = when (mode) {
+            ChatMode.Blank -> {
+                val envContext = fetchGeneralEnvironmentContext()
+                buildGeneralSystemPrompt(envContext)
+            }
+            is ChatMode.AnalysisSeeded -> {
+                val pestRiskContext = fetchPestRiskContext(mode.diagnosis)
+                val diseaseRiskContext = fetchDiseaseRiskContext(mode.diagnosis)
+                buildAnalysisSystemPrompt(mode.diagnosis, pestRiskContext, diseaseRiskContext)
+            }
+        }
+
+        try {
+            val imageUris = attachments
+                .filterIsInstance<ChatAttachment.Image>()
+                .map { it.uri }
+
+            var accumulatedText = ""
+            manager.sendMessageStream(
+                systemPrompt = systemPrompt,
+                userPrompt = text,
+                images = imageUris,
+                temperature = 0.4f,
+            ).collect { response ->
+                if (response.text.isNotEmpty()) {
+                    accumulatedText += response.text
+                    updateAssistantMessage(assistantMessageId, accumulatedText, response.thought, response.isDone)
+                } else if (response.isDone) {
+                    updateAssistantMessage(assistantMessageId, accumulatedText, null, true)
+                }
+            }
+            updateAssistantMessage(assistantMessageId, accumulatedText, null, true)
+            _uiState.value = _uiState.value.copy(isLoading = false)
+        } catch (e: Exception) {
+            val messagesWithoutPlaceholder = _uiState.value.messages.filter { it.id != assistantMessageId }
+            _uiState.value = _uiState.value.copy(messages = messagesWithoutPlaceholder)
+            sendViaBackend(text, attachments, mode)
+        }
+    }
+
+    private fun buildGeneralSystemPrompt(environmentContext: String? = null): String {
+        return buildString {
+            append("Eres un asistente agronómico experto. ")
+            append("Responde de forma clara, práctica y basada en evidencia sobre agricultura, ")
+            append("manejo de cultivos, plagas, enfermedades, suelo, clima y mejores prácticas agrícolas. ")
+            append("Si no tenés información suficiente, pedí más detalles al usuario. ")
+            append("Responde en español y mantén un tono profesional pero accesible.")
+            if (!environmentContext.isNullOrBlank()) {
+                append(environmentContext)
+            }
+        }
+    }
+
+    private suspend fun fetchGeneralEnvironmentContext(): String? {
+        val monitor = connectivityMonitor ?: return null
+        if (!monitor.isOnline()) return null
+
+        val geoRepo = geolocationRepository ?: return null
+        val location = geoRepo.observeResolvedLocation().first() ?: return null
+
+        val weatherRepo = weatherRepository ?: return null
+        val soilRepo = soilRepository ?: return null
+
+        val weather = weatherRepo.getCurrentWeather(location.coordinates).getOrNull()
+        val soil = soilRepo.getSoil(location.coordinates).getOrNull()
+
+        if (weather == null && soil == null) return null
+
+        return buildString {
+            append("\n\nContexto del campo:\n")
+            append("- Ubicación: ${location.display.primary}\n")
+            weather?.let {
+                append("- Clima: ${it.temperatureCelsius}, ${it.humidity} humedad, ${it.description}\n")
+            }
+            soil?.let {
+                append("- Suelo: textura ${it.dominantTexture}, pH ${it.summary.topHorizonPh}")
+                if (it.interpretation.isNotBlank()) {
+                    append(" — ${it.interpretation}")
+                }
+                append("\n")
+            }
+        }
+    }
+
+    private fun buildAnalysisSystemPrompt(
+        diagnosis: DiagnosisResult,
+        pestRiskContext: String? = null,
+        diseaseRiskContext: String? = null,
+    ): String {
+        return buildString {
+            append("Eres un asistente agronómico experto. ")
+            append("El usuario está consultando sobre un diagnóstico previo. ")
+            append("Responde de forma clara, práctica y contextualizada usando la siguiente información:\n\n")
+            append("- Plaga/Enfermedad: ${diagnosis.pestName}\n")
+            append("- Confianza del diagnóstico: ${(diagnosis.confidence * 100).toInt()}%\n")
+            append("- Severidad: ${diagnosis.severity}\n")
+            append("- Área afectada: ${diagnosis.affectedArea}\n")
+            append("- Causa: ${diagnosis.cause}\n")
+            append("- Diagnóstico: ${diagnosis.diagnosisText}\n")
+            append("- Pasos de tratamiento:\n")
+            diagnosis.treatmentSteps.forEachIndexed { index, step ->
+                append("  ${index + 1}. $step\n")
+            }
+            if (!pestRiskContext.isNullOrBlank()) {
+                append(pestRiskContext)
+            }
+            if (!diseaseRiskContext.isNullOrBlank()) {
+                append(diseaseRiskContext)
+            }
+            append("\nResponde en español y mantén un tono profesional pero accesible.")
+        }
+    }
+
+    private suspend fun fetchPestRiskContext(diagnosis: DiagnosisResult? = null): String? {
+        val geoRepo = geolocationRepository ?: return null
+        val riskRepo = riskRepository ?: return null
+        val location = geoRepo.observeResolvedLocation().first() ?: return null
+        val risks = riskRepo.getPestRisks(location.coordinates).getOrNull() ?: return null
+        if (risks.isEmpty()) return null
+
+        val relevantRisks = if (diagnosis != null) {
+            matchDiagnosisToRisks(diagnosis, risks, ::aliasesForPest).ifEmpty {
+                risks.filter { it.severity != RiskSeverity.Optimo }
+                    .ifEmpty { risks.take(1) }
+            }
+        } else {
+            risks.filter { it.severity != RiskSeverity.Optimo }
+                .ifEmpty { risks.take(1) }
+        }
+
+        return buildString {
+            append("\n\nRiesgos de plagas en la región (${location.display.primary}):\n")
+            relevantRisks.forEach { risk ->
+                append("- ${risk.displayName}: ${risk.interpretation.ifBlank { risk.severity.name }}\n")
+            }
+        }
+    }
+
+    private suspend fun fetchDiseaseRiskContext(diagnosis: DiagnosisResult? = null): String? {
+        val geoRepo = geolocationRepository ?: return null
+        val riskRepo = riskRepository ?: return null
+        val location = geoRepo.observeResolvedLocation().first() ?: return null
+        val risks = riskRepo.getDiseaseRisks(location.coordinates).getOrNull() ?: return null
+        if (risks.isEmpty()) return null
+
+        val relevantRisks = if (diagnosis != null) {
+            matchDiagnosisToRisks(diagnosis, risks, ::aliasesForDisease).ifEmpty {
+                risks.filter { it.severity != RiskSeverity.Optimo }
+                    .ifEmpty { risks.take(1) }
+            }
+        } else {
+            risks.filter { it.severity != RiskSeverity.Optimo }
+                .ifEmpty { risks.take(1) }
+        }
+
+        return buildString {
+            append("\n\nRiesgos de enfermedades en la región (${location.display.primary}):\n")
+            relevantRisks.forEach { risk ->
+                append("- ${risk.displayName}: ${risk.interpretation.ifBlank { risk.severity.name }}\n")
+            }
+        }
+    }
+
+    /**
+     * Matches a diagnosis to the most relevant risk entries available.
+     * Returns an empty list when no match is found so callers can fall back to generic summaries.
+     */
+    private fun matchDiagnosisToRisks(
+        diagnosis: DiagnosisResult,
+        risks: List<DiseaseRisk>,
+        aliases: (String) -> List<String>,
+    ): List<DiseaseRisk> {
+        val searchText = normalizeForMatch("${diagnosis.pestName} ${diagnosis.cause}")
+        return risks.filter { risk ->
+            aliases(risk.diseaseName).any { alias ->
+                searchText.contains(normalizeForMatch(alias))
+            }
+        }.distinctBy { it.diseaseName }
+    }
+
+    private fun normalizeForMatch(text: String): String = text
+        .lowercase()
+        .fold(StringBuilder()) { acc, char ->
+            acc.append(
+                when (char) {
+                    'á', 'à', 'ä', 'â', 'ã' -> 'a'
+                    'é', 'è', 'ë', 'ê' -> 'e'
+                    'í', 'ì', 'ï', 'î' -> 'i'
+                    'ó', 'ò', 'ö', 'ô', 'õ' -> 'o'
+                    'ú', 'ù', 'ü', 'û' -> 'u'
+                    else -> char
+                }
+            )
+            acc
+        }
+        .toString()
+        .replace(Regex("[^a-z0-9\\s]"), " ")
+        .trim()
+
+    private fun aliasesForPest(backendKey: String): List<String> = when (backendKey) {
+        "spider_mite" -> listOf("acaro", "arana", "spider", "mite", "tetranychus", "arana roja", "red spider", "acaro rojo")
+        "whitefly" -> listOf("mosca blanca", "whitefly", "white fly", "aleurodido", "aleurodicus", "bemisia", "tabaci")
+        "broad_mite" -> listOf("acaro ancho", "broad mite", "polyphagotarsonemus", "latus")
+        "white_grub" -> listOf("gusano blanco", "white grub", "coleoptera", "scarab", "melolontha", "phyllo")
+        "thrips" -> listOf("thrips", "trips", "frankliniella", "occidentalis")
+        "leafminer" -> listOf("minador", "leafminer", "leaf miner", "fly miner", "liriomyza")
+        "fall_armyworm" -> listOf("gusano cogollero", "fall armyworm", "spodoptera", "frugiperda", "armyworm", "cogollero")
+        "root_knot_nematode" -> listOf("nematodo", "root knot", "meloidogyne", "agalla", "nematodo del nudo")
+        "coffee_berry_borer" -> listOf("broca", "coffee berry borer", "hypothenemus", "hampei", "berry borer")
+        else -> listOf(backendKey.replace("_", " "))
+    }
+
+    private fun aliasesForDisease(backendKey: String): List<String> = when (backendKey) {
+        "coffee_rust" -> listOf("roya", "roya del cafe", "roya del café", "hemileia", "vastatrix", "coffee rust")
+        "late_blight" -> listOf("tizon tardio", "tizón tardío", "phytophthora", "infestans", "late blight", "mildiu", "mildiú")
+        "corn_rust" -> listOf("roya del maiz", "roya del maíz", "puccinia", "corn rust")
+        else -> listOf(backendKey.replace("_", " "))
     }
 
 
@@ -230,6 +492,32 @@ class ChatViewModel(
         _uiState.value = _uiState.value.copy(useThinking = enabled)
     }
 
+    private fun handleDismissError() {
+        _uiState.value = _uiState.value.copy(error = null)
+    }
+
+    private fun handlePlayAssistantMessage(messageId: String) {
+        val currentState = _uiState.value
+        val message = currentState.messages.firstOrNull { it.id == messageId } ?: return
+
+        if (message.sender != MessageSender.Assistant) return
+        if (message.isStreaming) return
+
+        val text = message.text.trim()
+        if (text.isEmpty()) return
+
+        if (currentState.speakingMessageId == messageId) {
+            speechSynthesizer?.stop()
+            _uiState.value = currentState.copy(speakingMessageId = null)
+            return
+        }
+
+        val started = speechSynthesizer?.speak(text) == true
+        _uiState.value = currentState.copy(
+            speakingMessageId = if (started) messageId else null,
+        )
+    }
+
     /** Toggles visibility of the attachment menu (gallery/camera options). */
     private fun handleToggleAttachmentMenu(show: Boolean) {
         _uiState.value = _uiState.value.copy(showAttachmentMenu = show)
@@ -237,14 +525,35 @@ class ChatViewModel(
 
     /** Transitions voiceState to Listening — orb animation starts. */
     private fun handleStartVoiceInput() {
+        speechRecognizer?.cancel()
+        speechRecognizer?.startListening(
+            onPartialResult = { text ->
+                _uiState.value = _uiState.value.copy(inputText = text)
+            },
+            onFinalResult = { text ->
+                _uiState.value = _uiState.value.copy(inputText = text)
+            },
+            onError = { message ->
+                _uiState.value = _uiState.value.copy(voiceState = VoiceState.Error(message))
+            },
+        )
         _uiState.value = _uiState.value.copy(
             voiceState = VoiceState.Listening(amplitude = 0f),
+            error = null,
         )
     }
 
     /** Returns to Idle without creating a message — user abandoned voice input. */
     private fun handleDismissVoice() {
+        speechRecognizer?.cancel()
         _uiState.value = _uiState.value.copy(voiceState = VoiceState.Idle)
+    }
+
+    /** Permission denied for microphone — surface error in chat. */
+    private fun handleVoicePermissionDenied() {
+        _uiState.value = _uiState.value.copy(
+            error = "Se requiere permiso de micrófono para usar la voz",
+        )
     }
 
     /** Closes the attachment menu — camera launcher is triggered by the UI layer. */
@@ -266,39 +575,41 @@ class ChatViewModel(
         )
     }
 
-    /** Stops recording — briefly shows Processing, then creates an audio message and returns to Idle. */
+    /** Stops recording, commits the user voice message, and sends through the real chat pipeline. */
     private fun handleStopVoiceInput() {
-        // Capture state once to avoid double-read race between transitions
+        speechRecognizer?.stopListening()
         val captured = _uiState.value
-
-        // First transition: Processing (observable intermediate state)
-        _uiState.value = captured.copy(voiceState = VoiceState.Processing)
-
-        // Create audio message with pending text and audio attachment
         val text = captured.inputText.trim()
-        val newMessage = ChatMessage(
+
+        // Avoid sending junk when there is no text and audio is still a placeholder
+        if (text.isEmpty()) {
+            _uiState.value = captured.copy(voiceState = VoiceState.Idle)
+            return
+        }
+
+        val voiceAttachment = ChatAttachment.Audio(uri = "", durationMs = 0)
+
+        val userMessage = ChatMessage(
             id = "msg_${Random.nextLong()}",
             text = text,
             sender = MessageSender.User,
-            attachments = listOf(ChatAttachment.Audio(uri = "", durationMs = 0)),
-            timestamp = Random.nextLong(),
+            attachments = listOf(voiceAttachment),
+            timestamp = Clock.System.now().toEpochMilliseconds(),
         )
 
-        val assistantMessage = createMockAssistantMessage(
-            userText = text,
-            mode = captured.mode,
-            attachmentCount = 1,
-            fromVoice = true,
-        )
-
-        // Second transition: complete with message added and return to Idle
         _uiState.value = captured.copy(
-            messages = captured.messages + newMessage + assistantMessage,
+            messages = captured.messages + userMessage,
             inputText = "",
             attachments = emptyList(),
-            showAttachmentMenu = false,
             voiceState = VoiceState.Idle,
+            isLoading = true,
+            error = null,
         )
+
+        val mode = captured.mode
+        viewModelScope.launch {
+            trySendGemmaOrFallback(mode, text, listOf(voiceAttachment))
+        }
     }
 
     /**
@@ -350,6 +661,15 @@ sealed interface ChatEvent {
     data object StopVoiceInput : ChatEvent
     data object DismissVoice : ChatEvent
 
+    /** Microphone permission was denied by the user. */
+    data object VoicePermissionDenied : ChatEvent
+
     /** User dismissed the error banner. */
     data object DismissError : ChatEvent
+
+    /** Toggle thinking mode for Gemma responses. */
+    data class ToggleThinking(val enabled: Boolean) : ChatEvent
+
+    /** Manual TTS playback for a specific assistant message. */
+    data class PlayAssistantMessage(val messageId: String) : ChatEvent
 }

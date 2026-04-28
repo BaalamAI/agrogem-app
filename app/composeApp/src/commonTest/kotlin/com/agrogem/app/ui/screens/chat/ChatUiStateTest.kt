@@ -262,8 +262,8 @@ class ChatUiStateTest {
     @Test
     fun `ChatUiState with messages preserves order`() {
         val messages = listOf(
-            ChatMessage("m1", "First", MessageSender.User, emptyList(), 100L),
-            ChatMessage("m2", "Second", MessageSender.Assistant, emptyList(), 200L),
+            ChatMessage("m1", "First", sender = MessageSender.User, attachments = emptyList(), timestamp = 100L),
+            ChatMessage("m2", "Second", sender = MessageSender.Assistant, attachments = emptyList(), timestamp = 200L),
         )
         val state = ChatUiState(messages = messages)
 

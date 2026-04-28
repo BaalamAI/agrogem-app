@@ -2,8 +2,8 @@ package com.agrogem.app.ui.screens.analysis
 
 import com.agrogem.app.data.ImageResult
 import com.agrogem.app.data.pest.domain.PestFailure
-import com.agrogem.app.data.pest.domain.PestRepository
 import com.agrogem.app.data.pest.domain.PestResult
+import com.agrogem.app.data.pest.domain.PlantAnalysisRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -16,6 +16,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -34,26 +35,12 @@ class AnalysisFlowViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun fakeRepo(result: PestResult = PestResult.Success(mockDiagnosisResult())): FakePestRepository =
-        FakePestRepository(result)
-
-    // ========== Mock fallback (null repository) ==========
-
-    @Test
-    fun `null repository falls back to simulated analysis via startAnalysis`() = runTest(testDispatcher) {
-        val viewModel = AnalysisFlowViewModel(pestRepository = null)
-        val image = ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3))
-
-        viewModel.startAnalysis(image)
-        advanceUntilIdle()
-
-        assertIs<AnalysisPhase.Results>(viewModel.phase.value)
-        assertEquals("Plaga detectada", viewModel.diagnosisResult.pestName)
-    }
+    private fun fakeRepo(result: PestResult = PestResult.Success(mockDiagnosisResult())): FakePlantAnalysisRepository =
+        FakePlantAnalysisRepository(result)
 
     @Test
     fun `loadFromHistory bypasses network and shows results`() = runTest(testDispatcher) {
-        val viewModel = AnalysisFlowViewModel(pestRepository = fakeRepo())
+        val viewModel = AnalysisFlowViewModel(plantAnalysisRepository = fakeRepo())
 
         viewModel.loadFromHistory(imageUri = "content://history.jpg")
 
@@ -62,12 +49,10 @@ class AnalysisFlowViewModelTest {
         assertTrue(viewModel.steps.value.all { it.done })
     }
 
-    // ========== Real repository path ==========
-
     @Test
-    fun `startAnalysis with repository transitions through steps to results`() = runTest(testDispatcher) {
+    fun `startAnalysis transitions through steps to results`() = runTest(testDispatcher) {
         val repo = fakeRepo(PestResult.Success(mockDiagnosisResult(pestName = "Roya")))
-        val viewModel = AnalysisFlowViewModel(pestRepository = repo)
+        val viewModel = AnalysisFlowViewModel(plantAnalysisRepository = repo)
         val image = ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3))
 
         viewModel.setCapturedImage(image)
@@ -81,12 +66,14 @@ class AnalysisFlowViewModelTest {
         assertIs<AnalysisPhase.Results>(viewModel.phase.value)
         assertEquals("Roya", viewModel.diagnosisResult.pestName)
         assertEquals("content://test.jpg", viewModel.capturedImage.value?.uri)
+        assertNotNull(viewModel.analysisId.value)
+        assertTrue(viewModel.analysisId.value!!.startsWith("analysis_"))
     }
 
     @Test
     fun `startAnalysis transitions steps in order`() = runTest(testDispatcher) {
         val repo = fakeRepo(PestResult.Success(mockDiagnosisResult()))
-        val viewModel = AnalysisFlowViewModel(pestRepository = repo)
+        val viewModel = AnalysisFlowViewModel(plantAnalysisRepository = repo)
         val image = ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3))
 
         viewModel.startAnalysis(image)
@@ -107,7 +94,8 @@ class AnalysisFlowViewModelTest {
     fun `startAnalysis with network error transitions to error then retry to results`() = runTest(testDispatcher) {
         val failRepo = fakeRepo(PestResult.Failure(PestFailure.Network(Exception("timeout"))))
         val successRepo = fakeRepo(PestResult.Success(mockDiagnosisResult(pestName = "Mildiu")))
-        val viewModel = AnalysisFlowViewModel(pestRepository = failRepo)
+
+        val viewModel = AnalysisFlowViewModel(plantAnalysisRepository = failRepo)
         val image = ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3))
 
         viewModel.setCapturedImage(image)
@@ -118,19 +106,20 @@ class AnalysisFlowViewModelTest {
         assertIs<AnalysisPhase.Error>(errorPhase)
         assertTrue(errorPhase.retryable)
 
-        // Retry with success repo
-        viewModel.setPestRepository(successRepo)
-        viewModel.startAnalysis(image)
+        // Retry with success repo (new ViewModel simulates retry with working repository)
+        val retryViewModel = AnalysisFlowViewModel(plantAnalysisRepository = successRepo)
+        retryViewModel.setCapturedImage(image)
+        retryViewModel.startAnalysis(image)
         advanceUntilIdle()
 
-        assertIs<AnalysisPhase.Results>(viewModel.phase.value)
-        assertEquals("Mildiu", viewModel.diagnosisResult.pestName)
+        assertIs<AnalysisPhase.Results>(retryViewModel.phase.value)
+        assertEquals("Mildiu", retryViewModel.diagnosisResult.pestName)
     }
 
     @Test
     fun `startAnalysis with no match error shows non-retryable error`() = runTest(testDispatcher) {
         val repo = fakeRepo(PestResult.Failure(PestFailure.NoMatchFound))
-        val viewModel = AnalysisFlowViewModel(pestRepository = repo)
+        val viewModel = AnalysisFlowViewModel(plantAnalysisRepository = repo)
         val image = ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3))
 
         viewModel.startAnalysis(image)
@@ -142,9 +131,9 @@ class AnalysisFlowViewModelTest {
     }
 
     @Test
-    fun `cancelAnalysis resets state`() = runTest(testDispatcher) {
+    fun `cancelAnalysis resets state including analysisId`() = runTest(testDispatcher) {
         val repo = fakeRepo(PestResult.Success(mockDiagnosisResult()))
-        val viewModel = AnalysisFlowViewModel(pestRepository = repo)
+        val viewModel = AnalysisFlowViewModel(plantAnalysisRepository = repo)
         val image = ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3))
 
         viewModel.setCapturedImage(image)
@@ -154,30 +143,43 @@ class AnalysisFlowViewModelTest {
         assertIs<AnalysisPhase.Analyzing>(viewModel.phase.value)
         assertNull(viewModel.capturedImage.value)
         assertTrue(viewModel.steps.value.none { it.done })
+        assertNull(viewModel.analysisId.value)
     }
 
     @Test
-    fun `clearAll resets state`() = runTest(testDispatcher) {
+    fun `clearAll resets state including analysisId`() = runTest(testDispatcher) {
         val repo = fakeRepo(PestResult.Success(mockDiagnosisResult()))
-        val viewModel = AnalysisFlowViewModel(pestRepository = repo)
+        val viewModel = AnalysisFlowViewModel(plantAnalysisRepository = repo)
         val image = ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3))
 
         viewModel.setCapturedImage(image)
         viewModel.startAnalysis(image)
         advanceUntilIdle()
         assertIs<AnalysisPhase.Results>(viewModel.phase.value)
+        assertNotNull(viewModel.analysisId.value)
 
         viewModel.clearAll()
 
         assertIs<AnalysisPhase.Analyzing>(viewModel.phase.value)
         assertNull(viewModel.capturedImage.value)
         assertTrue(viewModel.steps.value.none { it.done })
+        assertNull(viewModel.analysisId.value)
+    }
+
+    @Test
+    fun `loadFromHistory leaves analysisId null`() = runTest(testDispatcher) {
+        val viewModel = AnalysisFlowViewModel(plantAnalysisRepository = fakeRepo())
+
+        viewModel.loadFromHistory(imageUri = "content://history.jpg")
+
+        assertIs<AnalysisPhase.Results>(viewModel.phase.value)
+        assertNull(viewModel.analysisId.value)
     }
 
     // ========== Fakes ==========
 
-    private class FakePestRepository(var result: PestResult) : PestRepository {
-        override suspend fun identify(image: ImageResult): PestResult = result
+    private class FakePlantAnalysisRepository(var result: PestResult) : PlantAnalysisRepository {
+        override suspend fun analyze(image: ImageResult): PestResult = result
     }
 }
 

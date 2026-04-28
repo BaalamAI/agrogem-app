@@ -16,8 +16,14 @@ import com.agrogem.app.data.auth.createAuthRepository
 import com.agrogem.app.data.chat.createChatRepository
 import com.agrogem.app.data.climate.createClimateRepository
 import com.agrogem.app.data.geolocation.createGeolocationRepository
+import com.agrogem.app.data.getGemmaManager
+import com.agrogem.app.data.getGemmaModelDownloader
+import com.agrogem.app.data.connectivity.createConnectivityMonitor
 import com.agrogem.app.data.pest.createPestRepository
+import com.agrogem.app.data.pest.domain.PlantAnalysisRepositoryImpl
 import com.agrogem.app.data.rememberImagePickerLauncher
+import com.agrogem.app.data.rememberSpeechRecognizer
+import com.agrogem.app.data.rememberSpeechSynthesizer
 import com.agrogem.app.data.risk.createRiskRepository
 import com.agrogem.app.data.session.SessionLocalStore
 import com.agrogem.app.data.soil.createSoilRepository
@@ -30,6 +36,7 @@ import com.agrogem.app.ui.components.BottomNavigationBar
 import com.agrogem.app.ui.screens.analysis.AnalysisFlowViewModel
 import com.agrogem.app.ui.screens.chat.ChatEffect
 import com.agrogem.app.ui.screens.chat.ChatViewModel
+import com.agrogem.app.ui.screens.chat.ConversationStore
 import com.agrogem.app.ui.screens.home.HomeViewModel
 import com.agrogem.app.ui.screens.map.MapRiskViewModel
 import com.agrogem.app.ui.viewmodel.kmpViewModel
@@ -95,7 +102,19 @@ fun AppShell(modifier: Modifier = Modifier) {
 
     // Shared ViewModel for the analysis flow — lives here so it survives navigation
     val pestRepository = remember { createPestRepository() }
-    val analysisFlowVm = kmpViewModel { AnalysisFlowViewModel(pestRepository = pestRepository) }
+    val connectivityMonitor = remember { createConnectivityMonitor() }
+    val plantAnalysisRepository = remember {
+        PlantAnalysisRepositoryImpl(
+            gemmaManager = getGemmaManager(),
+            modelDownloader = getGemmaModelDownloader(),
+            pestRepository = pestRepository,
+            connectivityMonitor = connectivityMonitor,
+        )
+    }
+    val analysisFlowVm = kmpViewModel { AnalysisFlowViewModel(plantAnalysisRepository = plantAnalysisRepository) }
+
+    // In-memory store for analysis-born conversations — lives while the app process is alive.
+    val conversationStore = remember { ConversationStore() }
 
     // Shared ChatViewModel for the chat/voice flow — lives here so it survives navigation
     // and is shared across Chat, ChatConfirm, and VoiceReady routes (Phase 5 architecture fix).
@@ -103,11 +122,22 @@ fun AppShell(modifier: Modifier = Modifier) {
     // AppNavHost calls chatViewModel.seedFromAnalysis(...) before pushing the chat route,
     // so the shared instance carries the real analysis context at runtime.
     val chatRepository = remember { createChatRepository(authRepository) }
+    val speechRecognizer = rememberSpeechRecognizer()
+    val speechSynthesizer = rememberSpeechSynthesizer()
     val chatViewModel = kmpViewModel {
         ChatViewModel(
             chatRepository = chatRepository,
             analysisId = null,
             diagnosis = null,
+            gemmaManager = getGemmaManager(),
+            gemmaModelDownloader = getGemmaModelDownloader(),
+            geolocationRepository = geolocationRepository,
+            riskRepository = riskRepository,
+            weatherRepository = weatherRepository,
+            soilRepository = soilRepository,
+            connectivityMonitor = connectivityMonitor,
+            speechRecognizer = speechRecognizer,
+            speechSynthesizer = speechSynthesizer,
         )
     }
 
@@ -158,6 +188,7 @@ fun AppShell(modifier: Modifier = Modifier) {
             navController = navController,
             analysisFlowVm = analysisFlowVm,
             chatViewModel = chatViewModel,
+            conversationStore = conversationStore,
             appSessionViewModel = appSessionViewModel,
             homeViewModel = homeViewModel,
             mapRiskViewModel = mapRiskViewModel,

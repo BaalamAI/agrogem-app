@@ -144,7 +144,7 @@ class ChatIntegrationTest {
     }
 
     @Test
-    fun `6_3_stop_voice_creates_audio_message_in_same_viewmodel`() {
+    fun `6_3_stop_voice_with_empty_input_does_not_create_message`() = runTest(testDispatcher) {
         val viewModel = ChatViewModel(chatRepository = fakeRepo())
 
         viewModel.onEvent(ChatEvent.StartVoiceInput)
@@ -154,19 +154,17 @@ class ChatIntegrationTest {
 
         val state = viewModel.uiState.value
         assertEquals(VoiceState.Idle, state.voiceState, "Returns to Idle after stop")
-        assertEquals(2, state.messages.size, "Audio + assistant messages created in same ViewModel")
-        assertEquals(MessageSender.User, state.messages[0].sender)
-        assertIs<ChatAttachment.Audio>(state.messages[0].attachments[0])
-        assertEquals(MessageSender.Assistant, state.messages[1].sender)
+        assertEquals(0, state.messages.size, "No message created for empty voice input")
     }
 
     @Test
-    fun `6_3_voice_with_pending_text_includes_text_in_message`() {
+    fun `6_3_voice_with_pending_text_includes_text_in_message`() = runTest(testDispatcher) {
         val viewModel = ChatViewModel(chatRepository = fakeRepo())
 
         viewModel.onEvent(ChatEvent.InputChanged("urgent question"))
         viewModel.onEvent(ChatEvent.StartVoiceInput)
         viewModel.onEvent(ChatEvent.StopVoiceInput)
+        advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertEquals(2, state.messages.size)
@@ -191,14 +189,18 @@ class ChatIntegrationTest {
     }
 
     @Test
-    fun `6_3_voice_twice_creates_two_messages`() {
+    fun `6_3_voice_twice_creates_two_messages`() = runTest(testDispatcher) {
         val viewModel = ChatViewModel(chatRepository = fakeRepo())
 
+        viewModel.onEvent(ChatEvent.InputChanged("First voice"))
         viewModel.onEvent(ChatEvent.StartVoiceInput)
         viewModel.onEvent(ChatEvent.StopVoiceInput)
+        advanceUntilIdle()
 
+        viewModel.onEvent(ChatEvent.InputChanged("Second voice"))
         viewModel.onEvent(ChatEvent.StartVoiceInput)
         viewModel.onEvent(ChatEvent.StopVoiceInput)
+        advanceUntilIdle()
 
         assertEquals(4, viewModel.uiState.value.messages.size)
     }
@@ -343,12 +345,13 @@ class ChatIntegrationTest {
     }
 
     @Test
-    fun `shared_viewmodel_voice_then_text_same_history`() {
+    fun `shared_viewmodel_voice_then_text_same_history`() = runTest(testDispatcher) {
         val chatViewModel = ChatViewModel(chatRepository = fakeRepo())
 
         chatViewModel.onEvent(ChatEvent.InputChanged("I need help with this"))
         chatViewModel.onEvent(ChatEvent.StartVoiceInput)
         chatViewModel.onEvent(ChatEvent.StopVoiceInput)
+        advanceUntilIdle()
 
         val state = chatViewModel.uiState.value
         assertEquals(2, state.messages.size)
@@ -359,6 +362,64 @@ class ChatIntegrationTest {
         assertEquals(1, userMessage.attachments.size)
         assertIs<ChatAttachment.Audio>(userMessage.attachments[0])
         assertEquals(MessageSender.Assistant, assistantMessage.sender)
+    }
+
+    @Test
+    fun `6_6_store_recovers_context_when_reopening_chat_by_analysisId`() {
+        val store = ConversationStore()
+        val diagnosis = DiagnosisResult(
+            pestName = "Roya naranja",
+            confidence = 0.87f,
+            severity = "Alta",
+            affectedArea = "Hojas",
+            cause = "Hongo Puccinia",
+            diagnosisText = "Roya naranja detectada en 30% del follaje.",
+            treatmentSteps = listOf("Aplicar fungicida sistémico"),
+        )
+        val analysisId = "analysis_store_001"
+        store.save(analysisId, diagnosis)
+
+        // Fresh ChatViewModel simulating reopening after process navigation
+        val chatViewModel = ChatViewModel(chatRepository = fakeRepo())
+        assertIs<ChatMode.Blank>(chatViewModel.uiState.value.mode)
+
+        // Recover from store (mirrors what AppNavHost does)
+        store.get(analysisId)?.diagnosis?.let {
+            chatViewModel.seedFromAnalysis(analysisId, it)
+        }
+
+        val state = chatViewModel.uiState.value
+        assertIs<ChatMode.AnalysisSeeded>(state.mode)
+        assertEquals(analysisId, state.mode.analysisId)
+        assertEquals("Roya naranja", state.mode.diagnosis.pestName)
+        assertEquals(1, state.messages.size)
+        assertEquals(MessageSender.Assistant, state.messages[0].sender)
+        assertTrue(state.messages[0].text.contains("Roya naranja"))
+    }
+
+    @Test
+    fun `6_6_conversationsViewModel_reflects_store_entries`() = runTest(testDispatcher) {
+        val store = ConversationStore()
+        val viewModel = ConversationsViewModel(conversationStore = store)
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.analysisConversations.isEmpty())
+
+        store.save("analysis_001", DiagnosisResult(
+            pestName = "Broca",
+            confidence = 0.95f,
+            severity = "Crítica",
+            affectedArea = "Fruto",
+            cause = "Hypothenemus hampei",
+            diagnosisText = "Infestación severa detectada",
+            treatmentSteps = listOf("Recolectar bayas caídas"),
+        ))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(1, state.analysisConversations.size)
+        assertEquals("Análisis: Broca", state.analysisConversations[0].title)
+        assertEquals("analysis_001", state.analysisConversations[0].analysisId)
     }
 
     private class FakeChatRepository(
