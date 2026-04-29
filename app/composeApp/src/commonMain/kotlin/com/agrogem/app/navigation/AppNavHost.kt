@@ -92,9 +92,6 @@ fun AppNavHost(
                 onOpenCamera = { /* Camera is launched via FAB in AppShell */ },
                 onOpenHistory = { navController.pushTo(AgroGemRoute.History) },
                 onOpenEnvironmentDetail = { navController.pushTo(AgroGemRoute.Environment) },
-                onOpenGemmaDemo = {
-                    navController.navigate(AgroGemRoute.GemmaDemo.route)
-                }
             )
         }
 

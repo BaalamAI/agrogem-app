@@ -3,6 +3,8 @@ package com.agrogem.app.ui.screens.home
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agrogem.app.data.analysis.domain.AnalysisRepository
+import com.agrogem.app.data.analysis.domain.StoredAnalysis
 import com.agrogem.app.data.location.DeviceLocationProvider
 import com.agrogem.app.data.location.createDeviceLocationProvider
 import com.agrogem.app.data.session.SessionSnapshot
@@ -13,6 +15,7 @@ import com.agrogem.app.data.soil.domain.SoilRepository
 import com.agrogem.app.data.soil.domain.SoilSummary
 import com.agrogem.app.data.weather.domain.CurrentWeather
 import com.agrogem.app.data.weather.domain.WeatherRepository
+import com.agrogem.app.ui.components.Severity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,8 +37,17 @@ sealed interface HomeUiState {
         val soilSummary: SoilSummary?,
         val profileGreeting: String?,
         val cropContext: String?,
+        val recentAnalyses: List<HomeRecentAnalysis>,
     ) : HomeUiState
 }
+
+@Immutable
+data class HomeRecentAnalysis(
+    val name: String,
+    val subtitle: String,
+    val health: String,
+    val severity: Severity,
+)
 
 @Immutable
 data class WeatherMetrics(
@@ -52,6 +64,7 @@ class HomeViewModel(
     private val soilRepository: SoilRepository,
     private val sessionLocalStore: SessionLocalStore,
     private val deviceLocationProvider: DeviceLocationProvider? = null,
+    private val analysisRepository: AnalysisRepository = EmptyAnalysisRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
@@ -187,6 +200,7 @@ class HomeViewModel(
 
     private suspend fun pushDataState(location: ResolvedLocation, weather: CurrentWeather, soilSummary: SoilSummary?) {
         val profile = sessionLocalStore.read()
+        val recentAnalyses = analysisRepository.listRecent(limit = 3).map(::toRecentAnalysis)
         _uiState.value = HomeUiState.Data(
             locationInfo = location,
             weather = weather,
@@ -200,6 +214,17 @@ class HomeViewModel(
             soilSummary = soilSummary,
             profileGreeting = buildProfileGreeting(profile),
             cropContext = buildCropContext(profile),
+            recentAnalyses = recentAnalyses,
+        )
+    }
+
+    private fun toRecentAnalysis(analysis: StoredAnalysis): HomeRecentAnalysis {
+        val diagnosis = analysis.diagnosis
+        return HomeRecentAnalysis(
+            name = diagnosis.pestName.uppercase(),
+            subtitle = diagnosis.diagnosisText,
+            health = "Salud: ${(diagnosis.confidence * 100).toInt()}%",
+            severity = diagnosis.severity.toSeverity(),
         )
     }
 
@@ -223,5 +248,20 @@ class HomeViewModel(
         val stage = snapshot.stage?.trim().takeUnless { it.isNullOrEmpty() }
         if (crops == null && stage == null) return null
         return listOfNotNull(crops, stage).joinToString(" · ")
+    }
+}
+
+private object EmptyAnalysisRepository : AnalysisRepository {
+    override suspend fun save(analysis: StoredAnalysis) = Unit
+    override suspend fun getById(analysisId: String): StoredAnalysis? = null
+    override suspend fun listRecent(limit: Long): List<StoredAnalysis> = emptyList()
+}
+
+private fun String.toSeverity(): Severity {
+    val value = lowercase()
+    return when {
+        value.contains("cr") || value.contains("alta") -> Severity.Critica
+        value.contains("aten") || value.contains("media") || value.contains("moder") -> Severity.Atencion
+        else -> Severity.Optimo
     }
 }
