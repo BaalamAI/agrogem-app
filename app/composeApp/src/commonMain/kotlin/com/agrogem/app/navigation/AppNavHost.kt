@@ -18,12 +18,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.agrogem.app.data.rememberImagePickerLauncher
 import com.agrogem.app.data.rememberMicrophonePermissionRequester
+import com.agrogem.app.data.analysis.domain.AnalysisRepository
+import com.agrogem.app.data.chat.domain.LocalChatRepository
 import com.agrogem.app.ui.screens.analysis.AnalysisFlowViewModel
 import com.agrogem.app.ui.screens.analysis.PlantAnalysisScreen
 import com.agrogem.app.ui.screens.chat.ChatEvent
 import com.agrogem.app.ui.screens.chat.ChatScreen
 import com.agrogem.app.ui.screens.chat.ChatViewModel
-import com.agrogem.app.ui.screens.chat.ConversationStore
 import com.agrogem.app.ui.screens.chat.ConversationsScreen
 import com.agrogem.app.ui.screens.chat.ConversationsViewModel
 import com.agrogem.app.ui.screens.chat.VoiceReadyScreen
@@ -37,6 +38,7 @@ import com.agrogem.app.ui.screens.onboarding.OnboardingChatViewModel
 import com.agrogem.app.ui.screens.onboarding.OnboardingScreen
 import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.ui.screens.history.HistoryScreen
+import com.agrogem.app.ui.screens.history.HistoryViewModel
 import com.agrogem.app.ui.screens.home.HomeScreen
 import com.agrogem.app.ui.screens.home.HomeViewModel
 import com.agrogem.app.ui.screens.environment.EnvironmentDetailScreen
@@ -50,8 +52,9 @@ fun AppNavHost(
     modifier: Modifier = Modifier,
     navController: NavHostController,
     analysisFlowVm: AnalysisFlowViewModel,
+    analysisRepository: AnalysisRepository,
     chatViewModel: ChatViewModel,
-    conversationStore: ConversationStore,
+    localChatRepository: LocalChatRepository,
     appSessionViewModel: AppSessionViewModel,
     homeViewModel: HomeViewModel,
     mapRiskViewModel: MapRiskViewModel,
@@ -147,7 +150,7 @@ fun AppNavHost(
         }
 
         composable(AgroGemRoute.Conversations.route) {
-            val conversationsViewModel = kmpViewModel { ConversationsViewModel(conversationStore) }
+            val conversationsViewModel = kmpViewModel { ConversationsViewModel(localChatRepository) }
             ConversationsScreen(
                 viewModel = conversationsViewModel,
                 onOpenConversation = { conversation ->
@@ -174,10 +177,11 @@ fun AppNavHost(
         }
 
         composable(AgroGemRoute.History.route) {
+            val historyViewModel = kmpViewModel { HistoryViewModel(analysisRepository) }
             HistoryScreen(
-                onOpenEntry = {
-                    analysisFlowVm.loadFromHistory(imageUri = "")
-                    navController.pushTo(AgroGemRoute.AnalysisHistory)
+                viewModel = historyViewModel,
+                onOpenEntry = { entry ->
+                    navController.pushTo(AgroGemRoute.AnalysisHistory.createRoute(entry.analysisId))
                 },
             )
         }
@@ -223,7 +227,6 @@ fun AppNavHost(
                 onTalkToAgent = { analysisId, diagnosis ->
                     // Post-analysis handoff: persist to store, seed the shared ChatViewModel,
                     // then navigate to the chat screen.
-                    conversationStore.save(analysisId, diagnosis)
                     chatViewModel.seedFromAnalysis(analysisId, diagnosis)
                     navController.pushTo(AgroGemRoute.Chat.createRoute(analysisId))
                 },
@@ -231,7 +234,20 @@ fun AppNavHost(
         }
 
         // Analysis opened from history — exit button says "Regresar"
-        composable(AgroGemRoute.AnalysisHistory.route) {
+        composable(
+            route = AgroGemRoute.AnalysisHistory.NAV_ROUTE,
+            arguments = listOf(
+                navArgument(AgroGemRoute.AnalysisHistory.ANALYSIS_ID_ARG) {
+                    type = NavType.StringType
+                    nullable = false
+                },
+            ),
+        ) { backStackEntry ->
+            val analysisId = backStackEntry.savedStateHandle
+                .get<String>(AgroGemRoute.AnalysisHistory.ANALYSIS_ID_ARG)
+            if (analysisId != null) {
+                analysisFlowVm.loadFromPersistedAnalysis(analysisId)
+            }
             PlantAnalysisScreen(
                 viewModel = analysisFlowVm,
                 fromHistory = true,
@@ -273,15 +289,16 @@ fun AppNavHost(
                 },
             ),
         ) { backStackEntry ->
-            // Recover context from store when navigating directly to a chat route
+            // Recover context from local DB when navigating directly to a chat route
             // with an analysisId that does not match the current VM state.
-            val navAnalysisId = backStackEntry.arguments?.getString(AgroGemRoute.Chat.ANALYSIS_ID_ARG)
+            val navAnalysisId = backStackEntry.savedStateHandle
+                .get<String>(AgroGemRoute.Chat.ANALYSIS_ID_ARG)
             if (navAnalysisId != null) {
                 val currentMode = chatViewModel.uiState.value.mode
                 val isAlreadySeeded = currentMode is com.agrogem.app.ui.screens.chat.ChatMode.AnalysisSeeded &&
                     currentMode.analysisId == navAnalysisId
                 if (!isAlreadySeeded) {
-                    conversationStore.get(navAnalysisId)?.diagnosis?.let { diagnosis ->
+                    localChatRepository.getByAnalysisId(navAnalysisId)?.diagnosis?.let { diagnosis ->
                         chatViewModel.seedFromAnalysis(navAnalysisId, diagnosis)
                     }
                 }

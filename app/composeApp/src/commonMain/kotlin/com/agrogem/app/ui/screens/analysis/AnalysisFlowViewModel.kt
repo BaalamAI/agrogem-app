@@ -3,7 +3,10 @@ package com.agrogem.app.ui.screens.analysis
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agrogem.app.data.analysis.domain.AnalysisRepository
+import com.agrogem.app.data.analysis.domain.StoredAnalysis
 import com.agrogem.app.data.ImageResult
+import com.agrogem.app.data.pest.domain.AnalysisDiagnosis
 import com.agrogem.app.data.pest.domain.PestFailure
 import com.agrogem.app.data.pest.domain.PestResult
 import com.agrogem.app.data.pest.domain.PlantAnalysisRepository
@@ -18,6 +21,7 @@ import kotlin.time.Clock
 
 class AnalysisFlowViewModel(
     private val plantAnalysisRepository: PlantAnalysisRepository,
+    private val analysisRepository: AnalysisRepository,
 ) : ViewModel() {
 
     private val _capturedImage = MutableStateFlow<ImageResult?>(null)
@@ -71,10 +75,29 @@ class AnalysisFlowViewModel(
      * Load a previous analysis entry directly in the Results phase.
      * Used when navigating from the history screen.
      */
-    fun loadFromHistory(imageUri: String) {
+    fun loadFromHistory(
+        imageUri: String,
+        analysisId: String? = null,
+        diagnosis: DiagnosisResult? = null,
+    ) {
+        analysisJob?.cancel()
         _capturedImage.value = ImageResult(uri = imageUri)
+        _analysisId.value = analysisId
+        _diagnosisResult = diagnosis ?: defaultDiagnosisResult()
         _steps.value = defaultSteps().map { it.copy(done = true) }
         _phase.value = AnalysisPhase.Results
+    }
+
+    fun loadFromPersistedAnalysis(analysisId: String) {
+        analysisJob?.cancel()
+        viewModelScope.launch {
+            val stored = analysisRepository.getById(analysisId) ?: return@launch
+            loadFromHistory(
+                imageUri = stored.imageUri,
+                analysisId = stored.analysisId,
+                diagnosis = stored.diagnosis,
+            )
+        }
     }
 
     private suspend fun runRealAnalysis(image: ImageResult) {
@@ -84,7 +107,16 @@ class AnalysisFlowViewModel(
             is PestResult.Success -> {
                 markStepDone(1)
                 _diagnosisResult = result.diagnosis
-                _analysisId.value = generateAnalysisId()
+                val persistedAnalysisId = generateAnalysisId()
+                analysisRepository.save(
+                    StoredAnalysis(
+                        analysisId = persistedAnalysisId,
+                        imageUri = image.uri,
+                        diagnosis = result.diagnosis,
+                        createdAtEpochMillis = Clock.System.now().toEpochMilliseconds(),
+                    ),
+                )
+                _analysisId.value = persistedAnalysisId
                 markStepDone(2)
                 _phase.value = AnalysisPhase.Results
             }
@@ -130,16 +162,11 @@ data class AnalysisStepUi(
     val done: Boolean,
 )
 
-@Immutable
-data class DiagnosisResult(
-    val pestName: String,
-    val confidence: Float,
-    val severity: String,
-    val affectedArea: String,
-    val cause: String,
-    val diagnosisText: String,
-    val treatmentSteps: List<String>,
-)
+/**
+ * Temporary bridge type used by chat/history UI while older imports are still being cleaned up.
+ * Keep as alias for now to avoid broad cross-module refactors in local-only batches.
+ */
+typealias DiagnosisResult = AnalysisDiagnosis
 
 private fun defaultSteps(): List<AnalysisStepUi> = listOf(
     AnalysisStepUi(

@@ -1,105 +1,65 @@
 package com.agrogem.app.ui.screens.chat
 
+import com.agrogem.app.data.chat.domain.LocalChatRepository
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class ConversationsViewModelTest {
 
-    private val testDispatcher = StandardTestDispatcher()
-
-    @BeforeTest
-    fun setup() {
-        Dispatchers.setMain(testDispatcher)
-    }
-
-    @AfterTest
-    fun tearDown() {
-        Dispatchers.resetMain()
-    }
-
     @Test
-    fun `with store observes analysis conversations from store`() = runTest(testDispatcher) {
-        val store = ConversationStore()
-        val viewModel = ConversationsViewModel(conversationStore = store)
-
-        // Initially empty
-        val initial = viewModel.uiState.value
-        assertTrue(initial.analysisConversations.isEmpty())
-        assertTrue(initial.normalConversations.isEmpty())
-        assertEquals(false, initial.isLoading)
-
-        // Save a conversation to the store
-        store.save("analysis_001", sampleDiagnosis(pestName = "Roya"))
-        advanceUntilIdle()
-
-        val updated = viewModel.uiState.value
-        assertEquals(1, updated.analysisConversations.size)
-        assertEquals("Análisis: Roya", updated.analysisConversations[0].title)
-        assertEquals("analysis_001", updated.analysisConversations[0].analysisId)
-    }
-
-    @Test
-    fun `with store sorts conversations by timestamp descending`() = runTest(testDispatcher) {
-        val store = ConversationStore()
-        val viewModel = ConversationsViewModel(conversationStore = store)
-
-        store.save("analysis_old", sampleDiagnosis(pestName = "Old"))
-        advanceUntilIdle()
-
-        // Small real delay to ensure distinct millisecond timestamps from Clock.System
-        Thread.sleep(10)
-
-        store.save("analysis_new", sampleDiagnosis(pestName = "New"))
-        advanceUntilIdle()
+    fun `with repository lists conversations`() {
+        val viewModel = ConversationsViewModel(
+            localChatRepository = FakeLocalChatRepository(
+                listOf(conversation("analysis_1", sampleDiagnosis("Roya"), 100L)),
+            ),
+        )
 
         val state = viewModel.uiState.value
-        assertEquals(2, state.analysisConversations.size)
-        assertEquals("Análisis: New", state.analysisConversations[0].title)
-        assertEquals("Análisis: Old", state.analysisConversations[1].title)
-    }
-
-    @Test
-    fun `without store falls back to mock state`() = runTest(testDispatcher) {
-        val viewModel = ConversationsViewModel(conversationStore = null)
-
-        val state = viewModel.uiState.value
-        assertEquals(2, state.analysisConversations.size)
-        assertEquals(2, state.normalConversations.size)
+        assertEquals(1, state.analysisConversations.size)
+        assertEquals("Análisis: Roya", state.analysisConversations[0].title)
         assertEquals(false, state.isLoading)
     }
 
     @Test
-    fun `store removal updates ui state`() = runTest(testDispatcher) {
-        val store = ConversationStore()
-        val viewModel = ConversationsViewModel(conversationStore = store)
-
-        store.save("analysis_001", sampleDiagnosis())
-        advanceUntilIdle()
-        assertEquals(1, viewModel.uiState.value.analysisConversations.size)
-
-        store.remove("analysis_001")
-        advanceUntilIdle()
-
-        assertTrue(viewModel.uiState.value.analysisConversations.isEmpty())
+    fun `without repository falls back to mock state`() {
+        val viewModel = ConversationsViewModel(localChatRepository = null)
+        val state = viewModel.uiState.value
+        assertEquals(2, state.analysisConversations.size)
+        assertEquals(2, state.normalConversations.size)
     }
 
-    private fun sampleDiagnosis(
-        pestName: String = "Roya",
-    ): DiagnosisResult = DiagnosisResult(
+    private class FakeLocalChatRepository(
+        private val conversations: List<Conversation>,
+    ) : LocalChatRepository {
+        override fun getOrCreateAnalysisConversation(analysisId: String, diagnosis: DiagnosisResult): Conversation =
+            conversations.first()
+
+        override fun getByAnalysisId(analysisId: String): Conversation? =
+            conversations.firstOrNull { it.analysisId == analysisId }
+
+        override fun getById(conversationId: String): Conversation? =
+            conversations.firstOrNull { it.id == conversationId }
+
+        override fun listRecent(limit: Long): List<Conversation> = conversations
+        override fun saveMessage(conversationId: String, message: ChatMessage) {}
+        override fun listMessages(conversationId: String): List<ChatMessage> = emptyList()
+        override fun createBlankConversation(): Conversation = conversations.first()
+    }
+
+    private fun conversation(analysisId: String, diagnosis: DiagnosisResult, timestamp: Long): Conversation = Conversation(
+        id = "conv_$analysisId",
+        title = "Análisis: ${diagnosis.pestName}",
+        preview = diagnosis.diagnosisText,
+        timestamp = timestamp,
+        timestampLabel = "Ahora",
+        analysisId = analysisId,
+        diagnosis = diagnosis,
+    )
+
+    private fun sampleDiagnosis(pestName: String): DiagnosisResult = DiagnosisResult(
         pestName = pestName,
-        confidence = 0.92f,
+        confidence = 0.9f,
         severity = "Alta",
         affectedArea = "Hojas",
         cause = "Hongo",

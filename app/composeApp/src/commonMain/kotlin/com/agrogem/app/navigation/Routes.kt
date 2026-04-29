@@ -50,9 +50,15 @@ sealed interface AgroGemRoute {
     }
 
     data object AnalysisHistory : AgroGemRoute {
-        override val route: String = "analysis_history"
+        override val route: String = BASE_ROUTE
         override val title: String = "Ver análisis"
         override val bottomTab: AgroGemBottomTab? = null
+
+        const val BASE_ROUTE = "analysis_history"
+        const val ANALYSIS_ID_ARG = "analysisId"
+        const val NAV_ROUTE = "$BASE_ROUTE?$ANALYSIS_ID_ARG={$ANALYSIS_ID_ARG}"
+
+        fun createRoute(analysisId: String): String = "$BASE_ROUTE?$ANALYSIS_ID_ARG=$analysisId"
     }
 
     data object Diagnosis : AgroGemRoute {

@@ -4,13 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agrogem.app.theme.AgroGemColors
@@ -28,23 +29,33 @@ fun DiagnosisInfoBox(
 ) {
     Column(
         modifier = modifier
-            .height(51.dp)
+            .defaultMinSize(minHeight = 58.dp)
             .background(AgroGemColors.Surface, RoundedCornerShape(10.dp))
             .border(1.dp, AgroGemColors.BorderLight, RoundedCornerShape(10.dp))
-            .padding(horizontal = 8.dp, vertical = 6.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(text = label, color = AgroGemColors.TextMuted, fontSize = 8.sp)
+        Text(text = label, color = AgroGemColors.TextMuted, fontSize = 10.sp)
         if (italicTail) {
             Text(
                 text = value,
                 color = AgroGemColors.TextPrimary,
-                fontSize = 12.sp,
-                lineHeight = 15.sp,
+                fontSize = 13.sp,
+                lineHeight = 17.sp,
                 fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
         } else {
-            Text(text = value, color = AgroGemColors.TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text(
+                text = value,
+                color = AgroGemColors.TextPrimary,
+                fontSize = 13.sp,
+                lineHeight = 17.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

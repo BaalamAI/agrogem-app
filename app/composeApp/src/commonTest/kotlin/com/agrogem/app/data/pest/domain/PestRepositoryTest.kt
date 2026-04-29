@@ -29,9 +29,10 @@ class PestRepositoryTest {
                 topMatch = TopMatch(
                     pestName = "Spodoptera_litura",
                     similarity = 0.87,
+                    weightedScore = 0.91,
                     confidence = "high",
                 ),
-                votes = mapOf("Spodoptera_litura" to 3),
+                votes = mapOf("Spodoptera_litura" to 0.91),
             ),
         )
         val repo: PestRepository = PestRepositoryImpl(api = fakeApi)
@@ -39,13 +40,14 @@ class PestRepositoryTest {
         val result = repo.identify(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
 
         assertIs<PestResult.Success>(result)
-        assertEquals("Spodoptera litura", result.diagnosis.pestName)
+        assertEquals("Spodoptera Litura", result.diagnosis.pestName)
         assertEquals(0.87f, result.diagnosis.confidence)
         assertEquals("Alta", result.diagnosis.severity)
-        assertEquals("Plagas detectadas", result.diagnosis.affectedArea)
-        assertEquals("Spodoptera litura", result.diagnosis.cause)
+        assertEquals("", result.diagnosis.affectedArea)
+        assertEquals("", result.diagnosis.cause)
         assertTrue(result.diagnosis.diagnosisText.isNotEmpty())
         assertTrue(result.diagnosis.treatmentSteps.isNotEmpty())
+        assertTrue(result.diagnosis.isConfidenceReliable)
     }
 
     @Test

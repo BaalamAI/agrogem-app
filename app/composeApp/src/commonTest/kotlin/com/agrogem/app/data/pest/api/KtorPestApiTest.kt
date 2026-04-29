@@ -67,9 +67,10 @@ class KtorPestApiTest {
                         "top_match": {
                             "pest_name": "Spodoptera_litura",
                             "similarity": 0.87,
+                            "weighted_score": 0.91,
                             "confidence": "high"
                         },
-                        "votes": {"Spodoptera_litura": 3}
+                        "votes": {"Spodoptera_litura": 0.91}
                     }
                 """.trimIndent(),
                 status = HttpStatusCode.OK,
@@ -83,8 +84,9 @@ class KtorPestApiTest {
 
         assertEquals("Spodoptera_litura", result.topMatch?.pestName)
         assertEquals(0.87, result.topMatch?.similarity)
+        assertEquals(0.91, result.topMatch?.weightedScore)
         assertEquals("high", result.topMatch?.confidence)
-        assertEquals(mapOf("Spodoptera_litura" to 3), result.votes)
+        assertEquals(mapOf("Spodoptera_litura" to 0.91), result.votes)
     }
 
     @Test

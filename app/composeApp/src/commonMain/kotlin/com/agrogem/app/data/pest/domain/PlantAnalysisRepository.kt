@@ -4,7 +4,7 @@ import com.agrogem.app.data.GemmaManager
 import com.agrogem.app.data.GemmaPreparationStateHolder
 import com.agrogem.app.data.ImageResult
 import com.agrogem.app.data.connectivity.ConnectivityMonitor
-import com.agrogem.app.ui.screens.analysis.DiagnosisResult
+import kotlin.math.round
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -25,7 +25,6 @@ class PlantAnalysisRepositoryImpl(
     }
 
     override suspend fun analyze(image: ImageResult): PestResult {
-        val gemmaReady = initializeGemmaIfPossible()
         val isOnline = connectivityMonitor.isOnline()
 
         val backendResult = if (isOnline) {
@@ -33,6 +32,14 @@ class PlantAnalysisRepositoryImpl(
         } else {
             null
         }
+
+        val shouldAttemptGemma = !isOnline || gemmaPreparationStateHolder.hasLocalModel()
+        if (!shouldAttemptGemma) {
+            return backendResult
+                ?: PestResult.Failure(PestFailure.Network(Exception("No local model available for offline analysis")))
+        }
+
+        val gemmaReady = initializeGemmaIfPossible()
 
         if (!gemmaReady) {
             return backendResult
@@ -42,13 +49,14 @@ class PlantAnalysisRepositoryImpl(
         val backendSuccess = backendResult as? PestResult.Success
 
         val gemmaResult = runCatching {
+            val backendConfidence = backendSuccess?.diagnosis?.confidence
             val responseText = gemmaManager.sendMessage(
                 systemPrompt = buildSystemPrompt(backendSuccess),
                 userPrompt = USER_PROMPT,
                 images = listOfNotNull(image.uri),
                 temperature = 0.4f,
             )
-            parseGemmaResponse(responseText)
+            parseGemmaResponse(responseText, backendConfidence)
         }.getOrNull()
 
         return gemmaResult ?: backendResult ?: PestResult.Failure(PestFailure.Server)
@@ -61,35 +69,61 @@ class PlantAnalysisRepositoryImpl(
         append("Analiza la imagen del cultivo y responde EXCLUSIVAMENTE con un objeto JSON válido, ")
         append("sin texto adicional ni marcadores de código. ")
         append("El JSON debe tener exactamente estos campos: ")
-        append("\"pestName\" (string), ")
+        append("\"pestName\" (string corto, en español, sin paréntesis), ")
         append("\"confidence\" (número decimal entre 0.0 y 1.0), ")
         append("\"severity\" (string: Alta, Media o Baja), ")
         append("\"affectedArea\" (string), ")
         append("\"cause\" (string), ")
         append("\"diagnosisText\" (string: descripción detallada), ")
         append("\"treatmentSteps\" (array de strings). ")
+        append("Si no puedes inferir con suficiente certeza el área afectada o la causa, devuelve una cadena vacía en esos campos. ")
+        append("La imagen es la fuente principal de verdad; cualquier contexto adicional es solo referencia. ")
         if (backendResult != null) {
-            append("Contexto adicional del sistema de reconocimiento: plaga sugerida '${backendResult.diagnosis.pestName}' ")
-            append("con confianza ${(backendResult.diagnosis.confidence * 100).toInt()}%. ")
-            append("Usá esta información solo como referencia; tu análisis es la fuente de verdad.")
+            backendResult.evidence?.let { evidence ->
+                append("Contexto adicional del sistema de reconocimiento: ")
+                append("plaga sugerida '${evidence.topMatchName.toSpanishDisplayPestName()}', ")
+                append("similitud ${(evidence.similarity * 100).toInt()}%, ")
+                append("peso ${(evidence.weightedScore * 100).toInt()}%, ")
+                append("nivel '${evidence.confidenceLabel}'. ")
+                if (evidence.alternatives.isNotEmpty()) {
+                    append("Alternativas consideradas: ")
+                    append(
+                        evidence.alternatives.joinToString(separator = "; ") { alternative ->
+                            "${alternative.pestName.toSpanishDisplayPestName()} (${(alternative.similarity * 100).toInt()}%)"
+                        },
+                    )
+                    append(". ")
+                }
+                if (evidence.votes.isNotEmpty()) {
+                    append("Votos ponderados por clase: ")
+                    append(
+                        evidence.votes.entries.joinToString(separator = "; ") { (name, score) ->
+                            "${name.toSpanishDisplayPestName()}=${score.toRoundedString()}"
+                        },
+                    )
+                    append(". ")
+                }
+            }
         }
     }
 
-    private fun parseGemmaResponse(raw: String): PestResult? {
+    private fun parseGemmaResponse(raw: String, backendConfidence: Float?): PestResult? {
         val cleaned = extractJson(raw) ?: return null
 
         return try {
             val parsed = json.decodeFromString<GemmaAnalysisJson>(cleaned)
             if (parsed.pestName.isBlank()) return null
+            val displayName = parsed.pestName.toSpanishDisplayPestName()
             PestResult.Success(
-                DiagnosisResult(
-                    pestName = parsed.pestName,
-                    confidence = parsed.confidence.coerceIn(0f, 1f),
+                AnalysisDiagnosis(
+                    pestName = displayName,
+                    confidence = backendConfidence ?: parsed.confidence.coerceIn(0f, 1f),
                     severity = normalizeSeverity(parsed.severity),
-                    affectedArea = parsed.affectedArea,
-                    cause = parsed.cause,
+                    affectedArea = parsed.affectedArea.trim(),
+                    cause = parsed.cause.trim(),
                     diagnosisText = parsed.diagnosisText,
                     treatmentSteps = parsed.treatmentSteps,
+                    isConfidenceReliable = backendConfidence != null,
                 )
             )
         } catch (e: Exception) {
@@ -152,6 +186,28 @@ class PlantAnalysisRepositoryImpl(
         "baja", "low", "mild", "leve" -> "Baja"
         else -> "Media"
     }
+
+    private fun String.toSpanishDisplayPestName(): String {
+        val cleaned = trim().substringBefore("(").trim().replace("_", " ")
+        val normalized = cleaned.lowercase()
+        fun hasWord(word: String): Boolean = Regex("\\b${Regex.escape(word)}\\b").containsMatchIn(normalized)
+        val translated = when {
+            hasWord("mildew") || hasWord("oidium") || hasWord("oídio") -> "Mildiu"
+            hasWord("aphid") -> "Pulgones"
+            hasWord("whitefly") -> "Mosca blanca"
+            hasWord("rust") -> "Roya"
+            hasWord("blight") -> "Tizón"
+            hasWord("spot") -> "Mancha foliar"
+            else -> cleaned
+        }
+
+        return translated
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { token -> token.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }
+    }
+
+    private fun Float.toRoundedString(): String = ((round(this * 100) / 100f).toString())
 
     private companion object {
         const val USER_PROMPT = "Realizá un diagnóstico completo de esta imagen de cultivo."
