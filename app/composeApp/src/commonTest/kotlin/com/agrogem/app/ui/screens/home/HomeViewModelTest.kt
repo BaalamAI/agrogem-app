@@ -1,9 +1,12 @@
 package com.agrogem.app.ui.screens.home
 
+import com.agrogem.app.data.analysis.domain.AnalysisRepository
+import com.agrogem.app.data.analysis.domain.StoredAnalysis
 import com.agrogem.app.data.geolocation.domain.GeolocationRepository
 import com.agrogem.app.data.geolocation.domain.LocationDisplay
 import com.agrogem.app.data.geolocation.domain.ResolvedLocation
 import com.agrogem.app.data.location.DeviceLocationProvider
+import com.agrogem.app.data.pest.domain.AnalysisDiagnosis
 import com.agrogem.app.data.shared.domain.LatLng
 import com.agrogem.app.data.soil.domain.SoilProfile
 import com.agrogem.app.data.soil.domain.SoilRepository
@@ -374,6 +377,67 @@ class HomeViewModelTest {
         assertEquals("maíz y frijol · floración", state.cropContext)
     }
 
+    @Test
+    fun `init includes recent analyses from local repository`() = runTest(testDispatcher) {
+        val location = ResolvedLocation(
+            coordinates = LatLng(14.9726, -89.5301),
+            display = LocationDisplay(
+                primary = "Zacapa, Guatemala",
+                municipality = "Zacapa",
+                state = "Zacapa Department",
+                country = "Guatemala",
+            ),
+            elevationMeters = null,
+        )
+        val weather = CurrentWeather(
+            temperatureCelsius = "24.5°C",
+            humidity = "78%",
+            precipitation = "0.8 mm",
+            weatherCode = 1,
+            windSpeed = "12 km/h",
+            maxMin = "30°/19°",
+            uvIndex = "3.0",
+            description = "Día despejado",
+            dateLabel = "2026-04-27",
+        )
+        val geoRepo = FakeGeolocationRepository(location)
+        val weatherRepo = FakeWeatherRepository(Result.success(weather))
+        val soilRepo = FakeSoilRepository(Result.failure(Exception("soil error")))
+        val analysisRepo = FakeAnalysisRepository(
+            listOf(
+                StoredAnalysis(
+                    analysisId = "a1",
+                    imageUri = "file://leaf.jpg",
+                    diagnosis = AnalysisDiagnosis(
+                        pestName = "Mildiu",
+                        confidence = 0.72f,
+                        severity = "moderada",
+                        affectedArea = "hoja",
+                        cause = "hongo",
+                        diagnosisText = "Infección temprana detectada",
+                        treatmentSteps = listOf("Paso 1"),
+                    ),
+                    createdAtEpochMillis = 1L,
+                )
+            )
+        )
+        val viewModel = HomeViewModel(
+            geolocationRepository = geoRepo,
+            weatherRepository = weatherRepo,
+            soilRepository = soilRepo,
+            sessionLocalStore = SessionLocalStore(),
+            analysisRepository = analysisRepo,
+        )
+
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertIs<HomeUiState.Data>(state)
+        assertEquals(1, state.recentAnalyses.size)
+        assertEquals("MILDIU", state.recentAnalyses.first().name)
+        assertEquals("Salud: 72%", state.recentAnalyses.first().health)
+    }
+
     private class FakeGeolocationRepository(
         resolved: ResolvedLocation?,
         private val reverseGeocodeResult: Result<ResolvedLocation> = Result.failure(UnsupportedOperationException()),
@@ -426,5 +490,13 @@ class HomeViewModelTest {
         private val result: Result<SoilProfile>,
     ) : SoilRepository {
         override suspend fun getSoil(latLng: LatLng): Result<SoilProfile> = result
+    }
+
+    private class FakeAnalysisRepository(
+        private val recent: List<StoredAnalysis>,
+    ) : AnalysisRepository {
+        override suspend fun save(analysis: StoredAnalysis) = Unit
+        override suspend fun getById(analysisId: String): StoredAnalysis? = null
+        override suspend fun listRecent(limit: Long): List<StoredAnalysis> = recent.take(limit.toInt())
     }
 }

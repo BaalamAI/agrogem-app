@@ -88,8 +88,10 @@ fun AppShell(modifier: Modifier = Modifier) {
     val soilRepository = remember { createSoilRepository() }
     val climateRepository = remember { createClimateRepository() }
     val riskRepository = remember { createRiskRepository() }
+    val analysisRepository = remember { createAnalysisRepository() }
     val homeViewModel = kmpViewModel {
         HomeViewModel(
+            analysisRepository = analysisRepository,
             geolocationRepository = geolocationRepository,
             weatherRepository = weatherRepository,
             soilRepository = soilRepository,
@@ -122,7 +124,6 @@ fun AppShell(modifier: Modifier = Modifier) {
             connectivityMonitor = connectivityMonitor,
         )
     }
-    val analysisRepository = remember { createAnalysisRepository() }
     val analysisFlowVm = kmpViewModel {
         AnalysisFlowViewModel(
             plantAnalysisRepository = plantAnalysisRepository,

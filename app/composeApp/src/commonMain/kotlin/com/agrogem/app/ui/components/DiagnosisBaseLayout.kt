@@ -19,15 +19,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.agrogem.app.theme.AgroGemColors
-import com.agrogem.app.ui.preview.ProductItem
-import com.agrogem.app.ui.preview.products
 
 @Composable
 internal fun DiagnosisBaseLayout(
@@ -214,24 +211,13 @@ private fun TreatmentSection(
         }
 
         if (showProducts) {
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "◍", fontSize = 15.sp, color = AgroGemColors.Primary)
-                Text(text = "Insumos sugeridos", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                products.forEachIndexed { index, product ->
-                    ProductCard(
-                        product = product,
-                        onClick = {
-                            if (index == 0) {
-                                onOpenConversationSummary?.invoke()
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+            onOpenConversationSummary?.let { callback ->
+                Text(
+                    text = "Abrir resumen del análisis",
+                    color = AgroGemColors.Primary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.clickable { callback() },
+                )
             }
         }
     }
@@ -254,50 +240,6 @@ private fun TreatmentStep(number: String) {
             fontSize = 16.sp,
             lineHeight = 26.sp,
         )
-    }
-}
-
-@Composable
-private fun ProductCard(
-    product: ProductItem,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .background(AgroGemColors.SurfaceSoft, RoundedCornerShape(32.dp))
-            .padding(12.dp)
-            .clickable(onClick = onClick),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(90.dp)
-                .background(
-                    Brush.radialGradient(AgroGemColors.ProductCardGradient),
-                    RoundedCornerShape(20.dp),
-                ),
-        )
-
-        Text(text = "ORGÁNICO", color = AgroGemColors.Primary, fontSize = 11.sp, letterSpacing = 1.1.sp)
-        Text(text = product.name, color = AgroGemColors.TextPrimary, fontSize = 14.sp)
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(text = product.price, color = AgroGemColors.TextSecondary, fontSize = 14.sp)
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .background(AgroGemColors.PrimarySoft, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(text = "+", color = AgroGemColors.Primary, fontWeight = FontWeight.Bold)
-            }
-        }
     }
 }
 

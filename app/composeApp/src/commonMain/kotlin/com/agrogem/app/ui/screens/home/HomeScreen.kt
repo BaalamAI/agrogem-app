@@ -49,17 +49,14 @@ import com.agrogem.app.ui.components.RoundIconButton
 import com.agrogem.app.data.soil.domain.SoilSummary
 import com.agrogem.app.ui.components.SeverityBadge
 import com.agrogem.app.ui.components.LeafThumb
-import com.agrogem.app.ui.preview.RecentAnalysisItem
-import com.agrogem.app.ui.preview.dashboardRecentItems
 import org.jetbrains.compose.resources.DrawableResource
 
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
-    onOpenCamera: () -> Unit,
+    onOpenCamera: () -> Unit = {},
     onOpenHistory: () -> Unit,
     onOpenEnvironmentDetail: () -> Unit,
-    onOpenGemmaDemo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -172,25 +169,18 @@ fun HomeScreen(
                     )
                 }
 
-                dashboardRecentItems.forEachIndexed { index, item ->
-                    RecentAnalysisRow(item = item, seed = index)
+                val recentAnalyses = (uiState as? HomeUiState.Data)?.recentAnalyses.orEmpty()
+                if (recentAnalyses.isEmpty()) {
+                    Text(
+                        text = "Todavía no hay análisis guardados.",
+                        color = AgroGemColors.TextMedium,
+                        fontSize = 14.sp,
+                    )
+                } else {
+                    recentAnalyses.forEachIndexed { index, item ->
+                        RecentAnalysisRow(item = item, seed = index)
+                    }
                 }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp)
-                    .background(AgroGemColors.Primary, RoundedCornerShape(20.dp))
-                    .clickable(onClick = onOpenGemmaDemo),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "PROBAR GEMMA 4 (DEMO)",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -634,7 +624,7 @@ private fun MetricItem(
 
 @Composable
 private fun RecentAnalysisRow(
-    item: RecentAnalysisItem,
+    item: HomeRecentAnalysis,
     seed: Int,
 ) {
     Row(
