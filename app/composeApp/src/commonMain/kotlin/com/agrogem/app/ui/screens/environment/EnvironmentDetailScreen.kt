@@ -242,7 +242,7 @@ private fun HorizonRow(horizon: Horizon) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            DetailLabel("pH", horizon.ph.toString())
+            DetailLabel("pH", horizon.ph?.toString() ?: "--")
             DetailLabel("SOC", "${horizon.socGPerKg} g/kg")
             DetailLabel("N", "${horizon.nitrogenGPerKg} g/kg")
         }

@@ -872,10 +872,12 @@ class ChatViewModelTest {
         val weather = CurrentWeather(
             temperatureCelsius = "24°C",
             humidity = "65%",
-            cloudCover = "30%",
+            precipitation = "0.0 mm",
+            weatherCode = 1,
+            windSpeed = "8 km/h",
+            maxMin = "30°/19°",
             uvIndex = "7",
             description = "Parcialmente nublado",
-            locationName = "Zacapa",
             dateLabel = "Hoy",
         )
         val soil = SoilProfile(
@@ -999,10 +1001,12 @@ class ChatViewModelTest {
         val weather = CurrentWeather(
             temperatureCelsius = "28°C",
             humidity = "70%",
-            cloudCover = "10%",
+            precipitation = "0.0 mm",
+            weatherCode = 0,
+            windSpeed = "10 km/h",
+            maxMin = "31°/20°",
             uvIndex = "9",
             description = "Soleado",
-            locationName = "Zacapa",
             dateLabel = "Hoy",
         )
         val viewModel = ChatViewModel(
@@ -1045,10 +1049,12 @@ class ChatViewModelTest {
         val weather = CurrentWeather(
             temperatureCelsius = "24°C",
             humidity = "65%",
-            cloudCover = "30%",
+            precipitation = "0.0 mm",
+            weatherCode = 1,
+            windSpeed = "8 km/h",
+            maxMin = "30°/19°",
             uvIndex = "7",
             description = "Parcialmente nublado",
-            locationName = "Zacapa",
             dateLabel = "Hoy",
         )
         val soil = SoilProfile(
@@ -1097,10 +1103,12 @@ class ChatViewModelTest {
         val weather = CurrentWeather(
             temperatureCelsius = "24°C",
             humidity = "65%",
-            cloudCover = "30%",
+            precipitation = "0.0 mm",
+            weatherCode = 1,
+            windSpeed = "8 km/h",
+            maxMin = "30°/19°",
             uvIndex = "7",
             description = "Parcialmente nublado",
-            locationName = "Zacapa",
             dateLabel = "Hoy",
         )
         val soil = SoilProfile(
@@ -2270,6 +2278,10 @@ class ChatViewModelTest {
         private val result: Result<CurrentWeather>,
     ) : WeatherRepository {
         override suspend fun getCurrentWeather(latLng: LatLng): Result<CurrentWeather> = result
+
+        override suspend fun getCachedWeather(latLng: LatLng): CurrentWeather? = result.getOrNull()
+
+        override suspend fun shouldRefresh(latLng: LatLng): Boolean = true
     }
 
     private class FakeSoilRepository(

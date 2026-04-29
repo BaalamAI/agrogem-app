@@ -8,11 +8,11 @@ import io.ktor.client.request.parameter
 
 class KtorWeatherApi(private val client: HttpClient) : WeatherApi {
 
-    override suspend fun getCurrentWeather(lat: Double, lng: Double): WeatherResponse {
+    override suspend fun getCurrentWeather(lat: Double, lon: Double): WeatherResponse {
         return try {
-            val response = client.get("/weather/current") {
+            val response = client.get("/weather") {
                 parameter("lat", lat)
-                parameter("lng", lng)
+                parameter("lon", lon)
             }
             if (response.status.value in 200..299) {
                 response.body<WeatherResponse>()

@@ -3,11 +3,12 @@ package com.agrogem.app.ui.screens.home
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agrogem.app.data.location.DeviceLocationProvider
+import com.agrogem.app.data.location.createDeviceLocationProvider
 import com.agrogem.app.data.session.SessionSnapshot
 import com.agrogem.app.data.session.SessionLocalStore
 import com.agrogem.app.data.geolocation.domain.GeolocationRepository
 import com.agrogem.app.data.geolocation.domain.ResolvedLocation
-import com.agrogem.app.data.shared.domain.LatLng
 import com.agrogem.app.data.soil.domain.SoilRepository
 import com.agrogem.app.data.soil.domain.SoilSummary
 import com.agrogem.app.data.weather.domain.CurrentWeather
@@ -15,8 +16,12 @@ import com.agrogem.app.data.weather.domain.WeatherRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+
+private const val LOCATION_RESOLUTION_TIMEOUT_MS = 10_000L
 
 sealed interface HomeUiState {
     data object Loading : HomeUiState
@@ -35,7 +40,9 @@ sealed interface HomeUiState {
 @Immutable
 data class WeatherMetrics(
     val humidity: String,
-    val cloudCover: String,
+    val windSpeed: String,
+    val precipitation: String,
+    val maxMin: String,
     val uvIndex: String,
 )
 
@@ -44,56 +51,156 @@ class HomeViewModel(
     private val weatherRepository: WeatherRepository,
     private val soilRepository: SoilRepository,
     private val sessionLocalStore: SessionLocalStore,
+    private val deviceLocationProvider: DeviceLocationProvider? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private val _isResolvingLocation = MutableStateFlow(false)
+    val isResolvingLocation: StateFlow<Boolean> = _isResolvingLocation.asStateFlow()
+    private var autoResolveAttempted = false
 
     init {
-        load()
+        observeLocationAndLoad()
     }
 
     fun refresh() {
-        load()
-    }
-
-    private fun load() {
         viewModelScope.launch {
-            _uiState.value = HomeUiState.Loading
             val location = geolocationRepository.observeResolvedLocation().first()
             if (location == null) {
                 _uiState.value = HomeUiState.LocationMissing
                 return@launch
             }
-            val weatherResult = weatherRepository.getCurrentWeather(location.coordinates)
-            weatherResult.fold(
-                onSuccess = { weather ->
-                    val profile = sessionLocalStore.read()
-                    val profileGreeting = buildProfileGreeting(profile)
-                    val cropContext = buildCropContext(profile)
-                    val soilResult = soilRepository.getSoil(location.coordinates)
-                    val soilSummary = soilResult.getOrNull()?.summary
-                    _uiState.value = HomeUiState.Data(
-                        locationInfo = location,
-                        weather = weather,
-                        metrics = WeatherMetrics(
-                            humidity = weather.humidity,
-                            cloudCover = weather.cloudCover,
-                            uvIndex = weather.uvIndex,
-                        ),
-                        soilSummary = soilSummary,
-                        profileGreeting = profileGreeting,
-                        cropContext = cropContext,
+            loadFor(location)
+        }
+    }
+
+    fun onLocationPermissionResult(granted: Boolean) {
+        if (!granted) {
+            _uiState.value = HomeUiState.LocationMissing
+            return
+        }
+        viewModelScope.launch {
+            _isResolvingLocation.value = true
+            _uiState.value = HomeUiState.Loading
+            val locationProvider = deviceLocationProvider ?: createDeviceLocationProvider()
+            runCatching {
+                withTimeout(LOCATION_RESOLUTION_TIMEOUT_MS) {
+                    locationProvider.getCurrentLatLng()
+                }
+            }.fold(
+                onSuccess = { locationResult ->
+                    locationResult.fold(
+                        onSuccess = { latLng ->
+                            geolocationRepository.reverseGeocode(latLng).onFailure { error ->
+                                _uiState.value = HomeUiState.Error(
+                                    message = error.message ?: "No se pudo resolver tu ubicación",
+                                    retryable = true,
+                                )
+                            }
+                        },
+                        onFailure = { error ->
+                            _uiState.value = HomeUiState.Error(
+                                message = error.message ?: "No se pudo obtener tu ubicación",
+                                retryable = true,
+                            )
+                        },
                     )
                 },
-                onFailure = { error ->
+                onFailure = {
                     _uiState.value = HomeUiState.Error(
-                        message = error.message ?: "Error desconocido",
+                        message = "La ubicación tardó demasiado. Reintentá con el GPS activo.",
                         retryable = true,
                     )
                 },
             )
+            _isResolvingLocation.value = false
         }
+    }
+
+    private fun observeLocationAndLoad() {
+        viewModelScope.launch {
+            geolocationRepository.observeResolvedLocation().collect { location ->
+                if (location == null) {
+                    tryResolveLocationSilently()
+                    _uiState.value = HomeUiState.LocationMissing
+                    return@collect
+                }
+                loadFor(location)
+            }
+        }
+    }
+
+    private suspend fun loadFor(location: ResolvedLocation) {
+        val cachedWeather = weatherRepository.getCachedWeather(location.coordinates)
+        if (cachedWeather != null) {
+            pushDataState(location = location, weather = cachedWeather, soilSummary = null)
+            loadSoilInBackground(location, cachedWeather)
+        } else {
+            _uiState.value = HomeUiState.Loading
+        }
+
+        val shouldRefresh = weatherRepository.shouldRefresh(location.coordinates)
+        if (!shouldRefresh && cachedWeather != null) {
+            return
+        }
+
+        val weatherResult = weatherRepository.getCurrentWeather(location.coordinates)
+        weatherResult.fold(
+            onSuccess = { weather ->
+                pushDataState(location = location, weather = weather, soilSummary = null)
+                loadSoilInBackground(location, weather)
+            },
+            onFailure = { error ->
+                if (cachedWeather == null) {
+                    _uiState.value = HomeUiState.Error(
+                        message = error.message ?: "Error desconocido",
+                        retryable = true,
+                    )
+                }
+            },
+        )
+    }
+
+    private suspend fun tryResolveLocationSilently() {
+        if (autoResolveAttempted) return
+        autoResolveAttempted = true
+        val locationProvider = deviceLocationProvider ?: runCatching { createDeviceLocationProvider() }.getOrNull() ?: return
+        runCatching {
+            withTimeout(LOCATION_RESOLUTION_TIMEOUT_MS) {
+                locationProvider.getCurrentLatLng()
+            }
+        }.getOrNull()?.onSuccess { latLng ->
+            geolocationRepository.reverseGeocode(latLng)
+        }
+    }
+
+    private fun loadSoilInBackground(location: ResolvedLocation, weather: CurrentWeather) {
+        viewModelScope.launch {
+            val soilSummary = soilRepository.getSoil(location.coordinates).getOrNull()?.summary
+            val current = _uiState.value
+            if (current is HomeUiState.Data && current.locationInfo == location && current.weather == weather) {
+                pushDataState(location, weather, soilSummary)
+            }
+        }
+    }
+
+    private suspend fun pushDataState(location: ResolvedLocation, weather: CurrentWeather, soilSummary: SoilSummary?) {
+        val profile = sessionLocalStore.read()
+        _uiState.value = HomeUiState.Data(
+            locationInfo = location,
+            weather = weather,
+            metrics = WeatherMetrics(
+                humidity = weather.humidity,
+                windSpeed = weather.windSpeed,
+                precipitation = weather.precipitation,
+                maxMin = weather.maxMin,
+                uvIndex = weather.uvIndex,
+            ),
+            soilSummary = soilSummary,
+            profileGreeting = buildProfileGreeting(profile),
+            cropContext = buildCropContext(profile),
+        )
     }
 
     private fun buildProfileGreeting(snapshot: SessionSnapshot): String? {

@@ -26,7 +26,7 @@ internal fun mapSoilResponse(dto: SoilResponse): SoilProfile {
     val domainHorizons = dto.horizons?.map { h ->
         Horizon(
             depth = h.depth ?: "",
-            ph = h.ph ?: 0.0,
+            ph = h.ph,
             textureClass = h.textureClass ?: "",
             socGPerKg = h.socGPerKg ?: 0.0,
             nitrogenGPerKg = h.nitrogenGPerKg ?: 0.0,

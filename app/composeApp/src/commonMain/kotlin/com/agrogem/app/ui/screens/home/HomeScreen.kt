@@ -7,7 +7,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,14 +40,15 @@ import app.composeapp.generated.resources.ic_metric_location
 import app.composeapp.generated.resources.ic_metric_uv
 import app.composeapp.generated.resources.ic_metric_water
 import app.composeapp.generated.resources.ic_weather_sunny
+import com.agrogem.app.data.rememberLocationPermissionRequester
 import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.theme.AgroGemIconSizes
 import com.agrogem.app.ui.components.AgroGemIcon
+import com.agrogem.app.ui.components.BlockingLoadingOverlay
 import com.agrogem.app.ui.components.RoundIconButton
 import com.agrogem.app.data.soil.domain.SoilSummary
 import com.agrogem.app.ui.components.SeverityBadge
 import com.agrogem.app.ui.components.LeafThumb
-import com.agrogem.app.ui.components.Pill
 import com.agrogem.app.ui.preview.RecentAnalysisItem
 import com.agrogem.app.ui.preview.dashboardRecentItems
 import org.jetbrains.compose.resources.DrawableResource
@@ -63,88 +63,21 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isResolvingLocation by viewModel.isResolvingLocation.collectAsStateWithLifecycle()
+    val locationRequester = rememberLocationPermissionRequester { granted ->
+        viewModel.onLocationPermissionResult(granted)
+    }
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(AgroGemColors.Screen)
-            .padding(horizontal = 24.dp)
-            .padding(top = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .background(AgroGemColors.Screen),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            when (uiState) {
-                is HomeUiState.Data -> LocationChip(text = (uiState as HomeUiState.Data).locationInfo.display.primary)
-                is HomeUiState.Loading -> LocationChipShimmer()
-                else -> LocationChip(text = "—")
-            }
-            RoundIconButton(
-                label = "🔔",
-                icon = Res.drawable.ic_action_notifications,
-                contentDescription = "Notifications",
-                background = AgroGemColors.Surface,
-                foreground = AgroGemColors.IconBellTint,
-                size = 42.dp,
-                onClick = {},
-            )
-        }
-
-        when (uiState) {
-            is HomeUiState.Loading -> {
-                WeatherCardShimmer()
-                MetricsCardShimmer()
-                EnvironmentCardShimmer()
-            }
-            is HomeUiState.Data -> {
-                val data = uiState as HomeUiState.Data
-                data.profileGreeting?.let { greeting ->
-                    Text(
-                        text = greeting,
-                        color = AgroGemColors.TextPrimary,
-                        fontSize = 14.sp,
-                    )
-                }
-                WeatherCard(
-                    locationLabel = data.locationInfo.display.primary.uppercase(),
-                    temperature = data.weather.temperatureCelsius,
-                    description = data.weather.description,
-                    dateLabel = data.weather.dateLabel,
-                )
-                MetricsCard(
-                    humidity = data.metrics.humidity,
-                    cloudCover = data.metrics.cloudCover,
-                    uvIndex = data.metrics.uvIndex,
-                )
-                EnvironmentCard(
-                    soilSummary = data.soilSummary,
-                    elevationMeters = data.locationInfo.elevationMeters,
-                    cropContext = data.cropContext,
-                    onOpenDetail = onOpenEnvironmentDetail,
-                )
-            }
-            is HomeUiState.LocationMissing -> MessageCard(
-                title = "Sin ubicación",
-                subtitle = "Seleccioná una ubicación para ver el clima y métricas.",
-                cta = "Seleccionar ubicación",
-                onCta = { /* TODO: wire onboarding location picker */ },
-            )
-            is HomeUiState.Error -> MessageCard(
-                title = "Error de conexión",
-                subtitle = (uiState as HomeUiState.Error).message,
-                cta = "Reintentar",
-                onCta = { viewModel.refresh() },
-            )
-        }
-
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .background(AgroGemColors.Surface, RoundedCornerShape(30.dp))
-                .padding(14.dp),
+                .fillMaxSize()
+                .padding(horizontal = 24.dp)
+                .padding(top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(
@@ -152,43 +85,120 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "Análisis Recientes",
-                    color = AgroGemColors.TextPrimary,
-                    fontSize = 32.sp / 1.75f,
-                    lineHeight = 28.sp,
-                )
-                Text(
-                    text = "Ver todo",
-                    color = AgroGemColors.TextPrimary,
-                    fontSize = 14.sp,
-                    modifier = Modifier.clickable(onClick = onOpenHistory),
+                when (uiState) {
+                    is HomeUiState.Data -> LocationChip(text = topLocationChipLabel((uiState as HomeUiState.Data).locationInfo.display))
+                    is HomeUiState.Loading -> LocationChipShimmer()
+                    else -> LocationChip(text = "—")
+                }
+                RoundIconButton(
+                    label = "🔔",
+                    icon = Res.drawable.ic_action_notifications,
+                    contentDescription = "Notifications",
+                    background = AgroGemColors.Surface,
+                    foreground = AgroGemColors.IconBellTint,
+                    size = 42.dp,
+                    onClick = {},
                 )
             }
 
-            dashboardRecentItems.forEachIndexed { index, item ->
-                RecentAnalysisRow(item = item, seed = index)
+            when (uiState) {
+                is HomeUiState.Loading -> {
+                    WeatherCardShimmer()
+                    MetricsCardShimmer()
+                    EnvironmentCardShimmer()
+                }
+                is HomeUiState.Data -> {
+                    val data = uiState as HomeUiState.Data
+                    val weatherDateTime = formatWeatherDateTime(data.weather.dateLabel)
+                    WeatherCard(
+                        locationLabel = shortLocationLabel(data.locationInfo.display.primary).uppercase(),
+                        temperature = data.weather.temperatureCelsius,
+                        description = data.weather.description,
+                        timeLabel = weatherDateTime.time,
+                        dateLabel = weatherDateTime.date,
+                    )
+                    MetricsCard(
+                        humidity = data.metrics.humidity,
+                        windSpeed = data.metrics.windSpeed,
+                        precipitation = data.metrics.precipitation,
+                        maxMin = data.metrics.maxMin,
+                        uvIndex = data.metrics.uvIndex,
+                    )
+                    EnvironmentCard(
+                        soilSummary = data.soilSummary,
+                        elevationMeters = data.locationInfo.elevationMeters,
+                        cropContext = data.cropContext,
+                        onOpenDetail = onOpenEnvironmentDetail,
+                    )
+                }
+                is HomeUiState.LocationMissing -> MessageCard(
+                    title = "Sin ubicación",
+                    subtitle = "Seleccioná una ubicación para ver el clima y métricas.",
+                    cta = "Seleccionar ubicación",
+                    onCta = { locationRequester.request() },
+                )
+                is HomeUiState.Error -> MessageCard(
+                    title = "Error de conexión",
+                    subtitle = (uiState as HomeUiState.Error).message,
+                    cta = "Reintentar",
+                    onCta = { viewModel.refresh() },
+                )
             }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(AgroGemColors.Surface, RoundedCornerShape(30.dp))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Análisis Recientes",
+                        color = AgroGemColors.TextPrimary,
+                        fontSize = 32.sp / 1.75f,
+                        lineHeight = 28.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = "Ver todo",
+                        color = AgroGemColors.TextPrimary,
+                        fontSize = 14.sp,
+                        modifier = Modifier.clickable(onClick = onOpenHistory),
+                    )
+                }
+
+                dashboardRecentItems.forEachIndexed { index, item ->
+                    RecentAnalysisRow(item = item, seed = index)
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(60.dp)
+                    .background(AgroGemColors.Primary, RoundedCornerShape(20.dp))
+                    .clickable(onClick = onOpenGemmaDemo),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "PROBAR GEMMA 4 (DEMO)",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // SECCIÓN DEMO PARA DESARROLLADORES
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-                .background(AgroGemColors.Primary, RoundedCornerShape(20.dp))
-                .clickable(onClick = onOpenGemmaDemo),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "PROBAR GEMMA 4 (DEMO)",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
-            )
+        if (isResolvingLocation) {
+            BlockingLoadingOverlay(message = "Obteniendo tu ubicación y cargando el clima...")
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -226,6 +236,7 @@ private fun WeatherCard(
     locationLabel: String,
     temperature: String,
     description: String,
+    timeLabel: String,
     dateLabel: String,
 ) {
     Row(
@@ -275,17 +286,6 @@ private fun WeatherCard(
             horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Pill(
-                text = "Today",
-                background = AgroGemColors.Surface,
-                foreground = AgroGemColors.TextGraySecondary,
-                icon = "⌄",
-                iconColor = AgroGemColors.TextGraySecondary,
-                horizontal = 8.dp,
-                vertical = 4.dp,
-                textSize = 9.sp,
-                modifier = Modifier.border(1.dp, AgroGemColors.PillTrackBorder, RoundedCornerShape(999.dp)),
-            )
             AgroGemIcon(
                 icon = Res.drawable.ic_weather_sunny,
                 contentDescription = "Sunny weather",
@@ -293,9 +293,15 @@ private fun WeatherCard(
                 size = AgroGemIconSizes.Lg,
             )
             Text(
-                text = dateLabel,
+                text = timeLabel,
                 color = AgroGemColors.TextLabel,
                 fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = dateLabel,
+                color = AgroGemColors.TextLabel,
+                fontSize = 12.sp,
             )
         }
     }
@@ -304,7 +310,9 @@ private fun WeatherCard(
 @Composable
 private fun MetricsCard(
     humidity: String,
-    cloudCover: String,
+    windSpeed: String,
+    precipitation: String,
+    maxMin: String,
     uvIndex: String,
 ) {
     Row(
@@ -315,22 +323,95 @@ private fun MetricsCard(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MetricItem(icon = Res.drawable.ic_metric_water, value = humidity, label = "HUMIDITY")
+        MetricItem(icon = Res.drawable.ic_metric_water, value = humidity, label = "HUMEDAD")
         Box(
             modifier = Modifier
                 .height(44.dp)
                 .width(1.dp)
                 .background(AgroGemColors.MetricDivider),
         )
-        MetricItem(icon = Res.drawable.ic_metric_cloud, value = cloudCover, label = "CLOUDS")
+        MetricItem(icon = Res.drawable.ic_metric_cloud, value = windSpeed, label = "VIENTO")
         Box(
             modifier = Modifier
                 .height(44.dp)
                 .width(1.dp)
                 .background(AgroGemColors.MetricDivider),
         )
-        MetricItem(icon = Res.drawable.ic_metric_uv, value = uvIndex, label = "UV INDEX")
+        MetricItem(icon = Res.drawable.ic_metric_water, value = precipitation, label = "LLUVIA")
+        Box(
+            modifier = Modifier
+                .height(44.dp)
+                .width(1.dp)
+                .background(AgroGemColors.MetricDivider),
+        )
+        MetricItem(icon = Res.drawable.ic_metric_uv, value = "$uvIndex / $maxMin", label = "UV · MAX/MIN")
     }
+}
+
+private fun shortLocationLabel(value: String): String {
+    if (value.isBlank()) return "—"
+    val parts = value.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+    return parts.take(2).joinToString(", ").ifBlank { value }
+}
+
+private data class WeatherDateTimeLabel(
+    val time: String,
+    val date: String,
+)
+
+private fun formatWeatherDateTime(raw: String): WeatherDateTimeLabel {
+    val cleaned = raw.trim()
+    if (!cleaned.contains('T')) return WeatherDateTimeLabel(time = "--:--", date = cleaned.ifBlank { "--" })
+
+    val parts = cleaned.split('T')
+    if (parts.size != 2) return WeatherDateTimeLabel(time = "--:--", date = cleaned)
+
+    val date = formatIsoDate(parts[0])
+    val time = formatIsoTime(parts[1])
+    return WeatherDateTimeLabel(time = time, date = date)
+}
+
+private fun formatIsoDate(rawDate: String): String {
+    val chunks = rawDate.split('-')
+    if (chunks.size != 3) return rawDate
+    val year = chunks[0]
+    val month = chunks[1].padStart(2, '0')
+    val day = chunks[2].padStart(2, '0')
+    return "$day/$month/$year"
+}
+
+private fun formatIsoTime(rawTime: String): String {
+    val timePart = rawTime.substringBefore('.').substringBefore('Z')
+    val chunks = timePart.split(':')
+    if (chunks.size < 2) return rawTime
+
+    val hour = chunks[0].toIntOrNull() ?: return rawTime
+    val minute = chunks[1].toIntOrNull() ?: return rawTime
+    val suffix = if (hour >= 12) "PM" else "AM"
+    val hour12 = when (val normalized = hour % 12) {
+        0 -> 12
+        else -> normalized
+    }
+    return "${hour12.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} $suffix"
+}
+
+private fun topLocationChipLabel(display: com.agrogem.app.data.geolocation.domain.LocationDisplay): String {
+    val country = display.country?.trim()?.takeIf { it.isNotEmpty() }?.uppercase()
+    val state = display.state
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?.let(::normalizeLocationRegionLabel)
+        ?.takeIf { it.isNotEmpty() }
+    return listOfNotNull(country, state).joinToString(", ").ifBlank { "—" }
+}
+
+internal fun normalizeLocationRegionLabel(value: String): String {
+    val normalized = value.trim()
+    val prefixes = listOf("Departamento de ", "Estado de ", "Department of ", "State of ")
+    val withoutPrefix = prefixes.firstNotNullOfOrNull { prefix ->
+        normalized.takeIf { it.startsWith(prefix, ignoreCase = true) }?.substring(prefix.length)
+    } ?: normalized
+    return withoutPrefix.trim()
 }
 
 @Composable

@@ -4,7 +4,7 @@ import android.content.Context.MODE_PRIVATE
 import com.agrogem.app.AndroidAppContext
 import com.agrogem.app.data.geolocation.domain.ResolvedLocation
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -13,6 +13,7 @@ private const val KEY_RESOLVED = "resolved_location"
 
 actual class ResolvedLocationStore actual constructor() {
     private var fallback: ResolvedLocation? = null
+    private val state = MutableStateFlow<ResolvedLocation?>(readCurrent())
 
     private fun prefsOrNull() =
         if (AndroidAppContext.isInitialized) {
@@ -21,9 +22,7 @@ actual class ResolvedLocationStore actual constructor() {
             null
         }
 
-    actual fun observe(): Flow<ResolvedLocation?> = flow {
-        emit(readCurrent())
-    }
+    actual fun observe(): Flow<ResolvedLocation?> = state
 
     actual suspend fun write(location: ResolvedLocation) {
         val prefs = prefsOrNull()
@@ -32,6 +31,7 @@ actual class ResolvedLocationStore actual constructor() {
         } else {
             fallback = location
         }
+        state.value = location
     }
 
     actual suspend fun clear() {
@@ -41,6 +41,7 @@ actual class ResolvedLocationStore actual constructor() {
         } else {
             fallback = null
         }
+        state.value = null
     }
 
     private fun readCurrent(): ResolvedLocation? {

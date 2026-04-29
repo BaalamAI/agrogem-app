@@ -51,6 +51,7 @@ import com.agrogem.app.data.rememberNotificationPermissionRequester
 import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.theme.AgroGemIconSizes
 import com.agrogem.app.ui.components.AgroGemIcon
+import com.agrogem.app.ui.components.BlockingLoadingOverlay
 import com.agrogem.app.ui.components.FilledPrimaryButton
 import com.agrogem.app.ui.components.GemmaPreparationHint
 import com.agrogem.app.ui.components.GemmaPreparationStatusScreen
@@ -69,8 +70,8 @@ fun OnboardingChatScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val stage = uiState.onboardingChatStage ?: OnboardingChatStage.Preparing
 
-    val locationRequester = rememberLocationPermissionRequester { _ ->
-        viewModel.continueOnboardingAfterLocationPermission()
+    val locationRequester = rememberLocationPermissionRequester { granted ->
+        viewModel.onLocationPermissionResult(granted)
     }
     val notificationRequester = rememberNotificationPermissionRequester { granted ->
         viewModel.completeOnboarding(alertsEnabled = granted)
@@ -115,7 +116,7 @@ fun OnboardingChatScreen(
                 gemmaPreparationStatus = uiState.gemmaPreparationStatus,
                 showLocationModal = true,
                 onAllowLocation = { locationRequester.request() },
-                onRejectLocation = { viewModel.continueOnboardingAfterLocationPermission() },
+                onRejectLocation = { viewModel.onLocationPermissionResult(granted = false) },
             )
 
             OnboardingChatStage.AlertsPreferences -> LocationAndAlertsScreen(
@@ -136,6 +137,10 @@ fun OnboardingChatScreen(
                     )
                 },
             )
+        }
+
+        if (uiState.isResolvingLocation) {
+            BlockingLoadingOverlay(message = "Estamos obteniendo tu ubicación...")
         }
     }
 }
