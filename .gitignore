@@ -1,4 +1,5 @@
 # --- Herramientas de IA y Agentes ---
+skills-lock.json
 .agents/
 .atl/
 .claude/
