@@ -38,7 +38,8 @@ class PlantAnalysisRepositoryTest {
 
         assertIs<PestResult.Success>(result)
         assertEquals("GemmaPest", result.diagnosis.pestName)
-        assertEquals(0.92f, result.diagnosis.confidence)
+        assertEquals(0.6f, result.diagnosis.confidence)
+        assertTrue(result.diagnosis.isConfidenceReliable)
         assertTrue(pestRepo.wasCalled)
     }
 
@@ -54,6 +55,7 @@ class PlantAnalysisRepositoryTest {
 
         assertIs<PestResult.Success>(result)
         assertEquals("GemmaPest", result.diagnosis.pestName)
+        assertFalse(result.diagnosis.isConfidenceReliable)
     }
 
     @Test
@@ -268,6 +270,7 @@ class PlantAnalysisRepositoryTest {
 
         assertIs<PestResult.Success>(result)
         assertEquals(1f, result.diagnosis.confidence)
+        assertFalse(result.diagnosis.isConfidenceReliable)
     }
 
     @Test
@@ -284,6 +287,55 @@ class PlantAnalysisRepositoryTest {
 
         assertIs<PestResult.Success>(result)
         assertEquals(0f, result.diagnosis.confidence)
+        assertFalse(result.diagnosis.isConfidenceReliable)
+    }
+
+    @Test
+    fun `analyze uses backend evidence in gemma system prompt when online`() = runTest {
+        val gemma = FakeGemmaManager(response = validGemmaJson())
+        val downloader = FakeGemmaModelDownloader(downloaded = true)
+        val pestRepo = FakePestRepository(
+            PestResult.Success(
+                backendDiagnosis(pestName = "powdery_mildew", confidence = 0.84f),
+                evidence = PestAnalysisEvidence(
+                    topMatchName = "powdery_mildew",
+                    similarity = 0.84f,
+                    weightedScore = 0.91f,
+                    confidenceLabel = "high",
+                    alternatives = listOf(
+                        PestAlternativeEvidence("oidium", 0.77f),
+                        PestAlternativeEvidence("rust", 0.42f),
+                    ),
+                    votes = mapOf("powdery_mildew" to 0.91f, "oidium" to 0.77f),
+                ),
+            )
+        )
+        val connectivity = FakeConnectivityMonitor(online = true)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
+
+        repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
+
+        val prompt = gemma.lastSystemPrompt.orEmpty()
+        assertTrue(prompt.contains("Alternativas consideradas"))
+        assertTrue(prompt.contains("Mildiu"))
+        assertTrue(prompt.contains("Votos ponderados por clase"))
+    }
+
+    @Test
+    fun `analyze returns backend quickly when online and local model is missing`() = runTest {
+        val gemma = FakeGemmaManager(response = validGemmaJson())
+        val downloader = FakeGemmaModelDownloader(downloaded = false)
+        val pestRepo = FakePestRepository(
+            PestResult.Success(backendDiagnosis(pestName = "BackendOnly", confidence = 0.5f))
+        )
+        val connectivity = FakeConnectivityMonitor(online = true)
+        val repo = PlantAnalysisRepositoryImpl(gemma, GemmaPreparationStateHolder(gemma, downloader), pestRepo, connectivity)
+
+        val result = repo.analyze(ImageResult(uri = "content://test.jpg", bytes = byteArrayOf(1, 2, 3)))
+
+        assertIs<PestResult.Success>(result)
+        assertEquals("BackendOnly", result.diagnosis.pestName)
+        assertTrue(result.diagnosis.isConfidenceReliable)
     }
 
     @Test

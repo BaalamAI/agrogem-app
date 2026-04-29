@@ -3,6 +3,7 @@ package com.agrogem.app.ui.screens.chat
 import com.agrogem.app.data.chat.domain.ChatFailure
 import com.agrogem.app.data.chat.domain.ChatRepository
 import com.agrogem.app.data.chat.domain.ChatSendResult
+import com.agrogem.app.data.chat.domain.LocalChatRepository
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -66,6 +67,23 @@ class ChatIntegrationTest {
         assertEquals(MessageSender.User, state1.messages[0].sender)
         assertEquals(MessageSender.Assistant, state1.messages[1].sender)
         assertEquals("", state1.inputText, "Input cleared after send")
+    }
+
+    @Test
+    fun `send_message_persists_user_and_assistant_messages_locally`() = runTest(testDispatcher) {
+        val localRepo = FakeLocalChatRepository()
+        val viewModel = ChatViewModel(
+            chatRepository = fakeRepo(),
+            localChatRepository = localRepo,
+        )
+
+        viewModel.onEvent(ChatEvent.InputChanged("Mensaje local"))
+        viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
+
+        assertEquals(2, localRepo.savedMessages.size)
+        assertEquals(MessageSender.User, localRepo.savedMessages[0].sender)
+        assertEquals(MessageSender.Assistant, localRepo.savedMessages[1].sender)
     }
 
     @Test
@@ -366,7 +384,7 @@ class ChatIntegrationTest {
 
     @Test
     fun `6_6_store_recovers_context_when_reopening_chat_by_analysisId`() {
-        val store = ConversationStore()
+        val localRepo = FakeLocalChatRepository()
         val diagnosis = DiagnosisResult(
             pestName = "Roya naranja",
             confidence = 0.87f,
@@ -377,14 +395,14 @@ class ChatIntegrationTest {
             treatmentSteps = listOf("Aplicar fungicida sistémico"),
         )
         val analysisId = "analysis_store_001"
-        store.save(analysisId, diagnosis)
+        localRepo.getOrCreateAnalysisConversation(analysisId, diagnosis)
 
         // Fresh ChatViewModel simulating reopening after process navigation
         val chatViewModel = ChatViewModel(chatRepository = fakeRepo())
         assertIs<ChatMode.Blank>(chatViewModel.uiState.value.mode)
 
         // Recover from store (mirrors what AppNavHost does)
-        store.get(analysisId)?.diagnosis?.let {
+        localRepo.getByAnalysisId(analysisId)?.diagnosis?.let {
             chatViewModel.seedFromAnalysis(analysisId, it)
         }
 
@@ -399,13 +417,11 @@ class ChatIntegrationTest {
 
     @Test
     fun `6_6_conversationsViewModel_reflects_store_entries`() = runTest(testDispatcher) {
-        val store = ConversationStore()
-        val viewModel = ConversationsViewModel(conversationStore = store)
+        val localRepo = FakeLocalChatRepository()
+        val viewModel = ConversationsViewModel(localChatRepository = localRepo)
         advanceUntilIdle()
 
-        assertTrue(viewModel.uiState.value.analysisConversations.isEmpty())
-
-        store.save("analysis_001", DiagnosisResult(
+        localRepo.getOrCreateAnalysisConversation("analysis_001", DiagnosisResult(
             pestName = "Broca",
             confidence = 0.95f,
             severity = "Crítica",
@@ -414,12 +430,11 @@ class ChatIntegrationTest {
             diagnosisText = "Infestación severa detectada",
             treatmentSteps = listOf("Recolectar bayas caídas"),
         ))
-        advanceUntilIdle()
 
-        val state = viewModel.uiState.value
-        assertEquals(1, state.analysisConversations.size)
-        assertEquals("Análisis: Broca", state.analysisConversations[0].title)
-        assertEquals("analysis_001", state.analysisConversations[0].analysisId)
+        val refreshed = ConversationsViewModel(localChatRepository = localRepo)
+        assertEquals(1, refreshed.uiState.value.analysisConversations.size)
+        assertEquals("Análisis: Broca", refreshed.uiState.value.analysisConversations[0].title)
+        assertEquals("analysis_001", refreshed.uiState.value.analysisConversations[0].analysisId)
     }
 
     private class FakeChatRepository(
@@ -428,5 +443,37 @@ class ChatIntegrationTest {
         override suspend fun sendMessage(text: String, attachments: List<ChatAttachment>, mode: ChatMode): ChatSendResult {
             return result
         }
+    }
+
+    private class FakeLocalChatRepository : LocalChatRepository {
+        private val conversations = mutableMapOf<String, Conversation>()
+        val savedMessages = mutableListOf<ChatMessage>()
+
+        override fun getOrCreateAnalysisConversation(analysisId: String, diagnosis: DiagnosisResult): Conversation {
+            return conversations[analysisId] ?: Conversation(
+                id = "conv_$analysisId",
+                title = "Análisis: ${diagnosis.pestName}",
+                preview = diagnosis.diagnosisText,
+                timestamp = 1L,
+                timestampLabel = "Ahora",
+                analysisId = analysisId,
+                diagnosis = diagnosis,
+            ).also { conversations[analysisId] = it }
+        }
+
+        override fun getByAnalysisId(analysisId: String): Conversation? = conversations[analysisId]
+        override fun getById(conversationId: String): Conversation? = conversations.values.firstOrNull { it.id == conversationId }
+        override fun listRecent(limit: Long): List<Conversation> = conversations.values.toList()
+        override fun saveMessage(conversationId: String, message: ChatMessage) {
+            savedMessages.add(message)
+        }
+        override fun listMessages(conversationId: String): List<ChatMessage> = emptyList()
+        override fun createBlankConversation(): Conversation = Conversation(
+            id = "conv_blank",
+            title = "Nueva conversación",
+            preview = "",
+            timestamp = 1L,
+            timestampLabel = "Ahora",
+        )
     }
 }

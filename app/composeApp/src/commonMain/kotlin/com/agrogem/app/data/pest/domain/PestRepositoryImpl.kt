@@ -4,7 +4,6 @@ import com.agrogem.app.data.ImageResult
 import com.agrogem.app.data.network.ApiError
 import com.agrogem.app.data.pest.api.PestApi
 import com.agrogem.app.data.pest.api.PestIdentifyResponse
-import com.agrogem.app.ui.screens.analysis.DiagnosisResult
 
 class PestRepositoryImpl(private val api: PestApi) : PestRepository {
 
@@ -47,24 +46,40 @@ class PestRepositoryImpl(private val api: PestApi) : PestRepository {
         val topMatch = response.topMatch
             ?: return PestResult.Failure(PestFailure.NoMatchFound)
 
-        val pestName = topMatch.pestName.replace("_", " ")
+        val pestName = topMatch.pestName.toDisplayPestName()
         val confidence = topMatch.similarity.toFloat()
         val severity = deriveSeverity(topMatch.confidence)
 
         return PestResult.Success(
-            DiagnosisResult(
+            AnalysisDiagnosis(
                 pestName = pestName,
                 confidence = confidence,
                 severity = severity,
-                affectedArea = "Plagas detectadas",
-                cause = pestName,
+                affectedArea = "",
+                cause = "",
                 diagnosisText = "Se ha detectado $pestName en el cultivo. Nivel de confianza: ${(confidence * 100).toInt()}%. Revisá el área afectada y seguí el plan de tratamiento sugerido.",
                 treatmentSteps = listOf(
                     "Aplicar control específico contra $pestName.",
                     "Monitorear el área afectada cada 48 horas.",
                     "Consultar con un especialista si la plaga persiste.",
                 ),
+                isConfidenceReliable = true,
             )
+            ,
+            evidence = PestAnalysisEvidence(
+                topMatchName = topMatch.pestName,
+                similarity = topMatch.similarity.toFloat(),
+                weightedScore = topMatch.weightedScore.toFloat(),
+                confidenceLabel = topMatch.confidence,
+                alternatives = response.alternatives.map { alternative ->
+                    PestAlternativeEvidence(
+                        pestName = alternative.pestName,
+                        similarity = alternative.similarity.toFloat(),
+                        imageId = alternative.imageId,
+                    )
+                },
+                votes = response.votes.mapValues { (_, value) -> value.toFloat() },
+            ),
         )
     }
 
@@ -93,3 +108,10 @@ class PestRepositoryImpl(private val api: PestApi) : PestRepository {
         println("[PestRepository] step=$step failed with ${error::class.simpleName}: ${error.message}")
     }
 }
+
+private fun String.toDisplayPestName(): String =
+    replace("_", " ")
+        .trim()
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { token -> token.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() } }

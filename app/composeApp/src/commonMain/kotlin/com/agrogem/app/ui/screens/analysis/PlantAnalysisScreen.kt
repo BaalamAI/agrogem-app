@@ -248,22 +248,24 @@ private fun ResultsContent(
     onTalkToAgent: (analysisId: String, diagnosis: DiagnosisResult) -> Unit,
     analysisId: String,
 ) {
+    val infoItems = listOfNotNull(
+        result.affectedArea.takeIf { it.isNotBlank() }?.let { "Área afectada" to it },
+        result.cause.takeIf { it.isNotBlank() }?.let { "Causa" to it },
+    )
+
     Column(
         modifier = Modifier.verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Header: pest name + severity pill
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     text = result.pestName,
+                    modifier = Modifier.weight(1f),
                     color = AgroGemColors.TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
@@ -282,43 +284,52 @@ private fun ResultsContent(
                     )
                 }
             }
-            Box(
-                modifier = Modifier
-                    .background(AgroGemColors.AlertSoft, RoundedCornerShape(999.dp))
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            ) {
-                Text(text = result.severity, color = AgroGemColors.Alert, fontSize = 8.sp)
-            }
-        }
-
-        // Confidence pill
-        Box(
-            modifier = Modifier
-                .background(AgroGemColors.ConfidenceBg, RoundedCornerShape(999.dp))
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-        ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                AgroGemIcon(
-                    icon = Res.drawable.ic_status_check,
-                    contentDescription = "Confidence",
-                    tint = AgroGemColors.ConfidenceText,
-                    size = AgroGemIconSizes.Xs,
-                )
-                Text(
-                    text = "${(result.confidence * 100).toInt()}% de confianza",
-                    color = AgroGemColors.ConfidenceText,
-                    fontSize = 8.sp,
-                )
+                Box(
+                    modifier = Modifier
+                        .background(AgroGemColors.AlertSoft, RoundedCornerShape(999.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                ) {
+                    Text(text = result.severity, color = AgroGemColors.Alert, fontSize = 10.sp)
+                }
+
+                if (result.isConfidenceReliable) {
+                    Box(
+                        modifier = Modifier
+                            .background(AgroGemColors.ConfidenceBg, RoundedCornerShape(999.dp))
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            AgroGemIcon(
+                                icon = Res.drawable.ic_status_check,
+                                contentDescription = "Confidence",
+                                tint = AgroGemColors.ConfidenceText,
+                                size = AgroGemIconSizes.Xs,
+                            )
+                            Text(
+                                text = "${(result.confidence * 100).toInt()}% de confianza",
+                                color = AgroGemColors.ConfidenceText,
+                                fontSize = 10.sp,
+                            )
+                        }
+                    }
+                }
             }
         }
 
         // Info boxes: affected area + cause
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            DiagnosisInfoBox(label = "Área afectada", value = result.affectedArea, modifier = Modifier.weight(1f))
-            DiagnosisInfoBox(label = "Causa", value = result.cause, modifier = Modifier.weight(1f))
+        if (infoItems.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                infoItems.forEach { (label, value) ->
+                    DiagnosisInfoBox(label = label, value = value, modifier = Modifier.weight(1f))
+                }
+            }
         }
 
         // Diagnosis body

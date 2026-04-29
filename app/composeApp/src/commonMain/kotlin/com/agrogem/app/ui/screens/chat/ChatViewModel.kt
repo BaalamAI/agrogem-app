@@ -10,6 +10,7 @@ import com.agrogem.app.data.SpeechRecognizer
 import com.agrogem.app.data.chat.domain.ChatFailure
 import com.agrogem.app.data.chat.domain.ChatRepository
 import com.agrogem.app.data.chat.domain.ChatSendResult
+import com.agrogem.app.data.chat.domain.LocalChatRepository
 import com.agrogem.app.data.connectivity.ConnectivityMonitor
 import com.agrogem.app.data.geolocation.domain.GeolocationRepository
 import com.agrogem.app.data.risk.domain.DiseaseRisk
@@ -37,6 +38,7 @@ sealed class ChatEffect {
 
 class ChatViewModel(
     private val chatRepository: ChatRepository,
+    private val localChatRepository: LocalChatRepository? = null,
     private val analysisId: String? = null,
     private val diagnosis: DiagnosisResult? = null,
     private val gemmaManager: GemmaManager? = null,
@@ -51,6 +53,8 @@ class ChatViewModel(
     private val speechRecognizer: SpeechRecognizer? = null,
     private val speechSynthesizer: SpeechSynthesizer? = null,
 ) : ViewModel() {
+
+    private var currentConversationId: String? = null
 
     private val gemmaPreparation = gemmaPreparationStateHolder
         ?: if (gemmaManager != null && gemmaModelDownloader != null) {
@@ -181,6 +185,11 @@ class ChatViewModel(
 
         val mode = currentState.mode
         viewModelScope.launch {
+            val localConversationId = resolveConversationId(mode)
+            if (localConversationId != null) {
+                localChatRepository?.saveMessage(localConversationId, optimisticMessage)
+                currentConversationId = localConversationId
+            }
             trySendGemmaOrFallback(mode, text, currentState.attachments)
         }
     }
@@ -202,6 +211,11 @@ class ChatViewModel(
         when (result) {
             is ChatSendResult.Success -> {
                 val assistantMessages = result.messages.filter { it.sender == MessageSender.Assistant }
+                currentConversationId?.let { conversationId ->
+                    assistantMessages.forEach { message ->
+                        localChatRepository?.saveMessage(conversationId, message)
+                    }
+                }
                 _uiState.value = _uiState.value.copy(
                     messages = _uiState.value.messages + assistantMessages,
                     isLoading = false,
@@ -291,6 +305,12 @@ class ChatViewModel(
                 }
             }
             updateAssistantMessage(assistantMessageId, accumulatedText, null, true)
+            val savedAssistant = _uiState.value.messages.firstOrNull { it.id == assistantMessageId }
+            if (savedAssistant != null) {
+                currentConversationId?.let { conversationId ->
+                    localChatRepository?.saveMessage(conversationId, savedAssistant)
+                }
+            }
             _uiState.value = _uiState.value.copy(isLoading = false)
         } catch (e: Exception) {
             val messagesWithoutPlaceholder = _uiState.value.messages.filter { it.id != assistantMessageId }
@@ -646,6 +666,7 @@ class ChatViewModel(
      * Used when opening a new free chat from the conversations list.
      */
     fun resetToBlank() {
+        currentConversationId = null
         _uiState.value = ChatUiState(mode = ChatMode.Blank)
     }
 
@@ -673,6 +694,21 @@ class ChatViewModel(
             mode = newMode,
             messages = newMessages,
         )
+
+        currentConversationId = localChatRepository
+            ?.getOrCreateAnalysisConversation(analysisId, diagnosis)
+            ?.id
+    }
+
+    private fun resolveConversationId(mode: ChatMode): String? {
+        val repo = localChatRepository ?: return null
+        currentConversationId?.let { return it }
+
+        val conversation = when (mode) {
+            is ChatMode.AnalysisSeeded -> repo.getOrCreateAnalysisConversation(mode.analysisId, mode.diagnosis)
+            ChatMode.Blank -> repo.createBlankConversation()
+        }
+        return conversation.id
     }
 }
 

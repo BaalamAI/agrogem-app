@@ -19,12 +19,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.composeapp.generated.resources.Res
 import app.composeapp.generated.resources.ic_action_search
 import com.agrogem.app.theme.AgroGemColors
@@ -32,15 +35,18 @@ import com.agrogem.app.theme.AgroGemIconSizes
 import com.agrogem.app.ui.components.AgroGemIcon
 import com.agrogem.app.ui.components.LeafThumb
 import com.agrogem.app.ui.components.SeverityBadge
-import com.agrogem.app.ui.preview.HistoryEntry
-import com.agrogem.app.ui.preview.historyToday
-import com.agrogem.app.ui.preview.historyYesterday
 
 @Composable
 fun HistoryScreen(
-    onOpenEntry: () -> Unit,
+    viewModel: HistoryViewModel,
+    onOpenEntry: (PersistedHistoryEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) {
+        viewModel.refresh()
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -63,13 +69,11 @@ fun HistoryScreen(
             contentPadding = PaddingValues(bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            item { DateHeader("HOY, 24 OCTUBRE") }
-            items(historyToday) { entry ->
-                HistoryCard(entry = entry, onOpenEntry = onOpenEntry)
-            }
-            item { DateHeader("AYER, 23 OCTUBRE") }
-            items(historyYesterday) { entry ->
-                HistoryCard(entry = entry, onOpenEntry = onOpenEntry)
+            if (uiState.entries.isNotEmpty()) {
+                item { DateHeader("ANÁLISIS RECIENTES") }
+                items(uiState.entries, key = { it.analysisId }) { entry ->
+                    HistoryCard(entry = entry, onOpenEntry = onOpenEntry)
+                }
             }
         }
     }
@@ -116,19 +120,19 @@ private fun DateHeader(label: String) {
 
 @Composable
 private fun HistoryCard(
-    entry: HistoryEntry,
-    onOpenEntry: () -> Unit,
+    entry: PersistedHistoryEntry,
+    onOpenEntry: (PersistedHistoryEntry) -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(AgroGemColors.Surface, RoundedCornerShape(48.dp))
             .padding(16.dp)
-            .clickable(onClick = onOpenEntry),
+            .clickable(onClick = { onOpenEntry(entry) }),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LeafThumb(seed = entry.seed, rounded = 16.dp)
+        LeafThumb(seed = entry.analysisId.hashCode(), rounded = 16.dp)
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),

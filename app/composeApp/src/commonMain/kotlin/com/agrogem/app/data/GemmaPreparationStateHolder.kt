@@ -30,6 +30,8 @@ class GemmaPreparationStateHolder(
     private val _status = MutableStateFlow<GemmaPreparationStatus>(GemmaPreparationStatus.NotPrepared)
     val status: StateFlow<GemmaPreparationStatus> = _status.asStateFlow()
 
+    fun hasLocalModel(): Boolean = modelDownloader.isModelDownloaded()
+
     suspend fun ensureReady(): Boolean {
         if (_status.value is GemmaPreparationStatus.Ready) return true
 

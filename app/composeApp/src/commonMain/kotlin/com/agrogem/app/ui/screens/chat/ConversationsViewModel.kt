@@ -1,35 +1,27 @@
 package com.agrogem.app.ui.screens.chat
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import com.agrogem.app.data.chat.domain.LocalChatRepository
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 class ConversationsViewModel(
-    private val conversationStore: ConversationStore? = null,
+    private val localChatRepository: LocalChatRepository? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ConversationsUiState())
     val uiState: StateFlow<ConversationsUiState> = _uiState.asStateFlow()
 
     init {
-        val store = conversationStore
-        if (store != null) {
-            viewModelScope.launch {
-                store.conversations.collect { map ->
-                    val analysisConversations = map.values.sortedByDescending { it.timestamp }
-                    _uiState.update { current ->
-                        current.copy(
-                            analysisConversations = analysisConversations,
-                            isLoading = false,
-                        )
-                    }
-                }
-            }
+        val repository = localChatRepository
+        if (repository != null) {
+            _uiState.value = _uiState.value.copy(
+                analysisConversations = repository.listRecent(),
+                normalConversations = emptyList(),
+                isLoading = false,
+            )
         } else {
             _uiState.value = createMockState()
         }

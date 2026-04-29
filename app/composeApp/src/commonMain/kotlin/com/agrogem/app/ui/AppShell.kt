@@ -13,8 +13,10 @@ import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.agrogem.app.data.OnboardingStateStore
 import com.agrogem.app.data.GemmaPreparationStateHolder
+import com.agrogem.app.data.analysis.createAnalysisRepository
 import com.agrogem.app.data.auth.createAuthRepository
 import com.agrogem.app.data.chat.createChatRepository
+import com.agrogem.app.data.chat.createLocalChatRepository
 import com.agrogem.app.data.climate.createClimateRepository
 import com.agrogem.app.data.geolocation.createGeolocationRepository
 import com.agrogem.app.data.getGemmaManager
@@ -37,7 +39,6 @@ import com.agrogem.app.ui.components.BottomNavigationBar
 import com.agrogem.app.ui.screens.analysis.AnalysisFlowViewModel
 import com.agrogem.app.ui.screens.chat.ChatEffect
 import com.agrogem.app.ui.screens.chat.ChatViewModel
-import com.agrogem.app.ui.screens.chat.ConversationStore
 import com.agrogem.app.ui.screens.home.HomeViewModel
 import com.agrogem.app.ui.screens.map.MapRiskViewModel
 import com.agrogem.app.ui.viewmodel.kmpViewModel
@@ -121,10 +122,15 @@ fun AppShell(modifier: Modifier = Modifier) {
             connectivityMonitor = connectivityMonitor,
         )
     }
-    val analysisFlowVm = kmpViewModel { AnalysisFlowViewModel(plantAnalysisRepository = plantAnalysisRepository) }
+    val analysisRepository = remember { createAnalysisRepository() }
+    val analysisFlowVm = kmpViewModel {
+        AnalysisFlowViewModel(
+            plantAnalysisRepository = plantAnalysisRepository,
+            analysisRepository = analysisRepository,
+        )
+    }
 
-    // In-memory store for analysis-born conversations — lives while the app process is alive.
-    val conversationStore = remember { ConversationStore() }
+    val localChatRepository = remember { createLocalChatRepository() }
 
     // Shared ChatViewModel for the chat/voice flow — lives here so it survives navigation
     // and is shared across Chat, ChatConfirm, and VoiceReady routes (Phase 5 architecture fix).
@@ -137,6 +143,7 @@ fun AppShell(modifier: Modifier = Modifier) {
     val chatViewModel = kmpViewModel {
         ChatViewModel(
             chatRepository = chatRepository,
+            localChatRepository = localChatRepository,
             analysisId = null,
             diagnosis = null,
             gemmaManager = gemmaManager,
@@ -199,8 +206,9 @@ fun AppShell(modifier: Modifier = Modifier) {
         AppNavHost(
             navController = navController,
             analysisFlowVm = analysisFlowVm,
+            analysisRepository = analysisRepository,
             chatViewModel = chatViewModel,
-            conversationStore = conversationStore,
+            localChatRepository = localChatRepository,
             appSessionViewModel = appSessionViewModel,
             homeViewModel = homeViewModel,
             mapRiskViewModel = mapRiskViewModel,
