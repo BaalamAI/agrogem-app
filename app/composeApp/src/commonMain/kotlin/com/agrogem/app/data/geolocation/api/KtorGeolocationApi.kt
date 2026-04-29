@@ -29,7 +29,7 @@ class KtorGeolocationApi(private val client: HttpClient) : GeolocationApi {
         return try {
             val response = client.get("/geocode/reverse") {
                 parameter("lat", lat)
-                parameter("lng", lng)
+                parameter("lon", lng)
             }
             if (response.status.value in 200..299) {
                 response.body<ReverseGeocodeResponse>()
@@ -47,7 +47,7 @@ class KtorGeolocationApi(private val client: HttpClient) : GeolocationApi {
         return try {
             val response = client.get("/elevation") {
                 parameter("lat", lat)
-                parameter("lng", lng)
+                parameter("lon", lng)
             }
             if (response.status.value in 200..299) {
                 response.body<ElevationResponse>()

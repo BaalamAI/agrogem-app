@@ -12,15 +12,15 @@ data class SoilProfile(
 ) {
     val summary: SoilSummary
         get() = SoilSummary(
-            dominantTexture = dominantTexture,
-            topHorizonPh = domainHorizons.firstOrNull()?.ph ?: 0.0,
+            dominantTexture = dominantTexture.takeIf { it.isNotBlank() },
+            topHorizonPh = domainHorizons.firstOrNull()?.ph,
         )
 }
 
 @Immutable
 data class Horizon(
     val depth: String,
-    val ph: Double,
+    val ph: Double?,
     val textureClass: String,
     val socGPerKg: Double,
     val nitrogenGPerKg: Double = 0.0,
@@ -32,6 +32,6 @@ data class Horizon(
 
 @Immutable
 data class SoilSummary(
-    val dominantTexture: String,
-    val topHorizonPh: Double,
+    val dominantTexture: String?,
+    val topHorizonPh: Double?,
 )

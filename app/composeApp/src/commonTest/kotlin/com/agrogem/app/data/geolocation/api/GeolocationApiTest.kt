@@ -24,8 +24,8 @@ class GeolocationApiTest {
             assertEquals("Zacapa, Guatemala", request.url.parameters["q"])
             respond(
                 content = """[
-                    {"name":"Zacapa, Guatemala","lat":14.9726,"lng":-89.5301},
-                    {"name":"Zacapa Department, Guatemala","lat":15.0,"lng":-89.5}
+                    {"display_name":"Zacapa, Guatemala","lat":14.9726,"lon":-89.5301},
+                    {"display_name":"Zacapa Department, Guatemala","lat":15.0,"lon":-89.5}
                 ]""",
                 status = HttpStatusCode.OK,
                 headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
@@ -47,15 +47,15 @@ class GeolocationApiTest {
         val mockEngine = MockEngine { request ->
             assertTrue(request.url.encodedPath.endsWith("/geocode/reverse"))
             assertEquals("14.9726", request.url.parameters["lat"])
-            assertEquals("-89.5301", request.url.parameters["lng"])
+            assertEquals("-89.5301", request.url.parameters["lon"])
             respond(
                 content = """{
                     "display_name":"Zacapa, Guatemala",
                     "lat":14.9726,
-                    "lng":-89.5301,
+                    "lon":-89.5301,
                     "municipality":"Zacapa",
                     "state":"Zacapa Department",
-                    "country":"Guatemala"
+                    "country_code":"gt"
                 }""",
                 status = HttpStatusCode.OK,
                 headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
@@ -71,7 +71,7 @@ class GeolocationApiTest {
         assertEquals(-89.5301, result.lng)
         assertEquals("Zacapa", result.municipality)
         assertEquals("Zacapa Department", result.state)
-        assertEquals("Guatemala", result.country)
+        assertEquals("gt", result.country)
     }
 
     @Test
@@ -79,9 +79,9 @@ class GeolocationApiTest {
         val mockEngine = MockEngine { request ->
             assertTrue(request.url.encodedPath.endsWith("/elevation"))
             assertEquals("14.9726", request.url.parameters["lat"])
-            assertEquals("-89.5301", request.url.parameters["lng"])
+            assertEquals("-89.5301", request.url.parameters["lon"])
             respond(
-                content = """{"elevation_meters":230.5}""",
+                content = """{"elevation_m":230.5}""",
                 status = HttpStatusCode.OK,
                 headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
             )

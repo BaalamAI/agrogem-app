@@ -6,6 +6,10 @@ import com.agrogem.app.data.GemmaManager
 import com.agrogem.app.data.GemmaPreparationStatus
 import com.agrogem.app.data.getGemmaManager
 import com.agrogem.app.data.getGemmaModelDownloader
+import com.agrogem.app.data.geolocation.createGeolocationRepository
+import com.agrogem.app.data.geolocation.domain.GeolocationRepository
+import com.agrogem.app.data.location.DeviceLocationProvider
+import com.agrogem.app.data.location.createDeviceLocationProvider
 import com.agrogem.app.ui.screens.chat.ChatMessage
 import com.agrogem.app.ui.screens.chat.MessageSender
 
@@ -18,7 +22,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.withTimeout
 import kotlin.random.Random
+
+private const val LOCATION_RESOLUTION_TIMEOUT_MS = 10_000L
 
 private enum class OnboardingField {
     Name,
@@ -36,6 +43,8 @@ private enum class OnboardingField {
  */
 class OnboardingChatViewModel(
     private val assistant: OnboardingAssistant = GemmaOnboardingAssistant(),
+    private val geolocationRepository: GeolocationRepository = createGeolocationRepository(),
+    private val deviceLocationProvider: DeviceLocationProvider = createDeviceLocationProvider(),
 ) : ViewModel() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -79,13 +88,35 @@ class OnboardingChatViewModel(
         }
     }
 
-    fun continueOnboardingAfterLocationPermission() {
+    fun onLocationPermissionResult(granted: Boolean) {
         val currentState = _uiState.value
         if (currentState.onboardingChatStage == null) return
-        _uiState.value = currentState.copy(
-            onboardingChatStage = OnboardingChatStage.AlertsPreferences,
-            locationShared = true,
-        )
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            val latestState = _uiState.value
+            _uiState.value = latestState.copy(isResolvingLocation = granted)
+            val locationShared = if (!granted) {
+                false
+            } else {
+                runCatching {
+                    withTimeout(LOCATION_RESOLUTION_TIMEOUT_MS) {
+                        deviceLocationProvider.getCurrentLatLng()
+                    }
+                }.getOrNull()?.fold(
+                    onSuccess = { latLng -> geolocationRepository.reverseGeocode(latLng).isSuccess },
+                    onFailure = { false },
+                ) == true
+            }
+            val finalState = _uiState.value
+            _uiState.value = finalState.copy(
+                onboardingChatStage = OnboardingChatStage.AlertsPreferences,
+                locationShared = locationShared,
+                isResolvingLocation = false,
+            )
+        }
+    }
+
+    fun continueOnboardingAfterLocationPermission() {
+        onLocationPermissionResult(granted = true)
     }
 
     fun completeOnboarding(alertsEnabled: Boolean = true) {
@@ -280,6 +311,7 @@ data class OnboardingChatUiState(
     val locationEnabled: Boolean = false,
     val gemmaPreparationStatus: GemmaPreparationStatus = GemmaPreparationStatus.NotPrepared,
     val isLoading: Boolean = false,
+    val isResolvingLocation: Boolean = false,
 ) {
 
     /**

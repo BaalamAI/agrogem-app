@@ -7,6 +7,7 @@ import com.agrogem.app.data.soil.api.SoilResponse
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SoilRepositoryTest {
@@ -38,7 +39,7 @@ class SoilRepositoryTest {
     }
 
     @Test
-    fun `getSoil maps null fields to safe defaults`() = runTest {
+    fun `getSoil preserves missing summary values as null`() = runTest {
         val fakeApi = FakeSoilApi(
             response = SoilResponse(
                 lat = null,
@@ -60,11 +61,11 @@ class SoilRepositoryTest {
         assertEquals("", profile.dominantTexture)
         val horizon = profile.domainHorizons[0]
         assertEquals("", horizon.depth)
-        assertEquals(0.0, horizon.ph)
+        assertNull(horizon.ph)
         assertEquals("", horizon.textureClass)
         assertEquals(0.0, horizon.socGPerKg)
-        assertEquals("", profile.summary.dominantTexture)
-        assertEquals(0.0, profile.summary.topHorizonPh)
+        assertNull(profile.summary.dominantTexture)
+        assertNull(profile.summary.topHorizonPh)
     }
 
     @Test
@@ -84,8 +85,8 @@ class SoilRepositoryTest {
         assertTrue(result.isSuccess)
         val profile = result.getOrNull()!!
         assertEquals(0, profile.domainHorizons.size)
-        assertEquals("", profile.summary.dominantTexture)
-        assertEquals(0.0, profile.summary.topHorizonPh)
+        assertNull(profile.summary.dominantTexture)
+        assertNull(profile.summary.topHorizonPh)
     }
 
     @Test
@@ -105,8 +106,8 @@ class SoilRepositoryTest {
         assertTrue(result.isSuccess)
         val profile = result.getOrNull()!!
         assertEquals(0, profile.domainHorizons.size)
-        assertEquals("", profile.summary.dominantTexture)
-        assertEquals(0.0, profile.summary.topHorizonPh)
+        assertNull(profile.summary.dominantTexture)
+        assertNull(profile.summary.topHorizonPh)
     }
 
     @Test

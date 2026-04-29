@@ -1,10 +1,20 @@
 package com.agrogem.app.ui.screens.onboarding
 
 import com.agrogem.app.data.GemmaPreparationStatus
+import com.agrogem.app.data.geolocation.domain.GeolocationRepository
+import com.agrogem.app.data.geolocation.domain.LocationDisplay
+import com.agrogem.app.data.geolocation.domain.ResolvedLocation
+import com.agrogem.app.data.location.DeviceLocationProvider
+import com.agrogem.app.data.shared.domain.LatLng
 import com.agrogem.app.ui.screens.chat.MessageSender
 import com.agrogem.app.ui.screens.onboarding.OnboardingChatStage
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -12,12 +22,20 @@ import kotlin.test.assertTrue
 class OnboardingChatViewModelTest {
 
     private fun readyViewModel(): OnboardingChatViewModel =
-        OnboardingChatViewModel(assistant = FakeOnboardingAssistant(GemmaPreparationStatus.Ready))
+        OnboardingChatViewModel(
+            assistant = FakeOnboardingAssistant(GemmaPreparationStatus.Ready),
+            geolocationRepository = FakeGeolocationRepository(),
+            deviceLocationProvider = FakeDeviceLocationProvider(Result.failure(Exception("unused"))),
+        )
 
     @Test
     fun `startOnboardingChat exposes preparing status when assistant is preparing`() {
         val assistant = FakeOnboardingAssistant(GemmaPreparationStatus.Preparing)
-        val viewModel = OnboardingChatViewModel(assistant = assistant)
+        val viewModel = OnboardingChatViewModel(
+            assistant = assistant,
+            geolocationRepository = FakeGeolocationRepository(),
+            deviceLocationProvider = FakeDeviceLocationProvider(Result.failure(Exception("unused"))),
+        )
 
         viewModel.startOnboardingChat()
 
@@ -28,7 +46,11 @@ class OnboardingChatViewModelTest {
     @Test
     fun `ui state reflects unavailable status for fallback mode messaging`() {
         val assistant = FakeOnboardingAssistant(GemmaPreparationStatus.Unavailable("model missing"))
-        val viewModel = OnboardingChatViewModel(assistant = assistant)
+        val viewModel = OnboardingChatViewModel(
+            assistant = assistant,
+            geolocationRepository = FakeGeolocationRepository(),
+            deviceLocationProvider = FakeDeviceLocationProvider(Result.failure(Exception("unused"))),
+        )
 
         viewModel.startOnboardingChat()
 
@@ -199,19 +221,53 @@ class OnboardingChatViewModelTest {
         assertEquals("", viewModel.uiState.value.inputText)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `location permission flow continues to AlertsPreferences`() {
-        val viewModel = readyViewModel()
+    fun `location permission flow continues to AlertsPreferences`() = runTest(StandardTestDispatcher()) {
+        val geolocationRepository = FakeGeolocationRepository()
+        val viewModel = OnboardingChatViewModel(
+            assistant = FakeOnboardingAssistant(GemmaPreparationStatus.Ready),
+            geolocationRepository = geolocationRepository,
+            deviceLocationProvider = FakeDeviceLocationProvider(Result.success(LatLng(14.0, -90.0))),
+        )
         viewModel.startOnboardingChat()
         viewModel.sendOnboardingMessage("Me llamo Juan")
         viewModel.sendOnboardingMessage("Tengo tomate")
         viewModel.sendOnboardingMessage("100m2")
         viewModel.sendOnboardingMessage("Está en crecimiento")
 
-        viewModel.continueOnboardingAfterLocationPermission()
+        viewModel.onLocationPermissionResult(granted = true)
+        advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertEquals(OnboardingChatStage.AlertsPreferences, state.onboardingChatStage)
+        assertEquals(1, geolocationRepository.reverseGeocodeCalls)
+        assertEquals(LatLng(14.0, -90.0), geolocationRepository.lastLatLng)
+        assertEquals(true, state.locationShared)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `location permission denied skips geolocation and continues`() = runTest(StandardTestDispatcher()) {
+        val geolocationRepository = FakeGeolocationRepository()
+        val viewModel = OnboardingChatViewModel(
+            assistant = FakeOnboardingAssistant(GemmaPreparationStatus.Ready),
+            geolocationRepository = geolocationRepository,
+            deviceLocationProvider = FakeDeviceLocationProvider(Result.success(LatLng(14.0, -90.0))),
+        )
+        viewModel.startOnboardingChat()
+        viewModel.sendOnboardingMessage("Me llamo Juan")
+        viewModel.sendOnboardingMessage("Tengo tomate")
+        viewModel.sendOnboardingMessage("100m2")
+        viewModel.sendOnboardingMessage("Está en crecimiento")
+
+        viewModel.onLocationPermissionResult(granted = false)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(OnboardingChatStage.AlertsPreferences, state.onboardingChatStage)
+        assertEquals(false, state.locationShared)
+        assertEquals(0, geolocationRepository.reverseGeocodeCalls)
     }
 
     @Test
@@ -372,15 +428,21 @@ class OnboardingChatViewModelTest {
         assertEquals(OnboardingChatStage.AwaitingLocationPermission, state.onboardingChatStage)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `location and alerts are captured explicitly in final state`() {
-        val viewModel = readyViewModel()
+    fun `location and alerts are captured explicitly in final state`() = runTest(StandardTestDispatcher()) {
+        val viewModel = OnboardingChatViewModel(
+            assistant = FakeOnboardingAssistant(GemmaPreparationStatus.Ready),
+            geolocationRepository = FakeGeolocationRepository(),
+            deviceLocationProvider = FakeDeviceLocationProvider(Result.success(LatLng(14.0, -90.0))),
+        )
         viewModel.startOnboardingChat()
         viewModel.sendOnboardingMessage("Juan")
         viewModel.sendOnboardingMessage("Tomate")
         viewModel.sendOnboardingMessage("3 hectareas")
         viewModel.sendOnboardingMessage("Floracion")
         viewModel.continueOnboardingAfterLocationPermission()
+        advanceUntilIdle()
         viewModel.completeOnboarding(alertsEnabled = false)
 
         val state = viewModel.uiState.value
@@ -389,6 +451,33 @@ class OnboardingChatViewModelTest {
         assertEquals(false, state.alertsEnabled)
         assertEquals(OnboardingChatStage.Final, state.onboardingChatStage)
     }
+}
+
+private class FakeDeviceLocationProvider(
+    private val result: Result<LatLng>,
+) : DeviceLocationProvider {
+    override suspend fun getCurrentLatLng(): Result<LatLng> = result
+}
+
+private class FakeGeolocationRepository : GeolocationRepository {
+    var reverseGeocodeCalls: Int = 0
+    var lastLatLng: LatLng? = null
+
+    override suspend fun reverseGeocode(latLng: LatLng): Result<ResolvedLocation> {
+        reverseGeocodeCalls += 1
+        lastLatLng = latLng
+        return Result.success(
+            ResolvedLocation(
+                coordinates = latLng,
+                display = LocationDisplay(primary = "Test", municipality = null, state = null, country = null),
+                elevationMeters = null,
+            ),
+        )
+    }
+
+    override suspend fun saveResolvedLocation(location: ResolvedLocation) = Unit
+
+    override fun observeResolvedLocation() = flowOf<ResolvedLocation?>(null)
 }
 
 private class FakeOnboardingAssistant(
