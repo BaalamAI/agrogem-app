@@ -5,8 +5,9 @@ skills-lock.json
 .claude/
 .cline/
 
-# --- Archivos de Configuración ---
+# --- IDEs ---
 .vscode/
+.zed/
 
 # --- Archivos de Sistema (macOS) ---
 .DS_Store
