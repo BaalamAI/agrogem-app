@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -45,7 +46,6 @@ import com.agrogem.app.ui.components.DraggableSlice
 import com.agrogem.app.ui.components.FilledPrimaryButton
 import com.agrogem.app.ui.components.OutlinedPrimaryButton
 import com.agrogem.app.ui.components.PlantBackdrop
-import com.agrogem.app.ui.components.PrimaryActionHint
 
 /**
  * Unified plant analysis screen.
@@ -68,7 +68,6 @@ fun PlantAnalysisScreen(
     val phase by viewModel.phase.collectAsStateWithLifecycle()
     val steps by viewModel.steps.collectAsStateWithLifecycle()
     val currentAnalysisId by viewModel.analysisId.collectAsStateWithLifecycle()
-    val isAnalyzing = phase is AnalysisPhase.Analyzing
 
     Box(
         modifier = modifier
@@ -81,16 +80,6 @@ fun PlantAnalysisScreen(
             modifier = Modifier.fillMaxSize(),
             alpha = 0.96f,
         )
-
-        // "ANALIZANDO..." label — only during analysis phase
-        if (isAnalyzing) {
-            PrimaryActionHint(
-                text = "ANALIZANDO CULTIVO CON IA...",
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 375.dp),
-            )
-        }
 
         // ─── Bottom sheet ────────────────────────────────────────────────────
         // Keep the sheet surface attached to the draggable content to avoid
@@ -145,7 +134,66 @@ private fun AnalyzingContent(
     steps: List<AnalysisStepUi>,
     onCancel: () -> Unit,
 ) {
+    val doneCount = steps.count { it.done }
+    val totalSteps = steps.size.coerceAtLeast(1)
+    val currentStepIndex = steps.indexOfFirst { !it.done }.let { if (it == -1) steps.lastIndex else it }
+    val progressLabel = when {
+        doneCount == 0 -> "Planta en revisión"
+        doneCount < totalSteps -> "Planta en diagnóstico"
+        else -> "Diagnóstico completado"
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(AgroGemColors.SurfaceMuted, RoundedCornerShape(28.dp))
+                .border(1.dp, AgroGemColors.DividerThin, RoundedCornerShape(28.dp))
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .background(AgroGemColors.AnalysisStepPending, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (doneCount == totalSteps) "🌿" else "🌱",
+                    fontSize = 16.sp,
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(
+                    text = progressLabel,
+                    color = AgroGemColors.TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    repeat(totalSteps) { index ->
+                        val isReached = index < doneCount
+                        Box(
+                            modifier = Modifier
+                                .width(28.dp)
+                                .height(4.dp)
+                                .background(
+                                    if (isReached) AgroGemColors.Primary else AgroGemColors.DividerThin,
+                                    RoundedCornerShape(999.dp),
+                                ),
+                        )
+                    }
+                }
+            }
+            Text(
+                text = "$doneCount/$totalSteps",
+                color = AgroGemColors.TextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -155,9 +203,18 @@ private fun AnalyzingContent(
         ) {
             steps.forEachIndexed { index, step ->
                 val alphas = listOf(1f, 0.65f, 0.42f)
-                val alpha = if (step.done) 1f else alphas.getOrElse(index) { 0.32f }
-                val iconBg = if (step.done) AgroGemColors.AnalysisStepDone else AgroGemColors.AnalysisStepPending
-                val titleColor = if (step.done) AgroGemColors.Primary else AgroGemColors.TextPrimary
+                val isCurrent = index == currentStepIndex && !step.done
+                val alpha = when {
+                    step.done -> 1f
+                    isCurrent -> 0.92f
+                    else -> alphas.getOrElse(index) { 0.32f }
+                }
+                val iconBg = when {
+                    step.done -> AgroGemColors.AnalysisStepDone
+                    isCurrent -> AgroGemColors.Primary
+                    else -> AgroGemColors.AnalysisStepPending
+                }
+                val titleColor = if (step.done || isCurrent) AgroGemColors.Primary else AgroGemColors.TextPrimary
 
                 AnalysisStepRow(
                     iconBackground = iconBg,
@@ -165,6 +222,11 @@ private fun AnalyzingContent(
                     subtitle = step.subtitle,
                     titleColor = titleColor,
                     alpha = alpha,
+                    indicator = when {
+                        step.done -> "✓"
+                        isCurrent -> "●"
+                        else -> "◌"
+                    },
                 )
             }
         }
@@ -214,6 +276,7 @@ private fun AnalysisStepRow(
     subtitle: String,
     titleColor: Color = AgroGemColors.TextPrimary,
     alpha: Float,
+    indicator: String,
 ) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -227,7 +290,7 @@ private fun AnalysisStepRow(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = if (iconBackground == AgroGemColors.AnalysisStepDone) "✓" else "◌",
+                text = indicator,
                 color = Color.White,
                 fontSize = 13.sp,
             )
