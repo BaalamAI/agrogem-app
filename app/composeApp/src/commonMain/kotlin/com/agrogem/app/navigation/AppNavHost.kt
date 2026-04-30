@@ -114,7 +114,11 @@ fun AppNavHost(
         }
 
         composable(AgroGemRoute.OnboardingChat.route) {
-            val onboardingChatViewModel = kmpViewModel { OnboardingChatViewModel() }
+            val onboardingChatViewModel = kmpViewModel {
+                OnboardingChatViewModel(
+                    geolocationRepository = geolocationRepository,
+                )
+            }
             OnboardingChatScreen(
                 viewModel = onboardingChatViewModel,
                 appSessionViewModel = appSessionViewModel,
