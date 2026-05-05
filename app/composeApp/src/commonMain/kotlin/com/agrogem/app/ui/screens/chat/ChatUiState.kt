@@ -3,6 +3,8 @@ package com.agrogem.app.ui.screens.chat
 import androidx.compose.runtime.Immutable
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
 
+enum class ContextWarningLevel { None, Mild, Strong, Critical }
+
 /**
  * Root UI state for the chat screen.
  * Exposes all observable chat state as a single immutable snapshot.
@@ -19,6 +21,7 @@ data class ChatUiState(
     val error: String? = null,
     val useThinking: Boolean = false,
     val speakingMessageId: String? = null,
+    val contextWarning: ContextWarningLevel = ContextWarningLevel.None,
 )
 
 /**
@@ -33,6 +36,7 @@ data class ChatMessage(
     val attachments: List<ChatAttachment> = emptyList(),
     val timestamp: Long,
     val isStreaming: Boolean = false,
+    val toolsUsed: List<String> = emptyList(),
 )
 
 /**

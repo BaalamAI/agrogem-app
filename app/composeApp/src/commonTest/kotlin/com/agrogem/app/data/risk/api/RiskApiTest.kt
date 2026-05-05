@@ -10,6 +10,8 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -45,7 +47,7 @@ class RiskApiTest {
         assertEquals("coffee_rust", result.disease)
         assertEquals(0.82, result.riskScore)
         assertEquals("high", result.riskLevel)
-        assertEquals(listOf("humedad", "temperatura"), result.factors)
+        assertEquals(listOf("humedad", "temperatura"), result.factors?.jsonArray?.map { it.jsonPrimitive.content })
         assertEquals("Riesgo alto de roya del café", result.interpretation)
     }
 
@@ -132,7 +134,7 @@ class RiskApiTest {
         assertEquals(0.75, result.riskScore)
         assertEquals("moderate", result.riskLevel)
         assertNull(result.virusCoalert)
-        assertEquals(listOf("sequía"), result.factors)
+        assertEquals(listOf("sequía"), result.factors?.jsonArray?.map { it.jsonPrimitive.content })
     }
 
     @Test

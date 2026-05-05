@@ -25,6 +25,7 @@ data class CurrentWeather(
     val uvIndex: String,
     val description: String,
     val dateLabel: String,
+    val interpretation: String? = null,
 )
 
 @Serializable
@@ -96,6 +97,7 @@ internal fun mapWeatherDto(dto: WeatherResponse): CurrentWeather {
             if (interpretation.length > 42) interpretation.take(42) + "…" else interpretation.ifBlank { "--" }
         },
         dateLabel = current?.time ?: "--",
+        interpretation = interpretation.ifBlank { null },
     )
 }
 

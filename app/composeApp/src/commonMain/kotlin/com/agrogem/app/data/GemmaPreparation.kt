@@ -18,7 +18,7 @@ sealed interface GemmaPreparationStatus {
     data class Unavailable(val reason: String? = null) : GemmaPreparationStatus
 }
 
-class GemmaPreparationStateHolder(
+class GemmaPreparation(
     private val gemmaManager: GemmaManager,
     private val modelDownloader: GemmaModelDownloader,
     private val defaultModelUrl: String = DEFAULT_GEMMA_MODEL_URL,
@@ -67,7 +67,7 @@ class GemmaPreparationStateHolder(
                 true
             }.getOrDefault(false)
 
-            val ready = initialized && runCatching { gemmaManager.isInitialized.valueOrFalse() }.getOrDefault(false)
+            val ready = initialized && runCatching { gemmaManager.isInitialized.firstOrFalse() }.getOrDefault(false)
             _status.value = if (ready) GemmaPreparationStatus.Ready else GemmaPreparationStatus.Unavailable("Gemma init failed")
             ready
         }
@@ -83,5 +83,5 @@ class GemmaPreparationStateHolder(
     }
 }
 
-private suspend fun kotlinx.coroutines.flow.Flow<Boolean>.valueOrFalse(): Boolean =
+private suspend fun kotlinx.coroutines.flow.Flow<Boolean>.firstOrFalse(): Boolean =
     runCatching { first() }.getOrDefault(false)

@@ -10,16 +10,16 @@ actual @Composable
 fun rememberAudioRecorder(
     onAmplitudeUpdate: (Float) -> Unit,
 ): AudioRecorder = object : AudioRecorder {
-    override fun startRecording() {
+    override fun start() {
         // Stub: iOS audio recording not implemented yet
     }
 
-    override fun stopRecording(): String? {
+    override fun stop(): String? {
         // Stub: returns null for MVP
         return null
     }
 
-    override fun cancelRecording() {
+    override fun cancel() {
         // Stub: iOS audio recording not implemented yet
     }
 }

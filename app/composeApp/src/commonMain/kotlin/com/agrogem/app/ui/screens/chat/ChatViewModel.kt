@@ -2,7 +2,11 @@ package com.agrogem.app.ui.screens.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.agrogem.app.data.GemmaPreparationStateHolder
+import com.agrogem.app.agent.ToolIntentSupervisor
+import com.agrogem.app.agent.createAgroGemToolBundle
+import com.agrogem.app.agent.toolCallTracker
+import com.agrogem.app.data.GemmaChatSession
+import com.agrogem.app.data.GemmaPreparation
 import com.agrogem.app.data.GemmaManager
 import com.agrogem.app.data.GemmaModelDownloader
 import com.agrogem.app.data.SpeechSynthesizer
@@ -20,8 +24,11 @@ import com.agrogem.app.data.soil.domain.SoilRepository
 import com.agrogem.app.data.weather.domain.WeatherRepository
 import com.agrogem.app.data.session.SessionLocalStore
 import com.agrogem.app.data.session.SessionSnapshot
+import com.agrogem.app.util.platformLog
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,7 +50,7 @@ class ChatViewModel(
     private val diagnosis: DiagnosisResult? = null,
     private val gemmaManager: GemmaManager? = null,
     private val gemmaModelDownloader: GemmaModelDownloader? = null,
-    private val gemmaPreparationStateHolder: GemmaPreparationStateHolder? = null,
+    gemmaPreparation: GemmaPreparation? = null,
     private val geolocationRepository: GeolocationRepository? = null,
     private val riskRepository: RiskRepository? = null,
     private val weatherRepository: WeatherRepository? = null,
@@ -55,10 +62,11 @@ class ChatViewModel(
 ) : ViewModel() {
 
     private var currentConversationId: String? = null
+    private var chatSession: GemmaChatSession? = null
 
-    private val gemmaPreparation = gemmaPreparationStateHolder
+    private val gemmaPreparation: GemmaPreparation? = gemmaPreparation
         ?: if (gemmaManager != null && gemmaModelDownloader != null) {
-            GemmaPreparationStateHolder(gemmaManager = gemmaManager, modelDownloader = gemmaModelDownloader)
+            GemmaPreparation(gemmaManager = gemmaManager, modelDownloader = gemmaModelDownloader)
         } else {
             null
         }
@@ -148,11 +156,23 @@ class ChatViewModel(
             is ChatEvent.DismissError -> handleDismissError()
             is ChatEvent.ToggleThinking -> handleToggleThinking(event.enabled)
             is ChatEvent.PlayAssistantMessage -> handlePlayAssistantMessage(event.messageId)
+            is ChatEvent.NewSession -> handleNewSession()
+            is ChatEvent.RemoveAttachment -> handleRemoveAttachment(event.index)
         }
+    }
+
+    private fun handleNewSession() {
+        speechSynthesizer?.stop()
+        chatSession?.close()
+        chatSession = null
+        currentConversationId = null
+        _uiState.value = createInitialState()
     }
 
     override fun onCleared() {
         speechSynthesizer?.stop()
+        chatSession?.close()
+        chatSession = null
         super.onCleared()
     }
 
@@ -185,9 +205,17 @@ class ChatViewModel(
 
         val mode = currentState.mode
         viewModelScope.launch {
-            val localConversationId = resolveConversationId(mode)
+            val localConversationId = runCatching {
+                val id = resolveConversationId(mode)
+                if (id != null) {
+                    localChatRepository?.saveMessage(id, optimisticMessage)
+                }
+                id
+            }.getOrElse { error ->
+                platformLog("ChatViewModel", "Local chat persistence failed before send: ${error.message}")
+                null
+            }
             if (localConversationId != null) {
-                localChatRepository?.saveMessage(localConversationId, optimisticMessage)
                 currentConversationId = localConversationId
             }
             trySendGemmaOrFallback(mode, text, currentState.attachments)
@@ -216,9 +244,11 @@ class ChatViewModel(
                         localChatRepository?.saveMessage(conversationId, message)
                     }
                 }
+                val newMessages = _uiState.value.messages + assistantMessages
                 _uiState.value = _uiState.value.copy(
-                    messages = _uiState.value.messages + assistantMessages,
+                    messages = newMessages,
                     isLoading = false,
+                    contextWarning = computeContextWarning(newMessages),
                 )
             }
             is ChatSendResult.Failure -> {
@@ -258,6 +288,8 @@ class ChatViewModel(
             return
         }
 
+        toolCallTracker.reset()
+        platformLog("AgroGemTools", "ChatVM tracker reset, awaiting tools")
         val assistantMessageId = "assistant_${Random.nextLong()}"
         val assistantPlaceholder = ChatMessage(
             id = assistantMessageId,
@@ -272,47 +304,119 @@ class ChatViewModel(
             messages = _uiState.value.messages + assistantPlaceholder,
         )
 
-        val systemPrompt = when (mode) {
-            ChatMode.Blank -> {
-                val envContext = fetchGeneralEnvironmentContext()
-                val profileContext = fetchOnboardingProfileContext()
-                buildGeneralSystemPrompt(envContext, profileContext)
-            }
-            is ChatMode.AnalysisSeeded -> {
-                val pestRiskContext = fetchPestRiskContext(mode.diagnosis)
-                val diseaseRiskContext = fetchDiseaseRiskContext(mode.diagnosis)
-                buildAnalysisSystemPrompt(mode.diagnosis, pestRiskContext, diseaseRiskContext)
-            }
-        }
-
         try {
             val imageUris = attachments
                 .filterIsInstance<ChatAttachment.Image>()
                 .map { it.uri }
+            val expectedTools = ToolIntentSupervisor.expectedToolsFor(text)
 
-            var accumulatedText = ""
-            manager.sendMessageStream(
-                systemPrompt = systemPrompt,
-                userPrompt = text,
-                images = imageUris,
-                temperature = 0.4f,
-            ).collect { response ->
-                if (response.text.isNotEmpty()) {
-                    accumulatedText += response.text
-                    updateAssistantMessage(assistantMessageId, accumulatedText, response.thought, response.isDone)
-                } else if (response.isDone) {
-                    updateAssistantMessage(assistantMessageId, accumulatedText, null, true)
+            suspend fun startNewChatSession(): GemmaChatSession {
+                val systemPrompt = when (mode) {
+                    ChatMode.Blank -> {
+                        val envContext = fetchGeneralEnvironmentContext()
+                        val profileContext = fetchOnboardingProfileContext()
+                        buildGeneralSystemPrompt(envContext, profileContext)
+                    }
+                    is ChatMode.AnalysisSeeded -> {
+                        val pestRiskContext = fetchPestRiskContext(mode.diagnosis)
+                        val diseaseRiskContext = fetchDiseaseRiskContext(mode.diagnosis)
+                        buildAnalysisSystemPrompt(mode.diagnosis, pestRiskContext, diseaseRiskContext)
+                    }
                 }
+                return manager.startChatSession(
+                    systemPrompt = systemPrompt,
+                    temperature = 0.4f,
+                    toolBundle = createAgroGemToolBundle(),
+                ).also { chatSession = it }
             }
-            updateAssistantMessage(assistantMessageId, accumulatedText, null, true)
+
+            suspend fun sendGemmaAttempt(promptText: String) = coroutineScope {
+                var accumulatedText = ""
+                var latestThought: String? = null
+                var lastEmitMs = 0L
+                val throttleMs = 60L
+                val toolObserverJob = launch {
+                    platformLog("AgroGemTools", "ChatVM observer launched, about to subscribe")
+                    toolCallTracker.calledTools.collect { tools ->
+                        platformLog("AgroGemTools", "ChatVM observer received tools=$tools (size=${tools.size})")
+                        if (tools.isNotEmpty()) {
+                            updateAssistantMessage(
+                                id = assistantMessageId,
+                                text = accumulatedText,
+                                thought = latestThought,
+                                isDone = false,
+                                toolsUsed = tools.toList(),
+                            )
+                        }
+                    }
+                }
+                try {
+                    val session = chatSession ?: startNewChatSession()
+                    session.sendMessage(
+                        text = promptText,
+                        images = imageUris,
+                    ).collect { response ->
+                        if (response.text.isNotEmpty()) {
+                            accumulatedText += response.text
+                        }
+                        if (response.thought != null) {
+                            latestThought = response.thought
+                        }
+                        val nowMs = Clock.System.now().toEpochMilliseconds()
+                        val shouldEmit = response.isDone || (nowMs - lastEmitMs) >= throttleMs
+                        if (shouldEmit) {
+                            lastEmitMs = nowMs
+                            updateAssistantMessage(
+                                id = assistantMessageId,
+                                text = accumulatedText,
+                                thought = latestThought,
+                                isDone = response.isDone,
+                                toolsUsed = toolCallTracker.calledTools.value.toList(),
+                            )
+                        }
+                    }
+                } finally {
+                    toolObserverJob.cancelAndJoin()
+                }
+                updateAssistantMessage(
+                    id = assistantMessageId,
+                    text = accumulatedText,
+                    thought = latestThought,
+                    isDone = true,
+                    toolsUsed = toolCallTracker.calledTools.value.toList(),
+                )
+            }
+
+            sendGemmaAttempt(text)
+
+            if (ToolIntentSupervisor.shouldRetry(expectedTools, toolCallTracker.calledTools.value)) {
+                platformLog("AgroGemTools", "Supervisor retry, expected=$expectedTools called=${toolCallTracker.calledTools.value}")
+                chatSession?.close()
+                chatSession = null
+                toolCallTracker.reset()
+                updateAssistantMessage(
+                    id = assistantMessageId,
+                    text = "...",
+                    thought = null,
+                    isDone = false,
+                )
+                sendGemmaAttempt(ToolIntentSupervisor.buildRetryPrompt(text, expectedTools))
+            }
+
             val savedAssistant = _uiState.value.messages.firstOrNull { it.id == assistantMessageId }
             if (savedAssistant != null) {
                 currentConversationId?.let { conversationId ->
                     localChatRepository?.saveMessage(conversationId, savedAssistant)
                 }
             }
-            _uiState.value = _uiState.value.copy(isLoading = false)
-        } catch (e: Exception) {
+            val afterGemma = _uiState.value
+            _uiState.value = afterGemma.copy(
+                isLoading = false,
+                contextWarning = computeContextWarning(afterGemma.messages),
+            )
+        } catch (e: Throwable) {
+            chatSession?.close()
+            chatSession = null
             val messagesWithoutPlaceholder = _uiState.value.messages.filter { it.id != assistantMessageId }
             _uiState.value = _uiState.value.copy(messages = messagesWithoutPlaceholder)
             sendViaBackend(text, attachments, mode)
@@ -324,11 +428,31 @@ class ChatViewModel(
         onboardingProfileContext: String? = null,
     ): String {
         return buildString {
-            append("Eres un asistente agronómico experto. ")
-            append("Responde de forma clara, práctica y basada en evidencia sobre agricultura, ")
-            append("manejo de cultivos, plagas, enfermedades, suelo, clima y mejores prácticas agrícolas. ")
-            append("Si no tenés información suficiente, pedí más detalles al usuario. ")
+            append("Eres AgroGem, un asistente agronómico experto especializado en salud de cultivos. ")
+            append("Toda respuesta debe orientarse al campo, el cultivo y la toma de decisiones agrícolas. ")
+            append("Prioriza detección y explicación de enfermedades, hongos, bacterias, virus, insectos, ácaros, nematodos, plagas, deficiencias y estrés ambiental. ")
+            append("Responde con diagnóstico diferencial cuando aplique: síntomas observables, causa probable, factores que lo favorecen y acciones prácticas de manejo. ")
+            append("Si la pregunta no es agrícola, redirígela brevemente hacia un enfoque útil para agricultura o explica que está fuera del alcance del agente. ")
+            append("Si no tenés información suficiente, pedí los datos mínimos: cultivo, etapa, parte afectada, síntomas, avance, ubicación y foto si ayuda. ")
             append("Responde en español y mantén un tono profesional pero accesible.")
+            append("\n\nTenés acceso a herramientas que consultan datos reales del campo del usuario: ")
+            append("`get_current_weather` (clima actual), `get_soil_profile` (perfil de suelo), ")
+            append("`get_pest_risks` (riesgos de plagas), `request_user_location` (pedir GPS al usuario), ")
+            append("`resolve_location_by_name` (resolver un lugar por nombre). ")
+            append("Usá estas herramientas para enriquecer el contexto agronómico; no reemplazan la observación del cultivo ni autorizan a inventar datos. ")
+            append("Cuando el usuario pregunte por clima, suelo, plagas o condiciones que favorecen enfermedades, llamá la herramienta correspondiente en lugar de pedir más detalles. ")
+            append("Si una herramienta devuelve un error indicando que la ubicación no está disponible, ")
+            append("preferí llamar `request_user_location` primero (le pide GPS al usuario, es lo más preciso). ")
+            append("Si el usuario rechaza el permiso o el GPS falla, recién entonces pedile su municipio y país y llamá `resolve_location_by_name`. ")
+            append("Después de cualquiera de las dos, volvé a llamar la herramienta original.")
+            append("\n\nPolítica de errores de herramientas (CRÍTICO): ")
+            append("Cuando una herramienta devuelve un campo `error`, leé el mensaje y seguí la instrucción que contiene. ")
+            append("Si dice que verifiques ortografía, pedile al usuario que confirme cómo escribió el lugar y volvé a llamar la herramienta con la corrección. ")
+            append("Si dice que falta una ubicación, pedile municipio y país y llamá `resolve_location_by_name`. ")
+            append("Si dice que no hay datos para esa ubicación o que el servicio falló, comunicáselo al usuario con la razón concreta. ")
+            append("NUNCA inventes datos numéricos (temperaturas, humedad, pH, riesgos o plagas) que no vinieron de una herramienta. ")
+            append("NUNCA presentes un diagnóstico visual como certeza absoluta: separá lo observado, lo probable y lo que falta confirmar. ")
+            append("NUNCA te rindas en silencio: si una herramienta falla, siempre respondé al usuario explicando qué pasó y, cuando aplique, pediéndole los datos que necesitás para reintentar.")
             if (!environmentContext.isNullOrBlank()) {
                 append(environmentContext)
             }
@@ -394,9 +518,11 @@ class ChatViewModel(
         diseaseRiskContext: String? = null,
     ): String {
         return buildString {
-            append("Eres un asistente agronómico experto. ")
-            append("El usuario está consultando sobre un diagnóstico previo. ")
-            append("Responde de forma clara, práctica y contextualizada usando la siguiente información:\n\n")
+            append("Eres AgroGem, un asistente agronómico experto especializado en salud de cultivos. ")
+            append("El usuario está consultando sobre un diagnóstico previo de enfermedad, plaga o daño en cultivo. ")
+            append("Responde de forma clara, práctica y contextualizada. Explica qué significa el diagnóstico, por qué ocurre, qué señales debe revisar y qué acciones agrícolas puede tomar. ")
+            append("Separá diagnóstico probable, factores de riesgo y manejo recomendado; no afirmes certeza absoluta si la evidencia no alcanza. ")
+            append("Usa la siguiente información:\n\n")
             append("- Plaga/Enfermedad: ${diagnosis.pestName}\n")
             append("- Confianza del diagnóstico: ${(diagnosis.confidence * 100).toInt()}%\n")
             append("- Severidad: ${diagnosis.severity}\n")
@@ -524,16 +650,45 @@ class ChatViewModel(
     }
 
 
-    private fun updateAssistantMessage(id: String, text: String, thought: String?, isDone: Boolean) {
+    private fun computeContextWarning(messages: List<ChatMessage>): ContextWarningLevel {
+        val conversationChars = messages.sumOf { it.text.length + (it.thought?.length ?: 0) }
+        val estimatedTokens = conversationChars / CHARS_PER_TOKEN + SYSTEM_PROMPT_TOKEN_ESTIMATE
+        return when {
+            estimatedTokens >= CONTEXT_WINDOW_TOKENS * 0.90 -> ContextWarningLevel.Critical
+            estimatedTokens >= CONTEXT_WINDOW_TOKENS * 0.72 -> ContextWarningLevel.Strong
+            estimatedTokens >= CONTEXT_WINDOW_TOKENS * 0.50 -> ContextWarningLevel.Mild
+            else -> ContextWarningLevel.None
+        }
+    }
+
+    companion object {
+        private const val CONTEXT_WINDOW_TOKENS = 8192
+        private const val SYSTEM_PROMPT_TOKEN_ESTIMATE = 800
+        private const val CHARS_PER_TOKEN = 4
+    }
+
+    private fun updateAssistantMessage(
+        id: String,
+        text: String,
+        thought: String?,
+        isDone: Boolean,
+        toolsUsed: List<String> = emptyList(),
+    ) {
         val currentMessages = _uiState.value.messages.toMutableList()
         val index = currentMessages.indexOfFirst { it.id == id }
         if (index != -1) {
+            if (toolsUsed.isNotEmpty()) {
+                platformLog("AgroGemTools", "ChatVM updateMsg id=$id toolsUsed=$toolsUsed isDone=$isDone")
+            }
             currentMessages[index] = currentMessages[index].copy(
                 text = text,
                 thought = thought,
-                isStreaming = !isDone
+                isStreaming = !isDone,
+                toolsUsed = toolsUsed,
             )
             _uiState.value = _uiState.value.copy(messages = currentMessages)
+        } else {
+            platformLog("AgroGemTools", "ChatVM updateMsg MISS — id=$id not found")
         }
     }
 
@@ -575,7 +730,7 @@ class ChatViewModel(
     /** Transitions voiceState to Listening — orb animation starts. */
     private fun handleStartVoiceInput() {
         speechRecognizer?.cancel()
-        speechRecognizer?.startListening(
+        speechRecognizer?.start(
             onPartialResult = { text ->
                 _uiState.value = _uiState.value.copy(inputText = text)
             },
@@ -584,6 +739,14 @@ class ChatViewModel(
             },
             onError = { message ->
                 _uiState.value = _uiState.value.copy(voiceState = VoiceState.Error(message))
+            },
+            onAmplitudeUpdate = { amplitude ->
+                val current = _uiState.value.voiceState
+                if (current is VoiceState.Listening) {
+                    _uiState.value = _uiState.value.copy(
+                        voiceState = current.copy(amplitude = amplitude),
+                    )
+                }
             },
         )
         _uiState.value = _uiState.value.copy(
@@ -624,9 +787,18 @@ class ChatViewModel(
         )
     }
 
+    /** Removes a pending attachment by index. */
+    private fun handleRemoveAttachment(index: Int) {
+        val current = _uiState.value
+        if (index < 0 || index >= current.attachments.size) return
+        _uiState.value = current.copy(
+            attachments = current.attachments.filterIndexed { i, _ -> i != index },
+        )
+    }
+
     /** Stops recording, commits the user voice message, and sends through the real chat pipeline. */
     private fun handleStopVoiceInput() {
-        speechRecognizer?.stopListening()
+        speechRecognizer?.stop()
         val captured = _uiState.value
         val text = captured.inputText.trim()
 
@@ -737,4 +909,10 @@ sealed interface ChatEvent {
 
     /** Manual TTS playback for a specific assistant message. */
     data class PlayAssistantMessage(val messageId: String) : ChatEvent
+
+    /** Start a fresh chat session, discarding the current conversation. */
+    data object NewSession : ChatEvent
+
+    /** Remove a pending attachment by its index in the attachments list. */
+    data class RemoveAttachment(val index: Int) : ChatEvent
 }

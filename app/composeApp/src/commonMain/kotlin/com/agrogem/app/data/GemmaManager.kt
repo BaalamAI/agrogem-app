@@ -19,7 +19,8 @@ interface GemmaManager {
         userPrompt: String,
         images: List<String> = emptyList(),
         audioPath: String? = null,
-        temperature: Float = 0.4f
+        temperature: Float = 0.4f,
+        toolBundle: GemmaToolBundle? = null,
     ): String
 
     /**
@@ -30,7 +31,28 @@ interface GemmaManager {
         userPrompt: String,
         images: List<String> = emptyList(),
         audioPath: String? = null,
-        temperature: Float = 0.4f
+        temperature: Float = 0.4f,
+        toolBundle: GemmaToolBundle? = null,
+    ): Flow<GemmaResponse>
+
+    /**
+     * Starts a multi-turn chat session that preserves the model's KV-cache
+     * across turns, so the model remembers previous messages without having
+     * to resend the full history on every call.
+     */
+    fun startChatSession(
+        systemPrompt: String,
+        temperature: Float = 0.4f,
+        toolBundle: GemmaToolBundle? = null,
+    ): GemmaChatSession
+
+    fun close()
+}
+
+interface GemmaChatSession {
+    fun sendMessage(
+        text: String,
+        images: List<String> = emptyList(),
     ): Flow<GemmaResponse>
 
     fun close()
@@ -42,7 +64,14 @@ data class GemmaResponse(
     val isDone: Boolean = false
 )
 
-expect fun getGemmaManager(): GemmaManager
+expect interface GemmaToolSet
+
+data class GemmaToolBundle(
+    val tools: List<GemmaToolSet>,
+    val automaticToolCalling: Boolean = false,
+)
+
+expect fun createGemmaManager(): GemmaManager
 
 /**
  * Utility to manage model downloading and paths
@@ -53,4 +82,4 @@ interface GemmaModelDownloader {
     fun getModelPath(): String
 }
 
-expect fun getGemmaModelDownloader(): GemmaModelDownloader
+expect fun createGemmaModelDownloader(): GemmaModelDownloader

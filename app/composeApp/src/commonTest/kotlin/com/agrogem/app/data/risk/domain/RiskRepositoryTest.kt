@@ -6,6 +6,9 @@ import com.agrogem.app.data.risk.api.PestRiskResponse
 import com.agrogem.app.data.risk.api.RiskApi
 import com.agrogem.app.data.shared.domain.LatLng
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -21,21 +24,21 @@ class RiskRepositoryTest {
                     disease = "coffee_rust",
                     riskScore = 0.82,
                     riskLevel = "high",
-                    factors = listOf("humedad", "temperatura"),
+                    factors = jsonArrayOfStrings("humedad", "temperatura"),
                     interpretation = "Riesgo alto de roya del café",
                 ),
                 "late_blight" to DiseaseRiskResponse(
                     disease = "late_blight",
                     riskScore = 0.45,
                     riskLevel = "moderate",
-                    factors = listOf("lluvia"),
+                    factors = jsonArrayOfStrings("lluvia"),
                     interpretation = "Riesgo moderado de tizón tardío",
                 ),
                 "corn_rust" to DiseaseRiskResponse(
                     disease = "corn_rust",
                     riskScore = 0.12,
                     riskLevel = "low",
-                    factors = emptyList(),
+                    factors = jsonArrayOfStrings(),
                     interpretation = "Riesgo bajo de roya del maíz",
                 ),
             )
@@ -102,7 +105,7 @@ class RiskRepositoryTest {
                     disease = "coffee_rust",
                     riskScore = 0.5,
                     riskLevel = "unknown",
-                    factors = emptyList(),
+                    factors = jsonArrayOfStrings(),
                     interpretation = "Nivel desconocido",
                 ),
             )
@@ -124,7 +127,7 @@ class RiskRepositoryTest {
                     disease = "coffee_rust",
                     riskScore = 0.95,
                     riskLevel = "very_high",
-                    factors = listOf("humedad extrema"),
+                    factors = jsonArrayOfStrings("humedad extrema"),
                     interpretation = "Riesgo crítico de roya del café",
                 ),
             )
@@ -183,14 +186,14 @@ class RiskRepositoryTest {
                     pest = "spider_mite",
                     riskScore = 0.75,
                     riskLevel = "moderate",
-                    factors = listOf("baja humedad"),
+                    factors = ruleNotes("baja humedad"),
                     interpretation = "Riesgo moderado de ácaro arañero",
                 ),
                 "whitefly" to PestRiskResponse(
                     pest = "whitefly",
                     riskScore = 0.88,
                     riskLevel = "high",
-                    factors = listOf("temperatura alta"),
+                    factors = ruleNotes("temperatura alta"),
                     interpretation = "Riesgo alto de mosca blanca",
                 ),
             )
@@ -256,4 +259,10 @@ class RiskRepositoryTest {
             return pestResponses[pest] ?: PestRiskResponse()
         }
     }
+
+    private fun jsonArrayOfStrings(vararg values: String): JsonArray =
+        JsonArray(values.map { JsonPrimitive(it) })
+
+    private fun ruleNotes(vararg values: String): JsonObject =
+        JsonObject(mapOf("rule_notes" to jsonArrayOfStrings(*values)))
 }

@@ -58,6 +58,7 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
             implementation(libs.sqldelight.runtime)
+            implementation(libs.markdown.renderer.m3)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

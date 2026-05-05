@@ -9,13 +9,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
-class GemmaPreparationStateHolderTest {
+class GemmaPreparationTest {
 
     @Test
     fun `ensureReady downloads and initializes when needed`() = runTest {
         val manager = FakeGemmaManager()
         val downloader = FakeGemmaModelDownloader(downloaded = false)
-        val holder = GemmaPreparationStateHolder(manager, downloader)
+        val holder = GemmaPreparation(manager, downloader)
 
         val result = holder.ensureReady()
 
@@ -29,7 +29,7 @@ class GemmaPreparationStateHolderTest {
     fun `ensureReady becomes unavailable when downloader cannot provide model`() = runTest {
         val manager = FakeGemmaManager()
         val downloader = FakeGemmaModelDownloader(downloaded = false, downloadShouldFail = true)
-        val holder = GemmaPreparationStateHolder(manager, downloader)
+        val holder = GemmaPreparation(manager, downloader)
 
         val result = holder.ensureReady()
 
@@ -53,6 +53,7 @@ class GemmaPreparationStateHolderTest {
             images: List<String>,
             audioPath: String?,
             temperature: Float,
+            toolBundle: GemmaToolBundle?,
         ): String = ""
 
         override fun sendMessageStream(
@@ -61,7 +62,17 @@ class GemmaPreparationStateHolderTest {
             images: List<String>,
             audioPath: String?,
             temperature: Float,
+            toolBundle: GemmaToolBundle?,
         ): Flow<GemmaResponse> = flowOf()
+
+        override fun startChatSession(
+            systemPrompt: String,
+            temperature: Float,
+            toolBundle: GemmaToolBundle?,
+        ): GemmaChatSession = object : GemmaChatSession {
+            override fun sendMessage(text: String, images: List<String>): Flow<GemmaResponse> = flowOf()
+            override fun close() {}
+        }
 
         override fun close() {}
     }

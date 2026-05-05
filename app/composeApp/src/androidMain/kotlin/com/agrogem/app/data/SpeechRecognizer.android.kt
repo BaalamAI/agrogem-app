@@ -25,15 +25,18 @@ private class AndroidSpeechRecognizerImpl(context: Context) : SpeechRecognizer {
     private var onPartialResult: ((String) -> Unit)? = null
     private var onFinalResult: ((String) -> Unit)? = null
     private var onError: ((String) -> Unit)? = null
+    private var onAmplitudeUpdate: ((Float) -> Unit)? = null
 
-    override fun startListening(
+    override fun start(
         onPartialResult: (String) -> Unit,
         onFinalResult: (String) -> Unit,
         onError: (String) -> Unit,
+        onAmplitudeUpdate: (Float) -> Unit,
     ) {
         this.onPartialResult = onPartialResult
         this.onFinalResult = onFinalResult
         this.onError = onError
+        this.onAmplitudeUpdate = onAmplitudeUpdate
 
         val r = recognizer ?: run {
             onError("El reconocimiento de voz no está disponible en este dispositivo")
@@ -43,7 +46,10 @@ private class AndroidSpeechRecognizerImpl(context: Context) : SpeechRecognizer {
         r.setRecognitionListener(object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onRmsChanged(rmsdB: Float) {
+                val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
+                this@AndroidSpeechRecognizerImpl.onAmplitudeUpdate?.invoke(normalized)
+            }
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
 
@@ -92,7 +98,7 @@ private class AndroidSpeechRecognizerImpl(context: Context) : SpeechRecognizer {
         }
     }
 
-    override fun stopListening() {
+    override fun stop() {
         try {
             recognizer?.stopListening()
         } catch (_: Exception) {}

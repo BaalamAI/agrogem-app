@@ -1,11 +1,11 @@
 package com.agrogem.app.ui.screens.onboarding
 
 import androidx.lifecycle.ViewModel
-import com.agrogem.app.data.GemmaPreparationStateHolder
 import com.agrogem.app.data.GemmaManager
+import com.agrogem.app.data.GemmaPreparation
 import com.agrogem.app.data.GemmaPreparationStatus
-import com.agrogem.app.data.getGemmaManager
-import com.agrogem.app.data.getGemmaModelDownloader
+import com.agrogem.app.data.createGemmaManager
+import com.agrogem.app.data.createGemmaModelDownloader
 import com.agrogem.app.data.geolocation.createGeolocationRepository
 import com.agrogem.app.data.geolocation.domain.GeolocationRepository
 import com.agrogem.app.data.location.DeviceLocationProvider
@@ -344,13 +344,13 @@ interface OnboardingAssistant {
 }
 
 private class GemmaOnboardingAssistant(
-    private val gemmaProvider: () -> GemmaManager = { getGemmaManager() },
-    private val preparationProvider: () -> GemmaPreparationStateHolder = {
-        GemmaPreparationStateHolder(getGemmaManager(), getGemmaModelDownloader())
+    private val gemmaProvider: () -> GemmaManager = { createGemmaManager() },
+    private val preparationProvider: () -> GemmaPreparation = {
+        GemmaPreparation(createGemmaManager(), createGemmaModelDownloader())
     },
 ) : OnboardingAssistant {
 
-    private var preparationHolder: GemmaPreparationStateHolder? = null
+    private var preparationHolder: GemmaPreparation? = null
     private var gemmaManager: GemmaManager? = null
 
     override val preparationStatus: StateFlow<GemmaPreparationStatus>
@@ -382,7 +382,7 @@ private class GemmaOnboardingAssistant(
         return holder.ensureReady()
     }
 
-    private fun holder(): GemmaPreparationStateHolder =
+    private fun holder(): GemmaPreparation =
         preparationHolder ?: preparationProvider().also { preparationHolder = it }
 
     private fun buildPrompt(step: Int, userText: String, state: OnboardingChatUiState): String {
@@ -408,10 +408,11 @@ private class GemmaOnboardingAssistant(
 }
 
 private const val ONBOARDING_SYSTEM_PROMPT = """
-Sos AgroGemma, asistente agrícola cálida y concreta.
+Sos AgroGemma, asistente agrícola cálida y concreta, orientada a cultivos y sanidad vegetal.
 Mantené respuestas breves, en español rioplatense, y pedí una sola cosa por turno.
 No pidas teléfono, contraseña ni crear cuenta.
 Objetivo exclusivo: completar onboarding con nombre, cultivos, área, etapa y preparar permiso de ubicación.
+Usá esos datos para entender el contexto agrícola del productor y futuras alertas de enfermedades, hongos y plagas.
 """
 
 private data class OnboardingExtractedFields(

@@ -64,7 +64,7 @@ class AndroidGemmaModelDownloader(private val context: Context) : GemmaModelDown
 
 private var downloaderInstance: GemmaModelDownloader? = null
 
-actual fun getGemmaModelDownloader(): GemmaModelDownloader {
+actual fun createGemmaModelDownloader(): GemmaModelDownloader {
     if (downloaderInstance == null) {
         if (!AndroidAppContext.isInitialized) {
              throw IllegalStateException("AndroidAppContext not initialized")

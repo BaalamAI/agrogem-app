@@ -10,6 +10,11 @@ data class GeocodeHit(
     val lat: Double,
     @SerialName("lon")
     val lng: Double,
+    val municipality: String? = null,
+    val state: String? = null,
+    @SerialName("country_code")
+    val country: String? = null,
+    val interpretation: String? = null,
 )
 
 @Serializable

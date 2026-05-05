@@ -1,5 +1,6 @@
 package com.agrogem.app.ui.screens.map
 
+import com.agrogem.app.data.geolocation.domain.GeocodeResolved
 import com.agrogem.app.data.geolocation.domain.GeolocationRepository
 import com.agrogem.app.data.geolocation.domain.LocationDisplay
 import com.agrogem.app.data.geolocation.domain.ResolvedLocation
@@ -199,6 +200,9 @@ class MapRiskViewModelTest {
     private class FakeGeolocationRepository(
         private val resolved: ResolvedLocation?
     ) : GeolocationRepository {
+        override suspend fun geocode(query: String): Result<GeocodeResolved> =
+            Result.failure(UnsupportedOperationException())
+
         override suspend fun reverseGeocode(latLng: LatLng): Result<ResolvedLocation> =
             Result.failure(UnsupportedOperationException())
 

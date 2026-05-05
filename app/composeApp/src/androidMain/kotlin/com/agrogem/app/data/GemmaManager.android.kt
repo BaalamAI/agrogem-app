@@ -6,20 +6,25 @@ import com.agrogem.app.AndroidAppContext
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
+import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.SamplerConfig
 import com.google.ai.edge.litertlm.ExperimentalApi
+import com.google.ai.edge.litertlm.ToolSet
+import com.google.ai.edge.litertlm.tool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
-import kotlinx.coroutines.flow.flow
+
+actual typealias GemmaToolSet = ToolSet
 
 class AndroidGemmaManager(private val context: Context) : GemmaManager {
     private var engine: Engine? = null
@@ -83,7 +88,7 @@ class AndroidGemmaManager(private val context: Context) : GemmaManager {
                             initializationSuccessful = true
                             Log.i("GemmaManager", "¡ÉXITO! Gemma 4 inicializado correctamente con $name")
                             break 
-                        } catch (e: Exception) {
+                        } catch (e: Throwable) {
                             Log.w("GemmaManager", "Fallo al inicializar con $name: ${e.message}")
                         }
                     }
@@ -95,7 +100,7 @@ class AndroidGemmaManager(private val context: Context) : GemmaManager {
                     }
 
                     _isInitialized.value = true
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     Log.e("GemmaManager", "ERROR CRITICO inesperado", e)
                     _isInitialized.value = false
                 }
@@ -108,14 +113,16 @@ class AndroidGemmaManager(private val context: Context) : GemmaManager {
         userPrompt: String,
         images: List<String>,
         audioPath: String?,
-        temperature: Float
+        temperature: Float,
+        toolBundle: GemmaToolBundle?,
     ): String {
         val currentEngine = engine ?: throw IllegalStateException("Gemma not initialized")
         
         return withContext(Dispatchers.IO) {
-            val conversationConfig = ConversationConfig(
-                systemInstruction = Contents.of(Content.Text(systemPrompt)),
-                samplerConfig = SamplerConfig(temperature = temperature.toDouble(), topK = 64, topP = 0.95)
+            val conversationConfig = createConversationConfig(
+                systemPrompt = systemPrompt,
+                temperature = temperature,
+                toolBundle = toolBundle,
             )
             
             currentEngine.createConversation(conversationConfig).use { conversation ->
@@ -138,18 +145,20 @@ class AndroidGemmaManager(private val context: Context) : GemmaManager {
         userPrompt: String,
         images: List<String>,
         audioPath: String?,
-        temperature: Float
+        temperature: Float,
+        toolBundle: GemmaToolBundle?,
     ): Flow<GemmaResponse> {
         val currentEngine = engine ?: throw IllegalStateException("Gemma not initialized")
         
-        val conversationConfig = ConversationConfig(
-            systemInstruction = Contents.of(Content.Text(systemPrompt)),
-            samplerConfig = SamplerConfig(temperature = temperature.toDouble(), topK = 64, topP = 0.95)
+        val conversationConfig = createConversationConfig(
+            systemPrompt = systemPrompt,
+            temperature = temperature,
+            toolBundle = toolBundle,
         )
-        
+
         val conversation = currentEngine.createConversation(conversationConfig)
-        
-        return flow {
+
+        return channelFlow {
             val contentList = mutableListOf<Content>()
             images.forEach { uri ->
                 val localPath = getLocalPath(uri)
@@ -159,7 +168,7 @@ class AndroidGemmaManager(private val context: Context) : GemmaManager {
 
             conversation.sendMessageAsync(Contents.of(*contentList.toTypedArray()))
                 .collect { message ->
-                    emit(
+                    send(
                         GemmaResponse(
                             text = message.toString(),
                             thought = null,
@@ -167,9 +176,62 @@ class AndroidGemmaManager(private val context: Context) : GemmaManager {
                         )
                     )
                 }
-            emit(GemmaResponse(text = "", thought = null, isDone = true))
+            send(GemmaResponse(text = "", thought = null, isDone = true))
         }.onCompletion {
             conversation.close()
+        }
+    }
+
+    override fun startChatSession(
+        systemPrompt: String,
+        temperature: Float,
+        toolBundle: GemmaToolBundle?,
+    ): GemmaChatSession {
+        val currentEngine = engine ?: throw IllegalStateException("Gemma not initialized")
+        val config = createConversationConfig(systemPrompt, temperature, toolBundle)
+        val conversation = currentEngine.createConversation(config)
+        return AndroidGemmaChatSession(conversation, ::getLocalPath)
+    }
+
+    private class AndroidGemmaChatSession(
+        private val conversation: Conversation,
+        private val resolveLocalPath: (String) -> String,
+    ) : GemmaChatSession {
+        override fun sendMessage(text: String, images: List<String>): Flow<GemmaResponse> = channelFlow {
+            val contentList = mutableListOf<Content>()
+            images.forEach { uri -> contentList.add(Content.ImageFile(resolveLocalPath(uri))) }
+            contentList.add(Content.Text(text))
+
+            conversation.sendMessageAsync(Contents.of(*contentList.toTypedArray()))
+                .collect { msg ->
+                    send(GemmaResponse(text = msg.toString(), thought = null, isDone = false))
+                }
+            send(GemmaResponse(text = "", thought = null, isDone = true))
+        }
+
+        override fun close() {
+            conversation.close()
+        }
+    }
+
+    private fun createConversationConfig(
+        systemPrompt: String,
+        temperature: Float,
+        toolBundle: GemmaToolBundle?,
+    ): ConversationConfig {
+        val samplerConfig = SamplerConfig(temperature = temperature.toDouble(), topK = 64, topP = 0.95)
+        return if (toolBundle == null) {
+            ConversationConfig(
+                systemInstruction = Contents.of(Content.Text(systemPrompt)),
+                samplerConfig = samplerConfig,
+            )
+        } else {
+            ConversationConfig(
+                systemInstruction = Contents.of(Content.Text(systemPrompt)),
+                samplerConfig = samplerConfig,
+                tools = toolBundle.tools.map { tool(it) },
+                automaticToolCalling = toolBundle.automaticToolCalling,
+            )
         }
     }
 
@@ -203,7 +265,7 @@ class AndroidGemmaManager(private val context: Context) : GemmaManager {
 // Singleton instance management
 private var instance: GemmaManager? = null
 
-actual fun getGemmaManager(): GemmaManager {
+actual fun createGemmaManager(): GemmaManager {
     if (instance == null) {
         if (!AndroidAppContext.isInitialized) {
              throw IllegalStateException("AndroidAppContext not initialized")
