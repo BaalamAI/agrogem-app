@@ -10,7 +10,7 @@ WEATHER_TTL_SECONDS = 15 * 60
 
 
 def _weather_key(lat: float, lon: float) -> str:
-    return f"{WEATHER_KEY_PREFIX}{lat:.4f}:{lon:.4f}"
+    return f"{WEATHER_KEY_PREFIX}{lat:.2f}:{lon:.2f}"
 
 
 class RedisWeatherCache:

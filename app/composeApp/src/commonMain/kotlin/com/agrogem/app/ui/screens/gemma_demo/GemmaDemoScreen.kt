@@ -30,6 +30,7 @@ fun GemmaDemoScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val preparationStatus by viewModel.preparationStatus.collectAsState()
+    val preparationProgress by viewModel.preparationProgress.collectAsState()
 
     BindLocationGate()
 
@@ -47,6 +48,7 @@ fun GemmaDemoScreen(
                 GemmaPreparationStatusScreen(
                     productName = "Gemma 4",
                     status = preparationStatus,
+                    progress = preparationProgress,
                     modifier = Modifier.padding(horizontal = 24.dp),
                 )
             }
@@ -56,7 +58,6 @@ fun GemmaDemoScreen(
                     uiState = uiState,
                     onEvent = { viewModel.onEvent(it) },
                     onBack = onBack,
-                    onRequestClose = onBack,
                     onMicClick = { micPermissionRequester.request() },
                     onLaunchCamera = onLaunchCamera,
                     onLaunchGallery = onLaunchGallery,

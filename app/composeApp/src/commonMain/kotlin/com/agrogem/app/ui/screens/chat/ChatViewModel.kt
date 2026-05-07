@@ -9,6 +9,7 @@ import com.agrogem.app.data.GemmaChatSession
 import com.agrogem.app.data.GemmaPreparation
 import com.agrogem.app.data.GemmaManager
 import com.agrogem.app.data.GemmaModelDownloader
+import com.agrogem.app.data.AudioRecorder
 import com.agrogem.app.data.SpeechSynthesizer
 import com.agrogem.app.data.SpeechRecognizer
 import com.agrogem.app.data.chat.domain.ChatFailure
@@ -16,12 +17,11 @@ import com.agrogem.app.data.chat.domain.ChatRepository
 import com.agrogem.app.data.chat.domain.ChatSendResult
 import com.agrogem.app.data.chat.domain.LocalChatRepository
 import com.agrogem.app.data.connectivity.ConnectivityMonitor
+import com.agrogem.app.data.environment.domain.EnvironmentRepository
 import com.agrogem.app.data.geolocation.domain.GeolocationRepository
 import com.agrogem.app.data.risk.domain.DiseaseRisk
 import com.agrogem.app.data.risk.domain.RiskRepository
 import com.agrogem.app.data.risk.domain.RiskSeverity
-import com.agrogem.app.data.soil.domain.SoilRepository
-import com.agrogem.app.data.weather.domain.WeatherRepository
 import com.agrogem.app.data.session.SessionLocalStore
 import com.agrogem.app.data.session.SessionSnapshot
 import com.agrogem.app.util.platformLog
@@ -53,16 +53,18 @@ class ChatViewModel(
     gemmaPreparation: GemmaPreparation? = null,
     private val geolocationRepository: GeolocationRepository? = null,
     private val riskRepository: RiskRepository? = null,
-    private val weatherRepository: WeatherRepository? = null,
-    private val soilRepository: SoilRepository? = null,
+    private val environmentRepository: EnvironmentRepository? = null,
     private val connectivityMonitor: ConnectivityMonitor? = null,
     private val sessionLocalStore: SessionLocalStore? = null,
     private val speechRecognizer: SpeechRecognizer? = null,
     private val speechSynthesizer: SpeechSynthesizer? = null,
+    private val audioRecorder: AudioRecorder? = null,
 ) : ViewModel() {
 
     private var currentConversationId: String? = null
     private var chatSession: GemmaChatSession? = null
+    private var voiceRecordingStartedAtMs: Long? = null
+    private var sendJob: kotlinx.coroutines.Job? = null
 
     private val gemmaPreparation: GemmaPreparation? = gemmaPreparation
         ?: if (gemmaManager != null && gemmaModelDownloader != null) {
@@ -158,11 +160,14 @@ class ChatViewModel(
             is ChatEvent.PlayAssistantMessage -> handlePlayAssistantMessage(event.messageId)
             is ChatEvent.NewSession -> handleNewSession()
             is ChatEvent.RemoveAttachment -> handleRemoveAttachment(event.index)
+            is ChatEvent.StopGeneration -> handleStopGeneration()
         }
     }
 
     private fun handleNewSession() {
         speechSynthesizer?.stop()
+        audioRecorder?.cancel()
+        voiceRecordingStartedAtMs = null
         chatSession?.close()
         chatSession = null
         currentConversationId = null
@@ -171,6 +176,7 @@ class ChatViewModel(
 
     override fun onCleared() {
         speechSynthesizer?.stop()
+        audioRecorder?.cancel()
         chatSession?.close()
         chatSession = null
         super.onCleared()
@@ -204,7 +210,7 @@ class ChatViewModel(
         )
 
         val mode = currentState.mode
-        viewModelScope.launch {
+        sendJob = viewModelScope.launch {
             val localConversationId = runCatching {
                 val id = resolveConversationId(mode)
                 if (id != null) {
@@ -220,6 +226,18 @@ class ChatViewModel(
             }
             trySendGemmaOrFallback(mode, text, currentState.attachments)
         }
+    }
+
+    private fun handleStopGeneration() {
+        sendJob?.cancel()
+        sendJob = null
+        val current = _uiState.value
+        val messages = current.messages.toMutableList()
+        val streamingIndex = messages.indexOfLast { it.isStreaming }
+        if (streamingIndex != -1) {
+            messages[streamingIndex] = messages[streamingIndex].copy(isStreaming = false)
+        }
+        _uiState.value = current.copy(messages = messages, isLoading = false)
     }
 
     private suspend fun sendViaBackend(
@@ -311,17 +329,21 @@ class ChatViewModel(
             val expectedTools = ToolIntentSupervisor.expectedToolsFor(text)
 
             suspend fun startNewChatSession(): GemmaChatSession {
-                val systemPrompt = when (mode) {
-                    ChatMode.Blank -> {
+                val hasImage = imageUris.isNotEmpty()
+                val useThinking = _uiState.value.useThinking
+                val systemPrompt = when {
+                    hasImage && mode == ChatMode.Blank -> buildImageDiagnosisSystemPrompt(useThinking)
+                    mode == ChatMode.Blank -> {
                         val envContext = fetchGeneralEnvironmentContext()
                         val profileContext = fetchOnboardingProfileContext()
-                        buildGeneralSystemPrompt(envContext, profileContext)
+                        buildGeneralSystemPrompt(envContext, profileContext, useThinking)
                     }
-                    is ChatMode.AnalysisSeeded -> {
+                    mode is ChatMode.AnalysisSeeded -> {
                         val pestRiskContext = fetchPestRiskContext(mode.diagnosis)
                         val diseaseRiskContext = fetchDiseaseRiskContext(mode.diagnosis)
-                        buildAnalysisSystemPrompt(mode.diagnosis, pestRiskContext, diseaseRiskContext)
+                        buildAnalysisSystemPrompt(mode.diagnosis, pestRiskContext, diseaseRiskContext, useThinking)
                     }
+                    else -> buildGeneralSystemPrompt(useThinking = useThinking)
                 }
                 return manager.startChatSession(
                     systemPrompt = systemPrompt,
@@ -426,12 +448,14 @@ class ChatViewModel(
     private fun buildGeneralSystemPrompt(
         environmentContext: String? = null,
         onboardingProfileContext: String? = null,
+        useThinking: Boolean = true,
     ): String {
         return buildString {
             append("Eres AgroGem, un asistente agronómico experto especializado en salud de cultivos. ")
             append("Toda respuesta debe orientarse al campo, el cultivo y la toma de decisiones agrícolas. ")
             append("Prioriza detección y explicación de enfermedades, hongos, bacterias, virus, insectos, ácaros, nematodos, plagas, deficiencias y estrés ambiental. ")
             append("Responde con diagnóstico diferencial cuando aplique: síntomas observables, causa probable, factores que lo favorecen y acciones prácticas de manejo. ")
+            append("Cuando el usuario use nombres populares o regionales de plagas o enfermedades (p. ej. 'gallina ciega', 'cogollero', 'chamusco', 'palomilla', 'gusano soldado'), identificá el organismo agrícola correspondiente y respondé con información agronómica específica, no con el significado coloquial. ")
             append("Si la pregunta no es agrícola, redirígela brevemente hacia un enfoque útil para agricultura o explica que está fuera del alcance del agente. ")
             append("Si no tenés información suficiente, pedí los datos mínimos: cultivo, etapa, parte afectada, síntomas, avance, ubicación y foto si ayuda. ")
             append("Responde en español y mantén un tono profesional pero accesible.")
@@ -448,7 +472,7 @@ class ChatViewModel(
             append("\n\nPolítica de errores de herramientas (CRÍTICO): ")
             append("Cuando una herramienta devuelve un campo `error`, leé el mensaje y seguí la instrucción que contiene. ")
             append("Si dice que verifiques ortografía, pedile al usuario que confirme cómo escribió el lugar y volvé a llamar la herramienta con la corrección. ")
-            append("Si dice que falta una ubicación, pedile municipio y país y llamá `resolve_location_by_name`. ")
+            append("Si dice que falta una ubicación, llamá `request_user_location` (preferido) o pedile al usuario su lugar y llamá `resolve_location_by_name`. ")
             append("Si dice que no hay datos para esa ubicación o que el servicio falló, comunicáselo al usuario con la razón concreta. ")
             append("NUNCA inventes datos numéricos (temperaturas, humedad, pH, riesgos o plagas) que no vinieron de una herramienta. ")
             append("NUNCA presentes un diagnóstico visual como certeza absoluta: separá lo observado, lo probable y lo que falta confirmar. ")
@@ -459,6 +483,7 @@ class ChatViewModel(
             if (!onboardingProfileContext.isNullOrBlank()) {
                 append(onboardingProfileContext)
             }
+            if (!useThinking) append("\n<|think|>")
         }
     }
 
@@ -488,21 +513,18 @@ class ChatViewModel(
         val geoRepo = geolocationRepository ?: return null
         val location = geoRepo.observeResolvedLocation().first() ?: return null
 
-        val weatherRepo = weatherRepository ?: return null
-        val soilRepo = soilRepository ?: return null
+        val env = environmentRepository?.getEnvironment(location.coordinates)?.getOrNull()
+            ?: return null
 
-        val weather = weatherRepo.getCurrentWeather(location.coordinates).getOrNull()
-        val soil = soilRepo.getSoil(location.coordinates).getOrNull()
-
-        if (weather == null && soil == null) return null
+        if (env.weather == null && env.soil == null) return null
 
         return buildString {
             append("\n\nContexto del campo:\n")
             append("- Ubicación: ${location.display.primary}\n")
-            weather?.let {
+            env.weather?.let {
                 append("- Clima: ${it.temperatureCelsius}, ${it.humidity} humedad, ${it.description}\n")
             }
-            soil?.let {
+            env.soil?.let {
                 append("- Suelo: textura ${it.dominantTexture}, pH ${it.summary.topHorizonPh}")
                 if (it.interpretation.isNotBlank()) {
                     append(" — ${it.interpretation}")
@@ -512,10 +534,21 @@ class ChatViewModel(
         }
     }
 
+    private fun buildImageDiagnosisSystemPrompt(useThinking: Boolean = true): String {
+        return buildString {
+            append("Eres AgroGem, un experto en diagnóstico visual de salud de cultivos. ")
+            append("Analiza la imagen adjunta buscando enfermedades, hongos, bacterias, virus, insectos, ácaros, nematodos, plagas, deficiencias o estrés ambiental. ")
+            append("Responde a la pregunta del usuario con el siguiente formato JSON: ")
+            append("{nx: \"\", dx: \"\", est: \"\", trx: [\"\", \"\", \"\"]}")
+            if (!useThinking) append("\n<|think|>")
+        }
+    }
+
     private fun buildAnalysisSystemPrompt(
         diagnosis: DiagnosisResult,
         pestRiskContext: String? = null,
         diseaseRiskContext: String? = null,
+        useThinking: Boolean = true,
     ): String {
         return buildString {
             append("Eres AgroGem, un asistente agronómico experto especializado en salud de cultivos. ")
@@ -540,6 +573,7 @@ class ChatViewModel(
                 append(diseaseRiskContext)
             }
             append("\nResponde en español y mantén un tono profesional pero accesible.")
+            if (!useThinking) append("\n<|think|>")
         }
     }
 
@@ -730,6 +764,9 @@ class ChatViewModel(
     /** Transitions voiceState to Listening — orb animation starts. */
     private fun handleStartVoiceInput() {
         speechRecognizer?.cancel()
+        audioRecorder?.cancel()
+        audioRecorder?.start()
+        voiceRecordingStartedAtMs = Clock.System.now().toEpochMilliseconds()
         speechRecognizer?.start(
             onPartialResult = { text ->
                 _uiState.value = _uiState.value.copy(inputText = text)
@@ -758,6 +795,8 @@ class ChatViewModel(
     /** Returns to Idle without creating a message — user abandoned voice input. */
     private fun handleDismissVoice() {
         speechRecognizer?.cancel()
+        audioRecorder?.cancel()
+        voiceRecordingStartedAtMs = null
         _uiState.value = _uiState.value.copy(voiceState = VoiceState.Idle)
     }
 
@@ -799,16 +838,21 @@ class ChatViewModel(
     /** Stops recording, commits the user voice message, and sends through the real chat pipeline. */
     private fun handleStopVoiceInput() {
         speechRecognizer?.stop()
+        val audioUri = audioRecorder?.stop()
+        val durationMs = voiceRecordingStartedAtMs
+            ?.let { startedAt -> Clock.System.now().toEpochMilliseconds() - startedAt }
+            ?.coerceAtLeast(0)
+            ?: 0
+        voiceRecordingStartedAtMs = null
         val captured = _uiState.value
         val text = captured.inputText.trim()
 
-        // Avoid sending junk when there is no text and audio is still a placeholder
-        if (text.isEmpty()) {
+        if (text.isEmpty() && audioUri == null) {
             _uiState.value = captured.copy(voiceState = VoiceState.Idle)
             return
         }
 
-        val voiceAttachment = ChatAttachment.Audio(uri = "", durationMs = 0)
+        val voiceAttachment = ChatAttachment.Audio(uri = audioUri.orEmpty(), durationMs = durationMs)
 
         val userMessage = ChatMessage(
             id = "msg_${Random.nextLong()}",
@@ -826,6 +870,16 @@ class ChatViewModel(
             isLoading = true,
             error = null,
         )
+
+        if (text.isEmpty()) {
+            val voiceErrorMsg = (_uiState.value.voiceState as? VoiceState.Error)?.message
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                voiceState = VoiceState.Idle,
+                error = voiceErrorMsg ?: "No se pudo transcribir el audio. Escribe tu pregunta.",
+            )
+            return
+        }
 
         val mode = captured.mode
         viewModelScope.launch {
@@ -915,4 +969,7 @@ sealed interface ChatEvent {
 
     /** Remove a pending attachment by its index in the attachments list. */
     data class RemoveAttachment(val index: Int) : ChatEvent
+
+    /** Cancel an in-progress Gemma inference. */
+    data object StopGeneration : ChatEvent
 }

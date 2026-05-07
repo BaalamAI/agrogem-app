@@ -1,89 +1,9 @@
 package com.agrogem.app.ui
 
-// =============================================================================
-// MODO POC: chat con Gemma 4 LiteRT + cámara/galería
-// -----------------------------------------------------------------------------
-// Esta versión de AppShell muestra UNA sola pantalla: GemmaDemoScreen.
-// El resto de la app (Home, Onboarding, History, Map, Chat real, voz, repos
-// de clima/suelo/auth, navegación con 17 rutas, etc.) está deshabilitado
-// dentro del bloque /* APP COMPLETA ... */ que aparece más abajo en este
-// mismo archivo.
-//
-// Para restaurar la app completa:
-//   1. Borra esta función AppShell (la versión POC).
-//   2. Quita el /* y el */ que envuelven el bloque "APP COMPLETA".
-// =============================================================================
-
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
-import com.agrogem.app.data.GemmaPreparation
-import com.agrogem.app.data.createGemmaManager
-import com.agrogem.app.data.createGemmaModelDownloader
-import com.agrogem.app.data.geolocation.createGeolocationRepository
-import com.agrogem.app.data.rememberImagePickerLauncher
-import com.agrogem.app.data.rememberSpeechRecognizer
-import com.agrogem.app.data.rememberSpeechSynthesizer
-import com.agrogem.app.data.soil.createSoilRepository
-import com.agrogem.app.data.weather.createWeatherRepository
-import com.agrogem.app.ui.screens.chat.ChatEvent
-import com.agrogem.app.ui.screens.gemma_demo.GemmaDemoScreen
-import com.agrogem.app.ui.screens.gemma_demo.GemmaDemoViewModel
-import com.agrogem.app.ui.viewmodel.kmpViewModel
-
-@Composable
-fun AppShell(modifier: Modifier = Modifier) {
-    // 1) ViewModel: orquesta la descarga/inicialización del modelo .litertlm
-    //    y maneja los mensajes del chat (texto + imágenes) con streaming.
-    val gemmaManager = remember { createGemmaManager() }
-    val gemmaDownloader = remember { createGemmaModelDownloader() }
-    val gemmaPreparation = remember { GemmaPreparation(gemmaManager = gemmaManager, modelDownloader = gemmaDownloader) }
-    val geolocationRepository = remember { createGeolocationRepository() }
-    val weatherRepository = remember { createWeatherRepository() }
-    val soilRepository = remember { createSoilRepository() }
-    val speechRecognizer = rememberSpeechRecognizer()
-    val speechSynthesizer = rememberSpeechSynthesizer()
-    val demoVm = kmpViewModel {
-        GemmaDemoViewModel(
-            gemmaManager = gemmaManager,
-            gemmaPreparation = gemmaPreparation,
-            geolocationRepository = geolocationRepository,
-            weatherRepository = weatherRepository,
-            soilRepository = soilRepository,
-            speechRecognizer = speechRecognizer,
-            speechSynthesizer = speechSynthesizer,
-        )
-    }
-
-    // 2) Picker de cámara/galería: cuando el usuario captura o elige una foto,
-    //    el callback recibe un URI (content://...) y se lo pasamos al
-    //    ViewModel como adjunto. AndroidGemmaManager lo convertirá a ruta
-    //    local antes de mandárselo a Gemma (LiteRT no lee URIs).
-    val imagePicker = rememberImagePickerLauncher { result ->
-        if (result != null) {
-            demoVm.onEvent(ChatEvent.ImageSelected(result.uri))
-        }
-    }
-
-    // 3) Pantalla única. onBack se deja vacío porque no hay a dónde volver:
-    //    es la primera y única pantalla de la POC.
-    GemmaDemoScreen(
-        viewModel = demoVm,
-        onBack = {},
-        onLaunchCamera  = { imagePicker.launchCamera()  },
-        onLaunchGallery = { imagePicker.launchGallery() },
-    )
-}
-
-/* =============================================================================
- * APP COMPLETA — DESHABILITADA PARA LA POC
- * Todo lo de aquí abajo era el AppShell original con bottom bar, navegación
- * entre múltiples pantallas, onboarding, repos compartidos, etc.
- * =============================================================================
-
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -100,9 +20,12 @@ import com.agrogem.app.data.climate.createClimateRepository
 import com.agrogem.app.data.connectivity.createConnectivityMonitor
 import com.agrogem.app.data.createGemmaManager
 import com.agrogem.app.data.createGemmaModelDownloader
+import com.agrogem.app.data.environment.createEnvironmentRepository
 import com.agrogem.app.data.geolocation.createGeolocationRepository
 import com.agrogem.app.data.pest.createPestRepository
 import com.agrogem.app.data.pest.domain.PlantAnalysisRepositoryImpl
+import com.agrogem.app.data.rememberAudioRecorder
+import com.agrogem.app.data.rememberImagePickerLauncher
 import com.agrogem.app.data.rememberSpeechRecognizer
 import com.agrogem.app.data.rememberSpeechSynthesizer
 import com.agrogem.app.data.risk.createRiskRepository
@@ -119,6 +42,8 @@ import com.agrogem.app.ui.screens.chat.ChatEffect
 import com.agrogem.app.ui.screens.chat.ChatViewModel
 import com.agrogem.app.ui.screens.home.HomeViewModel
 import com.agrogem.app.ui.screens.map.MapRiskViewModel
+import androidx.compose.ui.Modifier
+import com.agrogem.app.ui.viewmodel.kmpViewModel
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable
@@ -159,7 +84,6 @@ fun AppShell(modifier: Modifier = Modifier) {
         AgroGemRoute.Onboarding.createRoute(0)
     }
 
-    // Shared repositories for geolocation, weather, soil, and risk — injected into ViewModels
     val geolocationRepository = remember { createGeolocationRepository() }
     val weatherRepository = remember { createWeatherRepository() }
     val soilRepository = remember { createSoilRepository() }
@@ -182,7 +106,6 @@ fun AppShell(modifier: Modifier = Modifier) {
         )
     }
 
-    // Shared ViewModel for the analysis flow — lives here so it survives navigation
     val pestRepository = remember { createPestRepository() }
     val connectivityMonitor = remember { createConnectivityMonitor() }
     val gemmaManager = remember { createGemmaManager() }
@@ -210,14 +133,11 @@ fun AppShell(modifier: Modifier = Modifier) {
 
     val localChatRepository = remember { createLocalChatRepository() }
 
-    // Shared ChatViewModel for the chat/voice flow — lives here so it survives navigation
-    // and is shared across Chat, ChatConfirm, and VoiceReady routes (Phase 5 architecture fix).
-    // Seeded with null so it starts in Blank mode. When navigating from Analysis → Chat,
-    // AppNavHost calls chatViewModel.seedFromAnalysis(...) before pushing the chat route,
-    // so the shared instance carries the real analysis context at runtime.
     val chatRepository = remember { createChatRepository(authRepository) }
+    val environmentRepository = remember { createEnvironmentRepository() }
     val speechRecognizer = rememberSpeechRecognizer()
     val speechSynthesizer = rememberSpeechSynthesizer()
+    val audioRecorder = rememberAudioRecorder { }
     val chatViewModel = kmpViewModel {
         ChatViewModel(
             chatRepository = chatRepository,
@@ -229,12 +149,12 @@ fun AppShell(modifier: Modifier = Modifier) {
             gemmaPreparation = gemmaPreparation,
             geolocationRepository = geolocationRepository,
             riskRepository = riskRepository,
-            weatherRepository = weatherRepository,
-            soilRepository = soilRepository,
+            environmentRepository = environmentRepository,
             connectivityMonitor = connectivityMonitor,
             sessionLocalStore = sessionLocalStore,
             speechRecognizer = speechRecognizer,
             speechSynthesizer = speechSynthesizer,
+            audioRecorder = audioRecorder,
         )
     }
 
@@ -246,7 +166,6 @@ fun AppShell(modifier: Modifier = Modifier) {
         }
     }
 
-    // Camera launcher — opens the native camera directly from the Scan FAB
     val imagePicker = rememberImagePickerLauncher { result ->
         if (result != null) {
             analysisFlowVm.startAnalysis(result)
@@ -265,7 +184,6 @@ fun AppShell(modifier: Modifier = Modifier) {
                             AgroGemBottomTab.Home -> AgroGemRoute.Home
                             AgroGemBottomTab.Fields -> AgroGemRoute.History
                             AgroGemBottomTab.Scan -> {
-                                // Launch native camera directly — no navigation
                                 imagePicker.launchCamera()
                                 return@BottomNavigationBar
                             }
@@ -323,6 +241,3 @@ fun AppShell(modifier: Modifier = Modifier) {
         )
     }
 }
-
-* fin del bloque "APP COMPLETA"
-*/

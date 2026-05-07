@@ -305,7 +305,6 @@ fun AppNavHost(
             ChatScreen(
                 viewModel = chatViewModel,
                 onBack = { navController.popBackStack() },
-                onRequestClose = { navController.pushTo(AgroGemRoute.ChatConfirm) },
                 onMicClick = { micPermissionRequester.request() },
                 onLaunchCamera = { chatImagePicker.launchCamera() },
                 onLaunchGallery = { chatImagePicker.launchGallery() },
@@ -318,7 +317,6 @@ fun AppNavHost(
             ChatScreen(
                 viewModel = chatViewModel,
                 onBack = { navController.popBackStack() },
-                onRequestClose = {},
                 onMicClick = { micPermissionRequester.request() },
                 onLaunchCamera = { chatImagePicker.launchCamera() },
                 onLaunchGallery = { chatImagePicker.launchGallery() },

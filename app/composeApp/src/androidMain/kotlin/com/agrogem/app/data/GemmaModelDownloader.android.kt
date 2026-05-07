@@ -2,19 +2,32 @@ package com.agrogem.app.data
 
 import android.content.Context
 import android.util.Log
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.agrogem.app.AndroidAppContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.net.URL
 
 private const val TAG = "GemmaDownloader"
+private const val DOWNLOAD_WORK_NAME = "GemmaDownload"
 
 class AndroidGemmaModelDownloader(private val context: Context) : GemmaModelDownloader {
     
     private val modelDir = File(context.filesDir, "models")
-    private val modelFile = File(modelDir, "gemma-4-E2B-it.litertlm")
-    private val tempFile = File(modelDir, "gemma-4-E2B-it.litertlm.tmp")
+    private val modelFile = File(modelDir, "model.litertlm")
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val _downloadProgress = MutableStateFlow<Int?>(null)
+    private var progressObserverJob: Job? = null
+    override val downloadProgress: StateFlow<Int?> = _downloadProgress.asStateFlow()
 
     override suspend fun downloadModel(url: String): Result<String> = withContext(Dispatchers.IO) {
         try {
@@ -24,7 +37,8 @@ class AndroidGemmaModelDownloader(private val context: Context) : GemmaModelDown
             
             if (!modelDir.exists()) modelDir.mkdirs()
 
-            val workManager = androidx.work.WorkManager.getInstance(context)
+            _downloadProgress.value = null
+            val workManager = WorkManager.getInstance(context)
             val downloadRequest = androidx.work.OneTimeWorkRequestBuilder<DownloadWorker>()
                 .setInputData(
                     androidx.work.workDataOf(
@@ -40,10 +54,11 @@ class AndroidGemmaModelDownloader(private val context: Context) : GemmaModelDown
                 .build()
 
             workManager.enqueueUniqueWork(
-                "GemmaDownload",
+                DOWNLOAD_WORK_NAME,
                 androidx.work.ExistingWorkPolicy.KEEP,
                 downloadRequest
             )
+            observeDownloadProgress()
             
             // We return success here as the task is enqueued. 
             // In a real app, you might want to observe the WorkInfo.
@@ -60,6 +75,34 @@ class AndroidGemmaModelDownloader(private val context: Context) : GemmaModelDown
     }
 
     override fun getModelPath(): String = modelFile.absolutePath
+
+    private fun observeDownloadProgress() {
+        if (progressObserverJob?.isActive == true) return
+
+        progressObserverJob = scope.launch {
+            val workManager = WorkManager.getInstance(context)
+            while (true) {
+                val workInfos = runCatching {
+                    workManager.getWorkInfosForUniqueWork(DOWNLOAD_WORK_NAME).get()
+                }.getOrDefault(emptyList())
+                val current = workInfos.firstOrNull { it.state == WorkInfo.State.RUNNING }
+                    ?: workInfos.firstOrNull { it.state == WorkInfo.State.ENQUEUED }
+                    ?: workInfos.firstOrNull()
+
+                _downloadProgress.value = when (current?.state) {
+                    WorkInfo.State.SUCCEEDED -> 100
+                    WorkInfo.State.RUNNING,
+                    WorkInfo.State.ENQUEUED,
+                    WorkInfo.State.BLOCKED,
+                    -> current.progress.getInt("progress", 0).coerceIn(0, 100)
+                    else -> null
+                }
+
+                if (current == null || current.state.isFinished) return@launch
+                delay(1_000)
+            }
+        }
+    }
 }
 
 private var downloaderInstance: GemmaModelDownloader? = null

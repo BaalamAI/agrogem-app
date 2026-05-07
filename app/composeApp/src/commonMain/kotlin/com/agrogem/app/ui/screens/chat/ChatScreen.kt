@@ -90,9 +90,12 @@ import app.composeapp.generated.resources.ic_action_camera
 import app.composeapp.generated.resources.ic_action_chevron_down
 import app.composeapp.generated.resources.ic_action_copy
 import app.composeapp.generated.resources.ic_action_gallery
+import app.composeapp.generated.resources.ic_action_send
+import app.composeapp.generated.resources.ic_action_send_up
 import app.composeapp.generated.resources.ic_action_sound
 import app.composeapp.generated.resources.ic_status_check
 import app.composeapp.generated.resources.logo_isotipo
+import com.agrogem.app.data.rememberAudioPlayer
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
 import com.agrogem.app.theme.AgroGemBrand
 import com.agrogem.app.theme.AgroGemColors
@@ -114,7 +117,6 @@ import com.mikepenz.markdown.model.rememberMarkdownState
 fun ChatScreen(
     viewModel: ChatViewModel,
     onBack: () -> Unit,
-    onRequestClose: () -> Unit,
     onMicClick: () -> Unit,
     onLaunchCamera: () -> Unit = {},
     onLaunchGallery: () -> Unit = {},
@@ -129,7 +131,6 @@ fun ChatScreen(
         uiState = uiState,
         onEvent = { viewModel.onEvent(it) },
         onBack = onBack,
-        onRequestClose = onRequestClose,
         onMicClick = onMicClick,
         onLaunchCamera = onLaunchCamera,
         onLaunchGallery = onLaunchGallery,
@@ -145,7 +146,6 @@ fun ChatContent(
     uiState: ChatUiState,
     onEvent: (ChatEvent) -> Unit,
     onBack: () -> Unit,
-    onRequestClose: () -> Unit,
     onMicClick: () -> Unit,
     onLaunchCamera: () -> Unit = {},
     onLaunchGallery: () -> Unit = {},
@@ -158,6 +158,7 @@ fun ChatContent(
     val chatMode = uiState.mode
     val messages = uiState.messages
     val focusManager = LocalFocusManager.current
+    val audioPlayer = rememberAudioPlayer()
 
     Box(
         modifier = modifier
@@ -266,6 +267,7 @@ fun ChatContent(
                                 message = message,
                                 speakingMessageId = uiState.speakingMessageId,
                                 onPlayAssistantMessage = onEvent,
+                                onPlayAudio = { uri -> audioPlayer.play(uri) },
                             )
                         }
                     }
@@ -314,9 +316,11 @@ fun ChatContent(
                                 focusManager.clearFocus()
                             }
                         },
+                        onStopClick = { onEvent(ChatEvent.StopGeneration) },
                         pendingAttachments = pendingAttachments,
                         isLoading = uiState.isLoading,
                         onRemoveAttachment = { onEvent(ChatEvent.RemoveAttachment(it)) },
+                        onPlayAudioAttachment = { uri -> audioPlayer.play(uri) },
                     )
                 }
             } else {
@@ -638,6 +642,7 @@ private fun MessageBubble(
     message: ChatMessage,
     speakingMessageId: String?,
     onPlayAssistantMessage: (ChatEvent) -> Unit,
+    onPlayAudio: (String) -> Unit,
 ) {
     when (message.sender) {
         MessageSender.Assistant -> {
@@ -694,6 +699,7 @@ private fun MessageBubble(
         }
         MessageSender.User -> {
             val imageAttachments = message.attachments.filterIsInstance<ChatAttachment.Image>()
+            val audioAttachments = message.attachments.filterIsInstance<ChatAttachment.Audio>()
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.End,
@@ -707,6 +713,12 @@ private fun MessageBubble(
                         modifier = Modifier
                             .sizeIn(maxWidth = 220.dp, maxHeight = 200.dp)
                             .clip(RoundedCornerShape(16.dp)),
+                    )
+                }
+                audioAttachments.forEach { attachment ->
+                    AudioAttachmentPill(
+                        attachment = attachment,
+                        onPlay = { onPlayAudio(attachment.uri) },
                     )
                 }
                 if (message.text.isNotBlank()) {
@@ -724,6 +736,50 @@ private fun MessageBubble(
             }
         }
     }
+}
+
+@Composable
+private fun AudioAttachmentPill(
+    attachment: ChatAttachment.Audio,
+    onPlay: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .background(AgroGemBrand.Verde600, RoundedCornerShape(22.dp))
+            .clickable(enabled = attachment.uri.isNotBlank(), onClick = onPlay)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .background(Color.White.copy(alpha = 0.18f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            AgroGemIcon(
+                icon = Res.drawable.ic_action_sound,
+                contentDescription = "Reproducir audio",
+                tint = Color.White,
+                size = 18.dp,
+            )
+        }
+        Text(
+            text = audioLabel(attachment.durationMs),
+            color = Color.White,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+private fun audioLabel(durationMs: Long): String {
+    if (durationMs <= 0L) return "Audio"
+    val totalSeconds = (durationMs / 1000).coerceAtLeast(1)
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "Audio $minutes:${seconds.toString().padStart(2, '0')}"
 }
 
 @Composable
@@ -1032,9 +1088,11 @@ private fun ChatInputArea(
     onAttachClick: () -> Unit,
     onMicClick: () -> Unit,
     onSendClick: () -> Unit,
+    onStopClick: () -> Unit,
     pendingAttachments: List<ChatAttachment>,
     isLoading: Boolean,
     onRemoveAttachment: (Int) -> Unit,
+    onPlayAudioAttachment: (String) -> Unit,
 ) {
     val hasPendingAttachments = pendingAttachments.isNotEmpty()
     val canSend = inputText.isNotBlank() || hasPendingAttachments
@@ -1060,6 +1118,30 @@ private fun ChatInputArea(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .clip(RoundedCornerShape(12.dp)),
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .align(Alignment.TopEnd)
+                                    .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+                                    .clickable { onRemoveAttachment(index) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = "×",
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    lineHeight = 13.sp,
+                                )
+                            }
+                        }
+                    } else if (attachment is ChatAttachment.Audio) {
+                        Box {
+                            AudioAttachmentPill(
+                                attachment = attachment,
+                                onPlay = { onPlayAudioAttachment(attachment.uri) },
+                                modifier = Modifier.padding(top = 4.dp),
                             )
                             Box(
                                 modifier = Modifier
@@ -1151,27 +1233,34 @@ private fun ChatInputArea(
             )
         }
 
+        val buttonShape = if (isLoading) RoundedCornerShape(12.dp) else CircleShape
+        val buttonBg = if (canSend || isLoading) AgroGemBrand.Verde400 else AgroGemColors.ChatAttachBg
         Box(
             modifier = Modifier
                 .size(42.dp)
-                .background(
-                    if (canSend) AgroGemBrand.Verde400 else AgroGemColors.ChatAttachBg,
-                    CircleShape,
-                )
-                .clickable(enabled = !isLoading) {
-                    if (canSend) onSendClick() else onMicClick()
+                .background(buttonBg, buttonShape)
+                .clickable {
+                    when {
+                        isLoading -> onStopClick()
+                        canSend -> onSendClick()
+                        else -> onMicClick()
+                    }
                 },
             contentAlignment = Alignment.Center,
         ) {
-            if (canSend) {
-                Text(
-                    text = if (isLoading) "…" else "↑",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
+            when {
+                isLoading -> Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .background(Color.White, RoundedCornerShape(4.dp))
                 )
-            } else {
-                VoiceWaveBars(color = AgroGemBrand.Text.Primary)
+                canSend -> AgroGemIcon(
+                    icon = Res.drawable.ic_action_send_up,
+                    contentDescription = "",
+                    tint = Color.White,
+                    size = AgroGemIconSizes.Md,
+                )
+                else -> VoiceWaveBars(color = AgroGemBrand.Text.Primary)
             }
         }
     }

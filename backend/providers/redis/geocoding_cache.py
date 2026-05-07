@@ -20,7 +20,7 @@ def _forward_key(query: str, country: str | None) -> str:
 
 
 def _reverse_key(lat: float, lon: float) -> str:
-    return f"{REVERSE_KEY_PREFIX}{lat:.4f}:{lon:.4f}"
+    return f"{REVERSE_KEY_PREFIX}{lat:.2f}:{lon:.2f}"
 
 
 class RedisGeocodingCache:

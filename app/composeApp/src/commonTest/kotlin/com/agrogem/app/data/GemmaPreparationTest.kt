@@ -3,6 +3,7 @@ package com.agrogem.app.data
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -35,6 +36,22 @@ class GemmaPreparationTest {
 
         assertTrue(!result)
         assertIs<GemmaPreparationStatus.Unavailable>(holder.status.value)
+    }
+
+    @Test
+    fun `ensureReady exposes download progress`() = runTest {
+        val manager = FakeGemmaManager()
+        val downloader = FakeGemmaModelDownloader(downloaded = false, progress = 42, downloadReadyAfterChecks = 1)
+        val holder = GemmaPreparation(manager, downloader)
+        val progressValues = mutableListOf<Int?>()
+        val progressJob = launch {
+            holder.downloadProgress.collect { progressValues += it }
+        }
+
+        holder.ensureReady()
+        progressJob.cancel()
+
+        assertTrue(progressValues.contains(42))
     }
 
     private class FakeGemmaManager : GemmaManager {
@@ -80,20 +97,34 @@ class GemmaPreparationTest {
     private class FakeGemmaModelDownloader(
         private var downloaded: Boolean,
         private val downloadShouldFail: Boolean = false,
+        progress: Int? = null,
+        private val downloadReadyAfterChecks: Int = 0,
     ) : GemmaModelDownloader {
         var downloadCalled = false
+        private var downloadChecks = 0
+        override val downloadProgress: Flow<Int?> = flowOf(progress)
 
         override suspend fun downloadModel(url: String): Result<String> {
             downloadCalled = true
             return if (downloadShouldFail) {
                 Result.failure(IllegalStateException("download failed"))
             } else {
-                downloaded = true
+                if (downloadReadyAfterChecks == 0) {
+                    downloaded = true
+                }
                 Result.success("/tmp/model.litertlm")
             }
         }
 
-        override fun isModelDownloaded(): Boolean = downloaded
+        override fun isModelDownloaded(): Boolean {
+            if (!downloaded && downloadCalled && downloadReadyAfterChecks > 0) {
+                downloadChecks++
+                if (downloadChecks > downloadReadyAfterChecks) {
+                    downloaded = true
+                }
+            }
+            return downloaded
+        }
 
         override fun getModelPath(): String = "/tmp/model.litertlm"
     }

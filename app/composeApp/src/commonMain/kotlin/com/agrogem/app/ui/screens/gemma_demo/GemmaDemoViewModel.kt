@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.agrogem.app.agent.createAgroGemToolBundle
 import com.agrogem.app.agent.toolCallTracker
+import com.agrogem.app.data.AudioRecorder
 import com.agrogem.app.data.GemmaChatSession
 import com.agrogem.app.data.GemmaManager
 import com.agrogem.app.data.GemmaPreparation
@@ -12,9 +13,8 @@ import com.agrogem.app.data.SpeechRecognizer
 import com.agrogem.app.data.SpeechSynthesizer
 import com.agrogem.app.data.createGemmaManager
 import com.agrogem.app.data.createGemmaModelDownloader
+import com.agrogem.app.data.environment.domain.EnvironmentRepository
 import com.agrogem.app.data.geolocation.domain.GeolocationRepository
-import com.agrogem.app.data.soil.domain.SoilRepository
-import com.agrogem.app.data.weather.domain.WeatherRepository
 import com.agrogem.app.ui.screens.chat.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -34,20 +34,25 @@ class GemmaDemoViewModel(
         modelDownloader = createGemmaModelDownloader(),
     ),
     private val geolocationRepository: GeolocationRepository? = null,
-    private val weatherRepository: WeatherRepository? = null,
-    private val soilRepository: SoilRepository? = null,
+    private val environmentRepository: EnvironmentRepository? = null,
     private val speechRecognizer: SpeechRecognizer? = null,
     private val speechSynthesizer: SpeechSynthesizer? = null,
+    private val audioRecorder: AudioRecorder? = null,
 ) : ViewModel() {
 
     private val toolBundle = createAgroGemToolBundle()
     private var chatSession: GemmaChatSession? = null
+    private var voiceRecordingStartedAtMs: Long? = null
+    private var sendJob: Job? = null
 
     private val _uiState = MutableStateFlow(ChatUiState(mode = ChatMode.Blank))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     private val _preparationStatus = MutableStateFlow<GemmaPreparationStatus>(GemmaPreparationStatus.NotPrepared)
     val preparationStatus: StateFlow<GemmaPreparationStatus> = _preparationStatus.asStateFlow()
+
+    private val _preparationProgress = MutableStateFlow<Int?>(null)
+    val preparationProgress: StateFlow<Int?> = _preparationProgress.asStateFlow()
 
     init {
         println("[GemmaDemo] ViewModel inicializado. Verificando modelo...")
@@ -58,6 +63,11 @@ class GemmaDemoViewModel(
         viewModelScope.launch {
             gemmaPreparation.status.collect { status ->
                 _preparationStatus.value = status
+            }
+        }
+        viewModelScope.launch {
+            gemmaPreparation.downloadProgress.collect { progress ->
+                _preparationProgress.value = progress
             }
         }
         viewModelScope.launch {
@@ -87,6 +97,8 @@ class GemmaDemoViewModel(
             is ChatEvent.NewSession -> {
                 println("[GemmaDemo] Evento: Nueva sesión")
                 speechSynthesizer?.stop()
+                audioRecorder?.cancel()
+                voiceRecordingStartedAtMs = null
                 chatSession?.close()
                 chatSession = null
                 _uiState.value = ChatUiState(mode = ChatMode.Blank)
@@ -97,13 +109,30 @@ class GemmaDemoViewModel(
             is ChatEvent.VoicePermissionDenied -> handleVoicePermissionDenied()
             is ChatEvent.PlayAssistantMessage -> handlePlayAssistantMessage(event.messageId)
             is ChatEvent.RemoveAttachment -> handleRemoveAttachment(event.index)
+            is ChatEvent.DismissError -> _uiState.value = _uiState.value.copy(error = null)
+            is ChatEvent.StopGeneration -> handleStopGeneration()
             else -> {}
         }
+    }
+
+    private fun handleStopGeneration() {
+        sendJob?.cancel()
+        sendJob = null
+        val current = _uiState.value
+        val messages = current.messages.toMutableList()
+        val streamingIndex = messages.indexOfLast { it.isStreaming }
+        if (streamingIndex != -1) {
+            messages[streamingIndex] = messages[streamingIndex].copy(isStreaming = false)
+        }
+        _uiState.value = current.copy(messages = messages, isLoading = false)
     }
 
     private fun handleStartVoiceInput() {
         val recognizer = speechRecognizer ?: return
         recognizer.cancel()
+        audioRecorder?.cancel()
+        audioRecorder?.start()
+        voiceRecordingStartedAtMs = Clock.System.now().toEpochMilliseconds()
         recognizer.start(
             onPartialResult = { text ->
                 _uiState.value = _uiState.value.copy(inputText = text)
@@ -130,18 +159,39 @@ class GemmaDemoViewModel(
 
     private fun handleStopVoiceInput() {
         speechRecognizer?.stop()
+        val audioUri = audioRecorder?.stop()
+        val durationMs = voiceRecordingStartedAtMs
+            ?.let { startedAt -> Clock.System.now().toEpochMilliseconds() - startedAt }
+            ?.coerceAtLeast(0)
+            ?: 0
+        voiceRecordingStartedAtMs = null
         val captured = _uiState.value
         val text = captured.inputText.trim()
-        if (text.isEmpty()) {
+        val audioAttachment = audioUri?.let { ChatAttachment.Audio(uri = it, durationMs = durationMs) }
+        if (text.isEmpty() && audioAttachment == null) {
             _uiState.value = captured.copy(voiceState = VoiceState.Idle)
             return
         }
-        _uiState.value = captured.copy(voiceState = VoiceState.Idle)
+        if (text.isEmpty()) {
+            // Audio recorded but no transcription — show the specific recognizer error if available
+            val voiceErrorMsg = (captured.voiceState as? VoiceState.Error)?.message
+            _uiState.value = captured.copy(
+                voiceState = VoiceState.Idle,
+                error = voiceErrorMsg ?: "No se pudo transcribir el audio. Escribe tu pregunta.",
+            )
+            return
+        }
+        _uiState.value = captured.copy(
+            attachments = if (audioAttachment == null) captured.attachments else captured.attachments + audioAttachment,
+            voiceState = VoiceState.Idle,
+        )
         handleSendMessage()
     }
 
     private fun handleDismissVoice() {
         speechRecognizer?.cancel()
+        audioRecorder?.cancel()
+        voiceRecordingStartedAtMs = null
         _uiState.value = _uiState.value.copy(voiceState = VoiceState.Idle, inputText = "")
     }
 
@@ -221,7 +271,7 @@ class GemmaDemoViewModel(
             isLoading = true
         )
 
-        viewModelScope.launch {
+        sendJob = viewModelScope.launch {
             try {
                 if (!gemmaPreparation.ensureReady()) {
                     updateAssistantMessage(assistantMessageId, "Gemma no está disponible en este dispositivo.", null, true)
@@ -313,6 +363,14 @@ class GemmaDemoViewModel(
         }
     }
 
+    override fun onCleared() {
+        speechSynthesizer?.stop()
+        audioRecorder?.cancel()
+        chatSession?.close()
+        chatSession = null
+        super.onCleared()
+    }
+
     private suspend fun buildSystemPrompt(state: ChatUiState, hasImage: Boolean): String {
         val envContext = fetchGeneralEnvironmentContext()
         return buildString {
@@ -361,15 +419,14 @@ class GemmaDemoViewModel(
     private suspend fun fetchGeneralEnvironmentContext(): String? {
         val geo = geolocationRepository ?: return null
         val location = geo.observeResolvedLocation().first() ?: return null
-        val weather = weatherRepository?.getCurrentWeather(location.coordinates)?.getOrNull()
-        val soil = soilRepository?.getSoil(location.coordinates)?.getOrNull()
+        val env = environmentRepository?.getEnvironment(location.coordinates)?.getOrNull()
         return buildString {
             append("\n\nContexto del campo:\n")
             append("- Ubicación: ${location.display.primary}\n")
-            weather?.let {
+            env?.weather?.let {
                 append("- Clima: ${it.temperatureCelsius}, ${it.humidity} humedad, ${it.description}\n")
             }
-            soil?.let {
+            env?.soil?.let {
                 append("- Suelo: textura ${it.dominantTexture}")
                 val ph = it.domainHorizons.firstOrNull()?.ph
                 if (ph != null) append(", pH $ph")
@@ -402,10 +459,4 @@ class GemmaDemoViewModel(
         }
     }
 
-    override fun onCleared() {
-        speechSynthesizer?.stop()
-        chatSession?.close()
-        chatSession = null
-        super.onCleared()
-    }
 }

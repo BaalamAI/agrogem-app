@@ -2,6 +2,7 @@ package com.agrogem.app.ui.screens.chat
 
 import com.agrogem.app.agent.ToolIntentSupervisor
 import com.agrogem.app.agent.toolCallTracker
+import com.agrogem.app.data.AudioRecorder
 import com.agrogem.app.data.GemmaChatSession
 import com.agrogem.app.data.GemmaManager
 import com.agrogem.app.data.GemmaModelDownloader
@@ -730,6 +731,50 @@ class ChatViewModelTest {
         assertEquals(MessageSender.User, state.messages[0].sender)
         assertEquals(1, state.messages[0].attachments.size)
         assertIs<ChatAttachment.Audio>(state.messages[0].attachments[0])
+    }
+
+    @Test
+    fun `StopVoiceInput stores recorded audio uri on voice message`() = runTest(testDispatcher) {
+        val recorder = FakeAudioRecorder(stopUri = "file:///tmp/agrogem_voice.m4a")
+        val repo = fakeRepo()
+        val viewModel = ChatViewModel(
+            chatRepository = repo,
+            audioRecorder = recorder,
+        )
+
+        viewModel.onEvent(ChatEvent.InputChanged("What should I do?"))
+        viewModel.onEvent(ChatEvent.StartVoiceInput)
+        viewModel.onEvent(ChatEvent.StopVoiceInput)
+        advanceUntilIdle()
+
+        assertEquals(1, recorder.startCallCount)
+        assertEquals(1, recorder.stopCallCount)
+        val attachment = viewModel.uiState.value.messages[0].attachments.single()
+        assertIs<ChatAttachment.Audio>(attachment)
+        assertEquals("file:///tmp/agrogem_voice.m4a", attachment.uri)
+        assertEquals("file:///tmp/agrogem_voice.m4a", (repo.lastAttachments?.single() as ChatAttachment.Audio).uri)
+    }
+
+    @Test
+    fun `StopVoiceInput with recorded audio and no transcript creates audio message without sending`() = runTest(testDispatcher) {
+        val recorder = FakeAudioRecorder(stopUri = "file:///tmp/agrogem_voice.m4a")
+        val repo = fakeRepo()
+        val viewModel = ChatViewModel(
+            chatRepository = repo,
+            audioRecorder = recorder,
+        )
+
+        viewModel.onEvent(ChatEvent.StartVoiceInput)
+        viewModel.onEvent(ChatEvent.StopVoiceInput)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(1, state.messages.size)
+        assertEquals("", state.messages[0].text)
+        val attachment = state.messages[0].attachments.single()
+        assertIs<ChatAttachment.Audio>(attachment)
+        assertEquals("file:///tmp/agrogem_voice.m4a", attachment.uri)
+        assertEquals(0, repo.sendMessageCallCount)
     }
 
     @Test
@@ -2465,6 +2510,27 @@ class ChatViewModelTest {
 
         fun simulateError(message: String) {
             onError?.invoke(message)
+        }
+    }
+
+    private class FakeAudioRecorder(
+        private val stopUri: String? = null,
+    ) : AudioRecorder {
+        var startCallCount = 0
+        var stopCallCount = 0
+        var cancelCallCount = 0
+
+        override fun start() {
+            startCallCount++
+        }
+
+        override fun stop(): String? {
+            stopCallCount++
+            return stopUri
+        }
+
+        override fun cancel() {
+            cancelCallCount++
         }
     }
 

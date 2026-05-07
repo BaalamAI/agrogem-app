@@ -1,6 +1,7 @@
 package com.agrogem.app.data
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 interface GemmaManager {
     val isInitialized: Flow<Boolean>
@@ -77,6 +78,9 @@ expect fun createGemmaManager(): GemmaManager
  * Utility to manage model downloading and paths
  */
 interface GemmaModelDownloader {
+    val downloadProgress: Flow<Int?>
+        get() = flowOf(null)
+
     suspend fun downloadModel(url: String): Result<String>
     fun isModelDownloaded(): Boolean
     fun getModelPath(): String

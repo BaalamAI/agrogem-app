@@ -61,7 +61,7 @@ class DownloadWorker(
 
             if (tempFile.renameTo(destinationFile)) {
                 Log.i("DownloadWorker", "Download completed successfully")
-                return ListenableWorker.Result.success()
+                return ListenableWorker.Result.success(workDataOf("progress" to 100))
             } else {
                 Log.e("DownloadWorker", "Failed to rename temp file")
                 return ListenableWorker.Result.failure()
