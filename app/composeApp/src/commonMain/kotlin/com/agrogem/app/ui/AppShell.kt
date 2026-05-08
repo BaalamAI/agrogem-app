@@ -1,13 +1,15 @@
 package com.agrogem.app.ui
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.agrogem.app.data.GemmaPreparation
@@ -24,6 +26,7 @@ import com.agrogem.app.data.environment.createEnvironmentRepository
 import com.agrogem.app.data.geolocation.createGeolocationRepository
 import com.agrogem.app.data.pest.createPestRepository
 import com.agrogem.app.data.pest.domain.PlantAnalysisRepositoryImpl
+import com.agrogem.app.data.location.BindLocationGate
 import com.agrogem.app.data.rememberAudioRecorder
 import com.agrogem.app.data.rememberImagePickerLauncher
 import com.agrogem.app.data.rememberSpeechRecognizer
@@ -55,34 +58,18 @@ fun AppShell(modifier: Modifier = Modifier) {
     val appSessionViewModel = kmpViewModel {
         AppSessionViewModel(authRepository, sessionLocalStore)
     }
-    val sessionUiState by appSessionViewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         appSessionViewModel.bootstrap()
     }
 
-    LaunchedEffect(sessionUiState.onboardingDone) {
-        if (sessionUiState.onboardingDone) {
-            onboardingStateStore.markCompleted()
-            navController.navigate(AgroGemRoute.Home.route) {
-                popUpTo(AgroGemRoute.Onboarding.createRoute(0)) {
-                    inclusive = true
-                }
-                launchSingleTop = true
-                restoreState = false
-            }
-        }
-    }
-
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = AgroGemRoute.fromRoute(backStackEntry?.destination?.route)
-    val showBottomBar = currentRoute == AgroGemRoute.Home || currentRoute == AgroGemRoute.History || currentRoute == AgroGemRoute.Conversations || currentRoute == AgroGemRoute.MapRisk
+    // POC reducido: solo Home + Chat. La barra solo aparece en Home (Chat la oculta como antes).
+    val showBottomBar = currentRoute == AgroGemRoute.Home
     val currentTab = currentRoute.bottomTab ?: AgroGemBottomTab.Home
-    val startDestination = if (onboardingStateStore.isCompleted || sessionUiState.onboardingDone) {
-        AgroGemRoute.Home.route
-    } else {
-        AgroGemRoute.Onboarding.createRoute(0)
-    }
+    // POC: onboarding is intentionally bypassed — always launch into Home.
+    val startDestination = AgroGemRoute.Home.route
 
     val geolocationRepository = remember { createGeolocationRepository() }
     val weatherRepository = remember { createWeatherRepository() }
@@ -110,10 +97,12 @@ fun AppShell(modifier: Modifier = Modifier) {
     val connectivityMonitor = remember { createConnectivityMonitor() }
     val gemmaManager = remember { createGemmaManager() }
     val gemmaDownloader = remember { createGemmaModelDownloader() }
+    val gemmaModelPreference = remember { com.agrogem.app.data.GemmaModelPreferenceStore() }
     val gemmaPreparation = remember {
         GemmaPreparation(
             gemmaManager = gemmaManager,
             modelDownloader = gemmaDownloader,
+            modelPreference = gemmaModelPreference,
         )
     }
     val plantAnalysisRepository = remember {
@@ -166,6 +155,12 @@ fun AppShell(modifier: Modifier = Modifier) {
         }
     }
 
+    BindLocationGate()
+
+    LaunchedEffect(Unit) {
+        gemmaPreparation.ensureReady()
+    }
+
     val imagePicker = rememberImagePickerLauncher { result ->
         if (result != null) {
             analysisFlowVm.startAnalysis(result)
@@ -173,8 +168,15 @@ fun AppShell(modifier: Modifier = Modifier) {
         }
     }
 
+    val contentInsets = if (currentRoute == AgroGemRoute.Chat) {
+        WindowInsets.statusBars
+    } else {
+        ScaffoldDefaults.contentWindowInsets
+    }
+
     Scaffold(
         modifier = modifier,
+        contentWindowInsets = contentInsets,
         bottomBar = {
             if (showBottomBar) {
                 BottomNavigationBar(
@@ -188,7 +190,13 @@ fun AppShell(modifier: Modifier = Modifier) {
                                 return@BottomNavigationBar
                             }
                             AgroGemBottomTab.Maps -> AgroGemRoute.MapRisk
-                            AgroGemBottomTab.Chat -> AgroGemRoute.Conversations
+                            AgroGemBottomTab.Chat -> {
+                                chatViewModel.resetToBlank()
+                                navController.navigate(AgroGemRoute.Chat.createRoute(null)) {
+                                    launchSingleTop = true
+                                }
+                                return@BottomNavigationBar
+                            }
                         }
 
                         if (destination.route != backStackEntry?.destination?.route) {
@@ -211,6 +219,7 @@ fun AppShell(modifier: Modifier = Modifier) {
             soilRepository = soilRepository,
             climateRepository = climateRepository,
             geolocationRepository = geolocationRepository,
+            gemmaPreparation = gemmaPreparation,
             startDestination = startDestination,
             onOnboardingFinished = {
                 onboardingStateStore.markCompleted()

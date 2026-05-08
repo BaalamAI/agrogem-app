@@ -1,8 +1,10 @@
 package com.agrogem.app.ui.screens.chat
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -11,6 +13,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -29,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -67,10 +71,14 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import com.agrogem.app.data.GemmaModelOption
+import com.agrogem.app.data.GemmaPreparationStatus
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -88,6 +96,7 @@ import app.composeapp.generated.resources.agrogem
 import app.composeapp.generated.resources.ic_action_back
 import app.composeapp.generated.resources.ic_action_camera
 import app.composeapp.generated.resources.ic_action_chevron_down
+import app.composeapp.generated.resources.ic_action_chevron_right
 import app.composeapp.generated.resources.ic_action_copy
 import app.composeapp.generated.resources.ic_action_gallery
 import app.composeapp.generated.resources.ic_action_send
@@ -107,6 +116,7 @@ import com.agrogem.app.ui.components.FilledPrimaryButton
 import com.agrogem.app.ui.components.Pill
 import com.agrogem.app.ui.components.RoundIconButton
 import kotlinx.coroutines.launch
+import kotlin.time.Clock
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
@@ -160,11 +170,19 @@ fun ChatContent(
     val focusManager = LocalFocusManager.current
     val audioPlayer = rememberAudioPlayer()
 
+    val pendingModelSwitch = uiState.pendingModelSwitch
+    if (pendingModelSwitch != null) {
+        ModelDownloadConfirmDialog(
+            target = pendingModelSwitch,
+            onConfirm = { onEvent(ChatEvent.ConfirmModelDownload) },
+            onDismiss = { onEvent(ChatEvent.CancelModelDownload) },
+        )
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(AgroGemBrand.Background)
-            .systemBarsPadding()
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { focusManager.clearFocus() })
             },
@@ -180,8 +198,8 @@ fun ChatContent(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 RoundIconButton(label = "‹", icon = Res.drawable.ic_action_back, contentDescription = "Back", onClick = onBack, size = 32.dp)
                 ModelSelector(
-                    useThinking = uiState.useThinking,
-                    onToggleThinking = { onEvent(ChatEvent.ToggleThinking(it)) },
+                    selectedModel = uiState.selectedModel,
+                    onSelectModel = { onEvent(ChatEvent.SelectModel(it)) },
                     modifier = Modifier.weight(1f),
                 )
                 Box(
@@ -200,6 +218,11 @@ fun ChatContent(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
+
+            if (uiState.gemmaPreparationStatus == GemmaPreparationStatus.Downloading) {
+                ModelDownloadBanner(progress = uiState.gemmaDownloadProgress)
+                Spacer(modifier = Modifier.height(10.dp))
+            }
 
             // Show diagnosis header only when chat is seeded with analysis context
             val seededDiagnosis = (chatMode as? ChatMode.AnalysisSeeded)?.diagnosis
@@ -268,6 +291,8 @@ fun ChatContent(
                                 speakingMessageId = uiState.speakingMessageId,
                                 onPlayAssistantMessage = onEvent,
                                 onPlayAudio = { uri -> audioPlayer.play(uri) },
+                                gemmaPreparationStatus = uiState.gemmaPreparationStatus,
+                                gemmaDownloadProgress = uiState.gemmaDownloadProgress,
                             )
                         }
                     }
@@ -289,7 +314,8 @@ fun ChatContent(
                 Column(
                     modifier = Modifier
                         .imePadding()
-                        .padding(bottom = 16.dp),
+                        .navigationBarsPadding()
+                        .padding(bottom = 12.dp),
                 ) {
                     if (uiState.contextWarning != ContextWarningLevel.None) {
                         ContextWarningBanner(
@@ -372,8 +398,8 @@ fun ChatContent(
 
 @Composable
 private fun ModelSelector(
-    useThinking: Boolean,
-    onToggleThinking: (Boolean) -> Unit,
+    selectedModel: GemmaModelOption,
+    onSelectModel: (GemmaModelOption) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -387,7 +413,7 @@ private fun ModelSelector(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Gemma 4",
+                    text = selectedModel.shortName,
                     color = AgroGemBrand.Text.Primary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
@@ -408,7 +434,7 @@ private fun ModelSelector(
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp,
                 border = BorderStroke(1.dp, AgroGemColors.ChatBorder),
-                modifier = Modifier.width(136.dp),
+                modifier = Modifier.width(220.dp),
             ) {
                 Text(
                     text = "Modelo",
@@ -417,84 +443,84 @@ private fun ModelSelector(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
                 )
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = "Gemma 4",
-                            color = AgroGemBrand.Text.Primary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    },
-                    trailingIcon = {
-                        AgroGemIcon(
-                            icon = Res.drawable.ic_status_check,
-                            contentDescription = "Modelo seleccionado",
-                            tint = AgroGemBrand.Verde600,
-                            size = AgroGemIconSizes.Xs,
-                        )
-                    },
-                    onClick = { expanded = false },
-                )
-                HorizontalDivider(color = AgroGemColors.ChatBorder)
-                Text(
-                    text = "Modo",
-                    color = AgroGemBrand.Gris400,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                )
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = "Normal",
-                            color = AgroGemBrand.Text.Primary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    },
-                    trailingIcon = {
-                        if (!useThinking) {
-                            AgroGemIcon(
-                                icon = Res.drawable.ic_status_check,
-                                contentDescription = "Modo activo",
-                                tint = AgroGemBrand.Verde600,
-                                size = AgroGemIconSizes.Xs,
+                GemmaModelOption.all.forEach { option ->
+                    val isActive = option == selectedModel
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = option.displayName,
+                                color = AgroGemBrand.Text.Primary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
                             )
-                        }
-                    },
-                    onClick = {
-                        onToggleThinking(false)
-                        expanded = false
-                    },
-                )
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = "Thinking",
-                            color = AgroGemBrand.Text.Primary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    },
-                    trailingIcon = {
-                        if (useThinking) {
-                            AgroGemIcon(
-                                icon = Res.drawable.ic_status_check,
-                                contentDescription = "Modo activo",
-                                tint = AgroGemBrand.Verde600,
-                                size = AgroGemIconSizes.Xs,
-                            )
-                        }
-                    },
-                    onClick = {
-                        onToggleThinking(true)
-                        expanded = false
-                    },
-                )
+                        },
+                        trailingIcon = {
+                            if (isActive) {
+                                AgroGemIcon(
+                                    icon = Res.drawable.ic_status_check,
+                                    contentDescription = "Modelo seleccionado",
+                                    tint = AgroGemBrand.Verde600,
+                                    size = AgroGemIconSizes.Xs,
+                                )
+                            }
+                        },
+                        onClick = {
+                            expanded = false
+                            if (!isActive) onSelectModel(option)
+                        },
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun ModelDownloadConfirmDialog(
+    target: GemmaModelOption,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = AgroGemColors.Surface,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                text = "Descargar ${target.shortName}",
+                color = AgroGemBrand.Text.Primary,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        },
+        text = {
+            Text(
+                text = "Para usar “${target.displayName}” hay que descargar el modelo (~1 GB). " +
+                    "Reemplazará al modelo actual y puede tardar varios minutos. " +
+                    "Te recomendamos estar en WiFi.",
+                color = AgroGemBrand.Text.Primary,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(
+                    text = "Descargar",
+                    color = AgroGemBrand.Verde600,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = "Cancelar",
+                    color = AgroGemBrand.Gris400,
+                )
+            }
+        },
+    )
 }
 
 @Composable
@@ -643,6 +669,8 @@ private fun MessageBubble(
     speakingMessageId: String?,
     onPlayAssistantMessage: (ChatEvent) -> Unit,
     onPlayAudio: (String) -> Unit,
+    gemmaPreparationStatus: GemmaPreparationStatus = GemmaPreparationStatus.Ready,
+    gemmaDownloadProgress: Int? = null,
 ) {
     when (message.sender) {
         MessageSender.Assistant -> {
@@ -657,32 +685,18 @@ private fun MessageBubble(
                     )
                 }
                 if (message.thought != null && message.thought.isNotBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .background(AgroGemColors.PillTrackSemi, RoundedCornerShape(18.dp))
-                            .padding(10.dp)
-                            .fillMaxWidth()
-                    ) {
-                        Column {
-                            Text(
-                                text = "Pensando...",
-                                color = AgroGemBrand.Verde600,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            Text(
-                                text = message.thought,
-                                color = AgroGemBrand.Gris400,
-                                fontSize = 14.sp,
-                                lineHeight = 20.sp,
-                                fontWeight = FontWeight.Normal,
-                            )
-                        }
-                    }
+                    ThoughtBubble(
+                        thought = message.thought,
+                        isStreaming = message.isStreaming,
+                    )
                 }
-                if (message.isStreaming && message.text.isBlank()) {
-                    ThinkingIndicator()
+                if (message.isStreaming && message.text.isBlank() && message.thought.isNullOrBlank()) {
+                    ThinkingIndicator(
+                        phase = message.thinkingPhase,
+                        streamStartedAt = message.streamStartedAt,
+                        gemmaPreparationStatus = gemmaPreparationStatus,
+                        gemmaDownloadProgress = gemmaDownloadProgress,
+                    )
                 } else if (message.isStreaming) {
                     StreamingTextWithCursor(text = message.text)
                 } else {
@@ -1050,14 +1064,106 @@ private fun ToolsUsedIndicator(tools: List<String>, isLive: Boolean) {
 }
 
 @Composable
-private fun ThinkingIndicator() {
+private fun ThoughtBubble(
+    thought: String,
+    isStreaming: Boolean,
+) {
+    var expanded by remember(isStreaming) { mutableStateOf(false) }
+    val chevronAngle by animateFloatAsState(
+        targetValue = if (expanded) 90f else 0f,
+        label = "thought_chevron",
+    )
+
+    val headerLabel = if (isStreaming) "Pensando..." else "Ver razonamiento"
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = headerLabel,
+                color = AgroGemBrand.Gris400,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            AgroGemIcon(
+                icon = Res.drawable.ic_action_chevron_right,
+                contentDescription = if (expanded) "Cerrar razonamiento" else "Ver razonamiento",
+                tint = AgroGemBrand.Gris400,
+                size = AgroGemIconSizes.Xs,
+                modifier = Modifier.rotate(chevronAngle),
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            Text(
+                text = thought,
+                color = AgroGemBrand.Gris400,
+                fontSize = 13.sp,
+                lineHeight = 19.sp,
+                fontWeight = FontWeight.Normal,
+                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThinkingIndicator(
+    phase: ThinkingPhase,
+    streamStartedAt: Long? = null,
+    gemmaPreparationStatus: GemmaPreparationStatus = GemmaPreparationStatus.Ready,
+    gemmaDownloadProgress: Int? = null,
+) {
+    val label = when (phase) {
+        ThinkingPhase.Preparing -> when (gemmaPreparationStatus) {
+            GemmaPreparationStatus.Downloading -> {
+                val pct = gemmaDownloadProgress?.coerceIn(0, 100)
+                if (pct != null) "Descargando modelo • $pct%" else "Descargando modelo"
+            }
+            else -> "Preparando modelo"
+        }
+        ThinkingPhase.Thinking -> "Agente pensando"
+        ThinkingPhase.CallingTools -> "Supervisor consultando datos"
+        ThinkingPhase.Retrying -> "Supervisor analizando"
+        ThinkingPhase.ActivatingVision -> "Activando modo visión"
+    }
+
+    // Tick a 1Hz timer keyed on the start timestamp. The key reset means a
+    // supervisor retry (which mints a fresh `streamStartedAt`) restarts the
+    // counter from 0:00 instead of accumulating prior-attempt time.
+    var elapsedSec by remember(streamStartedAt) { mutableStateOf(0L) }
+    LaunchedEffect(streamStartedAt) {
+        if (streamStartedAt == null) return@LaunchedEffect
+        while (true) {
+            elapsedSec = ((Clock.System.now().toEpochMilliseconds() - streamStartedAt) / 1000).coerceAtLeast(0)
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+    val elapsedLabel = streamStartedAt?.let {
+        val mins = elapsedSec / 60
+        val secs = elapsedSec % 60
+        val padded = if (secs < 10) "0$secs" else "$secs"
+        "$mins:$padded"
+    }
+
     val transition = rememberInfiniteTransition(label = "thinking")
     Row(
+        modifier = Modifier.padding(top = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
-            text = "Pensando",
+            text = if (elapsedLabel != null) "$label • $elapsedLabel" else label,
             color = AgroGemBrand.Gris400,
             fontSize = 15.sp,
             fontStyle = FontStyle.Italic,
@@ -1462,5 +1568,62 @@ private fun ErrorBanner(
             fontSize = 14.sp,
             modifier = Modifier.clickable(onClick = onDismiss),
         )
+    }
+}
+
+@Composable
+private fun ModelDownloadBanner(
+    progress: Int?,
+    modifier: Modifier = Modifier,
+) {
+    val clamped = progress?.coerceIn(0, 100)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(AgroGemBrand.Verde50, RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Descargando modelo...",
+                color = AgroGemBrand.Verde900,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            if (clamped != null) {
+                Text(
+                    text = "$clamped%",
+                    color = AgroGemBrand.Verde900,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+        if (clamped != null) {
+            LinearProgressIndicator(
+                progress = { clamped / 100f },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(100.dp)),
+                color = AgroGemBrand.VerdeAgrogem,
+                trackColor = AgroGemBrand.White,
+            )
+        } else {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(100.dp)),
+                color = AgroGemBrand.VerdeAgrogem,
+                trackColor = AgroGemBrand.White,
+            )
+        }
     }
 }

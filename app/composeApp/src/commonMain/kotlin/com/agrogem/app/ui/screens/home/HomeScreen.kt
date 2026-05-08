@@ -41,6 +41,7 @@ import app.composeapp.generated.resources.ic_metric_uv
 import app.composeapp.generated.resources.ic_metric_water
 import app.composeapp.generated.resources.ic_weather_sunny
 import com.agrogem.app.data.rememberLocationPermissionRequester
+import com.agrogem.app.theme.AgroGemBrand
 import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.theme.AgroGemIconSizes
 import com.agrogem.app.ui.components.AgroGemIcon
@@ -68,7 +69,7 @@ fun HomeScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(AgroGemColors.Screen),
+            .background(AgroGemBrand.Background),
     ) {
         Column(
             modifier = Modifier
@@ -91,8 +92,8 @@ fun HomeScreen(
                     label = "🔔",
                     icon = Res.drawable.ic_action_notifications,
                     contentDescription = "Notifications",
-                    background = AgroGemColors.Surface,
-                    foreground = AgroGemColors.IconBellTint,
+                    background = AgroGemBrand.White,
+                    foreground = AgroGemBrand.Verde600,
                     size = 42.dp,
                     onClick = {},
                 )
@@ -145,7 +146,7 @@ fun HomeScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(AgroGemColors.Surface, RoundedCornerShape(30.dp))
+                    .background(AgroGemBrand.White, RoundedCornerShape(30.dp))
                     .padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -156,14 +157,14 @@ fun HomeScreen(
                 ) {
                     Text(
                         text = "Análisis Recientes",
-                        color = AgroGemColors.TextPrimary,
+                        color = AgroGemBrand.Text.Primary,
                         fontSize = 32.sp / 1.75f,
                         lineHeight = 28.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         text = "Ver todo",
-                        color = AgroGemColors.TextPrimary,
+                        color = AgroGemBrand.Text.Primary,
                         fontSize = 14.sp,
                         modifier = Modifier.clickable(onClick = onOpenHistory),
                     )
@@ -173,7 +174,7 @@ fun HomeScreen(
                 if (recentAnalyses.isEmpty()) {
                     Text(
                         text = "Todavía no hay análisis guardados.",
-                        color = AgroGemColors.TextMedium,
+                        color = AgroGemBrand.Gris700,
                         fontSize = 14.sp,
                     )
                 } else {
@@ -199,7 +200,7 @@ private fun LocationChip(
 ) {
     Row(
         modifier = modifier
-            .background(AgroGemColors.Surface, RoundedCornerShape(999.dp))
+            .background(AgroGemBrand.White, RoundedCornerShape(999.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -215,7 +216,7 @@ private fun LocationChip(
         )
         Text(
             text = text,
-            color = AgroGemColors.TextDark,
+            color = AgroGemBrand.Gris700,
             fontSize = 12.sp,
         )
     }
@@ -232,7 +233,7 @@ private fun WeatherCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(AgroGemColors.Surface, RoundedCornerShape(20.dp))
+            .background(AgroGemBrand.White, RoundedCornerShape(20.dp))
             .padding(horizontal = 18.dp, vertical = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -253,21 +254,21 @@ private fun WeatherCard(
                 )
                 Text(
                     text = locationLabel,
-                    color = AgroGemColors.TextMedium,
+                    color = AgroGemBrand.Gris700,
                     fontSize = 10.sp,
                     letterSpacing = 1.sp,
                 )
             }
             Text(
                 text = temperature,
-                color = AgroGemColors.TextBody,
+                color = AgroGemBrand.Text.Primary,
                 fontSize = 52.sp / 1.75f,
                 lineHeight = 32.sp,
                 fontWeight = FontWeight.Bold,
             )
             Text(
                 text = description,
-                color = AgroGemColors.TextMedium,
+                color = AgroGemBrand.Gris700,
                 fontSize = 16.sp,
             )
         }
@@ -284,13 +285,13 @@ private fun WeatherCard(
             )
             Text(
                 text = timeLabel,
-                color = AgroGemColors.TextLabel,
+                color = AgroGemBrand.Gris700,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 text = dateLabel,
-                color = AgroGemColors.TextLabel,
+                color = AgroGemBrand.Gris700,
                 fontSize = 12.sp,
             )
         }
@@ -308,7 +309,7 @@ private fun MetricsCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(AgroGemColors.Surface, RoundedCornerShape(15.dp))
+            .background(AgroGemBrand.White, RoundedCornerShape(15.dp))
             .padding(horizontal = 10.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
@@ -447,21 +448,21 @@ private fun EnvironmentCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(AgroGemColors.Surface, RoundedCornerShape(20.dp))
+            .background(AgroGemBrand.White, RoundedCornerShape(20.dp))
             .clickable(onClick = onOpenDetail)
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             text = "Suelo y Elevación",
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
         )
         cropContext?.let { context ->
             Text(
                 text = "Contexto cultivo: $context",
-                color = AgroGemColors.TextMedium,
+                color = AgroGemBrand.Gris700,
                 fontSize = 12.sp,
             )
         }
@@ -514,7 +515,7 @@ private fun EnvironmentItem(
     ) {
         Text(
             text = value,
-            color = AgroGemColors.TextGray,
+            color = AgroGemBrand.Gris700,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
         )
@@ -548,25 +549,25 @@ private fun MessageCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(AgroGemColors.Surface, RoundedCornerShape(20.dp))
+            .background(AgroGemBrand.White, RoundedCornerShape(20.dp))
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = title,
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
             text = subtitle,
-            color = AgroGemColors.TextMedium,
+            color = AgroGemBrand.Gris700,
             fontSize = 14.sp,
         )
         Text(
             text = cta,
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier
@@ -617,7 +618,7 @@ private fun MetricItem(
             contentDescription = label,
             size = AgroGemIconSizes.Sm,
         )
-        Text(text = value, color = AgroGemColors.TextGray, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(text = value, color = AgroGemBrand.Gris700, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         Text(text = label, color = AgroGemColors.MetricTextAlpha, fontSize = 10.sp, letterSpacing = 0.6.sp)
     }
 }
@@ -644,7 +645,7 @@ private fun RecentAnalysisRow(
             ) {
                 Text(
                     text = item.name,
-                    color = AgroGemColors.TextGrayMuted,
+                    color = AgroGemBrand.Gris700,
                     fontSize = 12.sp,
                     letterSpacing = 1.1.sp,
                 )
@@ -653,13 +654,13 @@ private fun RecentAnalysisRow(
 
             Text(
                 text = item.health,
-                color = AgroGemColors.TextPrimary,
+                color = AgroGemBrand.Text.Primary,
                 fontSize = 18.sp,
                 lineHeight = 22.sp,
             )
             Text(
                 text = item.subtitle,
-                color = AgroGemColors.TextPrimary,
+                color = AgroGemBrand.Text.Primary,
                 fontSize = 14.sp,
             )
         }

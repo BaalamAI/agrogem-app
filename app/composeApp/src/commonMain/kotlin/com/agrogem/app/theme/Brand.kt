@@ -10,6 +10,7 @@ object AgroGemBrand {
     // ─── Colores principales ────────────────────────────────────────────────
     val Background = Color(0xFFF7F7F7)
     val White = Color(0xFFFFFFFF)
+    val WhiteMuted = Color(0xFFF0F0F0)
     val Black = Color(0xFF060E0F)
     val VerdeAgrogem = Color(0xFF59C27D)
 

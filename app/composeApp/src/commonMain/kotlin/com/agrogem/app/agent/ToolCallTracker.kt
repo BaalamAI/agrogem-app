@@ -16,5 +16,3 @@ class ToolCallTracker {
         _calledTools.value = emptySet()
     }
 }
-
-val toolCallTracker = ToolCallTracker()

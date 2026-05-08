@@ -2,8 +2,8 @@ package com.agrogem.app.ui.screens.gemma_demo
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agrogem.app.agent.ToolCallTracker
 import com.agrogem.app.agent.createAgroGemToolBundle
-import com.agrogem.app.agent.toolCallTracker
 import com.agrogem.app.data.AudioRecorder
 import com.agrogem.app.data.GemmaChatSession
 import com.agrogem.app.data.GemmaManager
@@ -40,7 +40,8 @@ class GemmaDemoViewModel(
     private val audioRecorder: AudioRecorder? = null,
 ) : ViewModel() {
 
-    private val toolBundle = createAgroGemToolBundle()
+    private val toolCallTracker = ToolCallTracker()
+    private val toolBundle = createAgroGemToolBundle(toolCallTracker)
     private var chatSession: GemmaChatSession? = null
     private var voiceRecordingStartedAtMs: Long? = null
     private var sendJob: Job? = null
@@ -374,6 +375,9 @@ class GemmaDemoViewModel(
     private suspend fun buildSystemPrompt(state: ChatUiState, hasImage: Boolean): String {
         val envContext = fetchGeneralEnvironmentContext()
         return buildString {
+            if (state.useThinking) {
+                append("<|think|>\n")
+            }
             if (hasImage) {
                 append("Eres AgroGem, un experto en diagnóstico visual de salud de cultivos. ")
                 append("Analiza la imagen adjunta buscando enfermedades, hongos, bacterias, virus, insectos, ácaros, nematodos, plagas, deficiencias o estrés ambiental. ")
@@ -407,11 +411,6 @@ class GemmaDemoViewModel(
                 if (envContext != null) {
                     append(envContext)
                 }
-            }
-
-            if (!state.useThinking) {
-                // Al añadir <|think|> al final, el modelo cree que ya terminó de pensar
-                append("\n<|think|>")
             }
         }
     }

@@ -29,7 +29,7 @@ import com.agrogem.app.data.climate.domain.ClimateHistory
 import com.agrogem.app.data.soil.domain.Horizon
 import com.agrogem.app.data.soil.domain.SoilProfile
 import androidx.compose.ui.graphics.Color
-import com.agrogem.app.theme.AgroGemColors
+import com.agrogem.app.theme.AgroGemBrand
 
 @Composable
 fun EnvironmentDetailScreen(
@@ -42,7 +42,7 @@ fun EnvironmentDetailScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(AgroGemColors.Screen)
+            .background(AgroGemBrand.Background)
             .verticalScroll(rememberScrollState()),
     ) {
         when (uiState) {
@@ -107,25 +107,25 @@ private fun EnvironmentDetailError(
     ) {
         Text(
             text = "Error de carga",
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = message,
-            color = AgroGemColors.TextMedium,
+            color = AgroGemBrand.Gris700,
             fontSize = 14.sp,
         )
         Spacer(modifier = Modifier.height(16.dp))
         if (canRetry) {
             Text(
                 text = "Reintentar",
-                color = AgroGemColors.TextPrimary,
+                color = AgroGemBrand.Text.Primary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
-                    .background(AgroGemColors.Surface, RoundedCornerShape(8.dp))
+                    .background(AgroGemBrand.White, RoundedCornerShape(8.dp))
                     .padding(horizontal = 16.dp, vertical = 8.dp)
                     .clickableSafe(onRetry),
             )
@@ -133,7 +133,7 @@ private fun EnvironmentDetailError(
         }
         Text(
             text = "Volver",
-            color = AgroGemColors.TextMedium,
+            color = AgroGemBrand.Gris700,
             fontSize = 14.sp,
             modifier = Modifier.clickableSafe(onBack),
         )
@@ -157,7 +157,7 @@ private fun EnvironmentDetailContent(
     ) {
         Text(
             text = locationName.ifBlank { "Perfil ambiental" },
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
         )
@@ -165,14 +165,14 @@ private fun EnvironmentDetailContent(
         if (elevationMeters != null) {
             Text(
                 text = "${elevationMeters.toInt()} msnm",
-                color = AgroGemColors.TextMedium,
+                color = AgroGemBrand.Gris700,
                 fontSize = 14.sp,
             )
         }
 
         Text(
             text = "Volver",
-            color = AgroGemColors.TextMedium,
+            color = AgroGemBrand.Gris700,
             fontSize = 14.sp,
             modifier = Modifier.clickableSafe(onBack),
         )
@@ -180,11 +180,11 @@ private fun EnvironmentDetailContent(
         if (!interpretation.isBlank()) {
             Text(
                 text = interpretation,
-                color = AgroGemColors.TextMedium,
+                color = AgroGemBrand.Gris700,
                 fontSize = 14.sp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(AgroGemColors.Surface, RoundedCornerShape(12.dp))
+                    .background(AgroGemBrand.White, RoundedCornerShape(12.dp))
                     .padding(12.dp),
             )
         }
@@ -204,19 +204,19 @@ private fun SoilSection(soil: SoilProfile) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(AgroGemColors.Surface, RoundedCornerShape(12.dp))
+            .background(AgroGemBrand.White, RoundedCornerShape(12.dp))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             text = "Perfil de suelo",
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
             text = "Textura dominante: ${soil.dominantTexture}",
-            color = AgroGemColors.TextMedium,
+            color = AgroGemBrand.Gris700,
             fontSize = 14.sp,
         )
         soil.domainHorizons.forEach { horizon ->
@@ -234,7 +234,7 @@ private fun HorizonRow(horizon: Horizon) {
     ) {
         Text(
             text = "Profundidad: ${horizon.depth}",
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
         )
@@ -263,13 +263,13 @@ private fun ClimateSection(climate: ClimateHistory) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(AgroGemColors.Surface, RoundedCornerShape(12.dp))
+            .background(AgroGemBrand.White, RoundedCornerShape(12.dp))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
             text = "Historial climático (${climate.granularity})",
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
         )
@@ -289,13 +289,13 @@ private fun ClimateRow(point: ClimateDataPoint) {
     ) {
         Text(
             text = point.date,
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
         )
         Text(
             text = "${point.t2m}C / ${point.precipitationMm}mm / ${point.rhPct}%",
-            color = AgroGemColors.TextMedium,
+            color = AgroGemBrand.Gris700,
             fontSize = 14.sp,
         )
     }
@@ -305,7 +305,7 @@ private fun ClimateRow(point: ClimateDataPoint) {
 private fun DetailLabel(label: String, value: String) {
     Text(
         text = "$label: $value",
-        color = AgroGemColors.TextMedium,
+        color = AgroGemBrand.Gris700,
         fontSize = 12.sp,
     )
 }

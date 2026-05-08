@@ -3,6 +3,7 @@ package com.agrogem.app.data.pest.domain
 import com.agrogem.app.data.GemmaManager
 import com.agrogem.app.data.GemmaPreparation
 import com.agrogem.app.data.ImageResult
+import com.agrogem.app.data.InferenceLifecycle
 import com.agrogem.app.data.connectivity.ConnectivityMonitor
 import kotlin.math.round
 import kotlinx.serialization.Serializable
@@ -46,23 +47,45 @@ class PlantAnalysisRepositoryImpl(
                 ?: PestResult.Failure(PestFailure.Network(Exception("No internet connection and Gemma model not available")))
         }
 
+        // Pushing an image into a text-only Gemma engine SIGSEGVs inside LiteRT-LM
+        // (uncatchable from Kotlin). Skip Gemma enrichment if the selected model
+        // isn't vision-capable — fall back to the backend pest classifier alone.
+        val visionReady = ensureVisionForImage()
+        if (!visionReady) {
+            return backendResult
+                ?: PestResult.Failure(PestFailure.Network(Exception("Modelo seleccionado no soporta análisis de imágenes")))
+        }
+
         val backendSuccess = backendResult as? PestResult.Success
 
-        val gemmaResult = runCatching {
-            val backendConfidence = backendSuccess?.diagnosis?.confidence
-            val responseText = gemmaManager.sendMessage(
-                systemPrompt = buildSystemPrompt(backendSuccess),
-                userPrompt = USER_PROMPT,
-                images = listOfNotNull(image.uri),
-                temperature = 0.4f,
-            )
-            parseGemmaResponse(responseText, backendConfidence)
-        }.getOrNull()
+        // Bracket the Gemma call with a foreground-service acquire so Android's
+        // Low-Memory Killer treats this multi-second vision-prefill+inference as
+        // critical and won't SIGKILL the process if other apps demand memory.
+        InferenceLifecycle.start("Analizando imagen con Gemma…")
+        val gemmaResult = try {
+            runCatching {
+                val backendConfidence = backendSuccess?.diagnosis?.confidence
+                val responseText = gemmaManager.sendMessage(
+                    systemPrompt = buildSystemPrompt(backendSuccess),
+                    userPrompt = USER_PROMPT,
+                    images = listOfNotNull(image.uri),
+                    temperature = 0.4f,
+                )
+                parseGemmaResponse(responseText, backendConfidence)
+            }.getOrNull()
+        } finally {
+            InferenceLifecycle.stop()
+        }
 
         return gemmaResult ?: backendResult ?: PestResult.Failure(PestFailure.Server)
     }
 
     private suspend fun initializeGemmaIfPossible(): Boolean = gemmaPreparation.ensureReady()
+
+    private suspend fun ensureVisionForImage(): Boolean {
+        if (gemmaManager.supportsVision) return true
+        return gemmaPreparation.ensureVisionReady()
+    }
 
     private fun buildSystemPrompt(backendResult: PestResult.Success?): String = buildString {
         append("Eres AgroGem, un experto en diagnóstico visual de salud de cultivos. ")

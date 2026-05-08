@@ -23,28 +23,31 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 
 private const val TAG = "AgroGemTools"
+private const val NETWORK_TOOL_TIMEOUT_MS = 15_000L
 
-actual fun createAgroGemToolBundle(): GemmaToolBundle? = GemmaToolBundle(
+actual fun createAgroGemToolBundle(tracker: ToolCallTracker): GemmaToolBundle? = GemmaToolBundle(
     tools = listOf(
-        WeatherToolSet(),
-        SoilToolSet(),
-        PestRiskToolSet(),
-        LocationLookupToolSet(),
-        LocationGpsToolSet(),
+        WeatherToolSet(tracker = tracker),
+        SoilToolSet(tracker = tracker),
+        PestRiskToolSet(tracker = tracker),
+        LocationLookupToolSet(tracker = tracker),
+        LocationGpsToolSet(tracker = tracker),
     ),
     automaticToolCalling = true,
 )
 
 class LocationLookupToolSet(
+    private val tracker: ToolCallTracker,
     private val geo: GeolocationRepository = createGeolocationRepository(),
 ) : ToolSet {
 
-    @Tool(description = "Resolves a free-text place name (e.g. 'Ciudad de Guatemala, Guatemala' or 'Córdoba, Argentina') to coordinates and saves it as the user's current location. Call this when GPS is unavailable and the user has stated where they are. After this returns successfully, you can call get_current_weather, get_soil_profile, or get_pest_risks.")
+    @Tool(description = "Resuelve un nombre de lugar en texto libre (ej. 'Ciudad de Guatemala, Guatemala' o 'Córdoba, Argentina') a coordenadas y lo guarda como la ubicación actual del usuario. Llamá esta herramienta cuando el GPS no esté disponible y el usuario haya indicado dónde está. Después de que retorne exitosamente, podés llamar get_current_weather, get_soil_profile o get_pest_risks.")
     fun resolveLocationByName(query: String): Map<String, Any> = runBlocking(Dispatchers.IO) {
-        toolCallTracker.markCalled("Ubicación")
+        tracker.markCalled("Ubicación")
         if (query.isBlank()) return@runBlocking errorMap("Falta el nombre del lugar.")
         Log.i(TAG, "geocode tool — query=$query")
-        val result = geo.geocode(query)
+        val result = withTimeoutOrNull(NETWORK_TOOL_TIMEOUT_MS) { geo.geocode(query) }
+            ?: return@runBlocking errorMap("La consulta de geocodificación tardó más de 15 segundos. Decile al usuario que la red está lenta y que reintente.")
         result.fold(
             onSuccess = { resolved ->
                 val loc = resolved.location
@@ -76,13 +79,14 @@ class LocationLookupToolSet(
 }
 
 class LocationGpsToolSet(
+    private val tracker: ToolCallTracker,
     private val geo: GeolocationRepository = createGeolocationRepository(),
     private val locationProviderFactory: () -> DeviceLocationProvider = { createDeviceLocationProvider() },
 ) : ToolSet {
 
-    @Tool(description = "Asks the user for GPS permission and resolves their precise current location via the device's GPS. Prefer this over asking the user to type a place name when they ask anything location-specific (clima, suelo, plagas) and no location is set yet. The system will show a permission dialog to the user. After this returns successfully, you can call get_current_weather, get_soil_profile, or get_pest_risks. If the user denies permission or GPS is unavailable, fall back to asking them for their municipality and country and call resolve_location_by_name.")
+    @Tool(description = "Pide permiso de GPS al usuario y resuelve su ubicación actual precisa mediante el GPS del dispositivo. Preferí esta herramienta sobre pedirle al usuario que escriba un lugar cuando pregunte algo relacionado con la ubicación (clima, suelo, plagas) y aún no haya una ubicación configurada. El sistema mostrará un diálogo de permiso al usuario. Después de que retorne exitosamente, podés llamar get_current_weather, get_soil_profile o get_pest_risks. Si el usuario deniega el permiso o el GPS no está disponible, pedile su municipio y país y llamá resolve_location_by_name.")
     fun requestUserLocation(): Map<String, Any> = runBlocking(Dispatchers.IO) {
-        toolCallTracker.markCalled("Ubicación GPS")
+        tracker.markCalled("Ubicación GPS")
         Log.i(TAG, "request location tool — start")
         val granted = withTimeoutOrNull(60_000L) { LocationGate.requestPermission() }
         if (granted != true) {
@@ -97,7 +101,9 @@ class LocationGpsToolSet(
             Log.w(TAG, "request location tool — GPS no resolvió en 30s")
             return@runBlocking errorMap("No se pudo obtener una lectura de GPS (probablemente está apagado o sin señal). Pedile al usuario que active el GPS o que escriba su ubicación, y luego llamá resolve_location_by_name.")
         }
-        geo.reverseGeocode(latLng).fold(
+        val reverseResult = withTimeoutOrNull(NETWORK_TOOL_TIMEOUT_MS) { geo.reverseGeocode(latLng) }
+            ?: return@runBlocking errorMap("Se obtuvo GPS (lat=${latLng.latitude}, lng=${latLng.longitude}) pero la red está lenta para resolver el nombre del lugar. Pedile al usuario el nombre del municipio o usá las coordenadas si son útiles.")
+        reverseResult.fold(
             onSuccess = { resolved ->
                 Log.i(TAG, "request location tool — OK: ${resolved.display.primary} (${latLng.latitude}, ${latLng.longitude})")
                 buildMap<String, Any> {
@@ -118,17 +124,19 @@ class LocationGpsToolSet(
 }
 
 class WeatherToolSet(
+    private val tracker: ToolCallTracker,
     private val weather: WeatherRepository = createWeatherRepository(),
     private val geo: GeolocationRepository = createGeolocationRepository(),
 ) : ToolSet {
 
-    @Tool(description = "Returns the current weather (temperature, humidity, precipitation, wind, UV, conditions) at the user's current resolved location. No arguments needed.")
+    @Tool(description = "Retorna el clima actual (temperatura, humedad, precipitación, viento, UV, condiciones) en la ubicación resuelta del usuario. No requiere argumentos.")
     fun getCurrentWeather(): Map<String, Any> = runBlocking(Dispatchers.IO) {
-        toolCallTracker.markCalled("Clima")
+        tracker.markCalled("Clima")
         val location = geo.currentOrNull()
             ?: return@runBlocking errorMap("La ubicación del usuario no está disponible. Pídele al usuario su ciudad o municipio.")
         Log.i(TAG, "weather tool — location=${location.display.primary}")
-        val result = weather.getCurrentWeather(location.coordinates)
+        val result = withTimeoutOrNull(NETWORK_TOOL_TIMEOUT_MS) { weather.getCurrentWeather(location.coordinates) }
+            ?: return@runBlocking errorMap("La consulta de clima tardó más de 15 segundos. Decile al usuario que la red está lenta y que reintente en un momento.")
         result.fold(
             onSuccess = { w ->
                 Log.i(TAG, "weather tool — OK: temp=${w.temperatureCelsius} interpretation=${w.interpretation?.take(80)}")
@@ -161,17 +169,19 @@ class WeatherToolSet(
 }
 
 class SoilToolSet(
+    private val tracker: ToolCallTracker,
     private val soil: SoilRepository = createSoilRepository(),
     private val geo: GeolocationRepository = createGeolocationRepository(),
 ) : ToolSet {
 
-    @Tool(description = "Returns the soil profile (dominant texture, pH, clay/sand/silt percentages, interpretation) at the user's current resolved location. No arguments needed.")
+    @Tool(description = "Retorna el perfil de suelo (textura dominante, pH, porcentajes de arcilla/arena/limo, interpretación) en la ubicación resuelta del usuario. No requiere argumentos.")
     fun getSoilProfile(): Map<String, Any> = runBlocking(Dispatchers.IO) {
-        toolCallTracker.markCalled("Suelo")
+        tracker.markCalled("Suelo")
         val location = geo.currentOrNull()
             ?: return@runBlocking errorMap("La ubicación del usuario no está disponible.")
         Log.i(TAG, "soil tool — location=${location.display.primary}")
-        val result = soil.getSoil(location.coordinates)
+        val result = withTimeoutOrNull(NETWORK_TOOL_TIMEOUT_MS) { soil.getSoil(location.coordinates) }
+            ?: return@runBlocking errorMap("La consulta de suelo tardó más de 15 segundos. Decile al usuario que la red está lenta y que reintente en un momento.")
         result.fold(
             onSuccess = { profile ->
                 val top = profile.domainHorizons.firstOrNull()
@@ -206,17 +216,19 @@ class SoilToolSet(
 }
 
 class PestRiskToolSet(
+    private val tracker: ToolCallTracker,
     private val risk: RiskRepository = createRiskRepository(),
     private val geo: GeolocationRepository = createGeolocationRepository(),
 ) : ToolSet {
 
-    @Tool(description = "Returns the current agricultural pest risk levels (insects and arthropods) for the user's current resolved location. Each entry includes a name, severity (Optimo/Atencion/Critica), score and interpretation. No arguments needed.")
+    @Tool(description = "Retorna los niveles actuales de riesgo de plagas agrícolas (insectos y artrópodos) para la ubicación resuelta del usuario. Cada entrada incluye nombre, severidad (Optimo/Atencion/Critica), puntaje e interpretación. No requiere argumentos.")
     fun getPestRisks(): Map<String, Any> = runBlocking(Dispatchers.IO) {
-        toolCallTracker.markCalled("Plagas")
+        tracker.markCalled("Plagas")
         val location = geo.currentOrNull()
             ?: return@runBlocking errorMap("La ubicación del usuario no está disponible.")
         Log.i(TAG, "pest tool — location=${location.display.primary}")
-        val result = risk.getPestRisks(location.coordinates)
+        val result = withTimeoutOrNull(NETWORK_TOOL_TIMEOUT_MS) { risk.getPestRisks(location.coordinates) }
+            ?: return@runBlocking errorMap("La consulta de plagas tardó más de 15 segundos. Decile al usuario que la red está lenta y que reintente en un momento.")
         result.fold(
             onSuccess = { risks ->
                 Log.i(TAG, "pest tool — OK: count=${risks.size} top=${risks.maxByOrNull { it.score }?.let { "${it.displayName}(${it.severity.name})" }}")

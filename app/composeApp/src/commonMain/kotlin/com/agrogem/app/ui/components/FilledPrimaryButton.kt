@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.agrogem.app.theme.AgroGemColors
+import com.agrogem.app.theme.AgroGemBrand
 
 @Composable
 internal fun FilledPrimaryButton(
@@ -28,7 +28,7 @@ internal fun FilledPrimaryButton(
             .fillMaxWidth()
             .height(36.dp)
             .background(
-                if (enabled) AgroGemColors.PrimaryButton else AgroGemColors.PrimaryButton.copy(alpha = 0.5f),
+                if (enabled) AgroGemBrand.Button.PrimaryBg else AgroGemBrand.Button.PrimaryBg.copy(alpha = 0.5f),
                 RoundedCornerShape(10.dp)
             )
             .clickable(enabled = enabled, onClick = onClick),

@@ -11,11 +11,19 @@ object ToolIntentSupervisor {
         "clima",
         "lluvia",
         "llover",
+        "lloviendo",
         "temperatura",
         "humedad",
+        "humedo",
+        "seco",
         "viento",
         "precipitacion",
         "uv",
+        "calor",
+        "frio",
+        "nublado",
+        "soleado",
+        "tormenta",
     )
 
     private val soilKeywords = listOf(
@@ -26,6 +34,10 @@ object ToolIntentSupervisor {
         "arena",
         "limo",
         "materia organica",
+        "abono",
+        "fertilizante",
+        "fertilizar",
+        "nutrientes",
     )
 
     private val pestKeywords = listOf(
@@ -37,6 +49,8 @@ object ToolIntentSupervisor {
         "riesgo de plagas",
         "presion de plaga",
         "presion de plagas",
+        "bicho",
+        "bichos",
     )
 
     private val locationKeywords = listOf(
@@ -46,6 +60,8 @@ object ToolIntentSupervisor {
         "donde estoy",
         "mi zona",
         "mi finca",
+        "mi parcela",
+        "mi terreno",
     )
 
     fun expectedToolsFor(text: String): Set<String> {

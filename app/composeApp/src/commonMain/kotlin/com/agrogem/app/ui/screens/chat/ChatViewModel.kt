@@ -2,13 +2,15 @@ package com.agrogem.app.ui.screens.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.agrogem.app.agent.ToolCallTracker
 import com.agrogem.app.agent.ToolIntentSupervisor
 import com.agrogem.app.agent.createAgroGemToolBundle
-import com.agrogem.app.agent.toolCallTracker
 import com.agrogem.app.data.GemmaChatSession
+import com.agrogem.app.data.GemmaModelOption
 import com.agrogem.app.data.GemmaPreparation
 import com.agrogem.app.data.GemmaManager
 import com.agrogem.app.data.GemmaModelDownloader
+import com.agrogem.app.data.InferenceLifecycle
 import com.agrogem.app.data.AudioRecorder
 import com.agrogem.app.data.SpeechSynthesizer
 import com.agrogem.app.data.SpeechRecognizer
@@ -59,12 +61,19 @@ class ChatViewModel(
     private val speechRecognizer: SpeechRecognizer? = null,
     private val speechSynthesizer: SpeechSynthesizer? = null,
     private val audioRecorder: AudioRecorder? = null,
+    // VM-scoped tracker. Tools mark their invocations here; the supervisor reads it.
+    // Kept per-VM (not a process-wide singleton) so concurrent ChatViewModel instances
+    // can't see each other's tool calls. Tests inject a shared tracker so the fake
+    // GemmaManager and the VM look at the same state.
+    private val toolCallTracker: ToolCallTracker = ToolCallTracker(),
 ) : ViewModel() {
 
     private var currentConversationId: String? = null
     private var chatSession: GemmaChatSession? = null
     private var voiceRecordingStartedAtMs: Long? = null
     private var sendJob: kotlinx.coroutines.Job? = null
+
+    private val toolBundle by lazy { createAgroGemToolBundle(toolCallTracker) }
 
     private val gemmaPreparation: GemmaPreparation? = gemmaPreparation
         ?: if (gemmaManager != null && gemmaModelDownloader != null) {
@@ -78,6 +87,43 @@ class ChatViewModel(
 
     private val _effectChannel = Channel<ChatEffect>(Channel.BUFFERED)
     val effects: Flow<ChatEffect> = _effectChannel.receiveAsFlow()
+
+    init {
+        // Sweep any chat_message left flagged is_streaming=1 from a previous
+        // process that was SIGKILL'd mid-inference. We do this once per process
+        // (companion flag) so re-entering chat mid-stream — e.g. the VM is
+        // recreated after a config change — doesn't nuke the active message.
+        if (!hasSweptOrphans) {
+            hasSweptOrphans = true
+            runCatching { localChatRepository?.markOrphanStreamingMessagesAsFailed() }
+                .onFailure { platformLog("ChatViewModel", "Orphan sweep failed: ${it.message}") }
+        }
+
+        // Reflect the persisted/selected model into the UI state so the dropdown
+        // shows the correct active option on chat open.
+        gemmaPreparation?.let { prep ->
+            _uiState.value = _uiState.value.copy(
+                selectedModel = prep.selectedModel.value,
+                gemmaPreparationStatus = prep.status.value,
+                gemmaDownloadProgress = prep.downloadProgress.value,
+            )
+            viewModelScope.launch {
+                prep.selectedModel.collect { option ->
+                    _uiState.value = _uiState.value.copy(selectedModel = option)
+                }
+            }
+            viewModelScope.launch {
+                prep.status.collect { status ->
+                    _uiState.value = _uiState.value.copy(gemmaPreparationStatus = status)
+                }
+            }
+            viewModelScope.launch {
+                prep.downloadProgress.collect { progress ->
+                    _uiState.value = _uiState.value.copy(gemmaDownloadProgress = progress)
+                }
+            }
+        }
+    }
 
     private fun createInitialState(): ChatUiState {
         return if (analysisId != null) {
@@ -161,7 +207,43 @@ class ChatViewModel(
             is ChatEvent.NewSession -> handleNewSession()
             is ChatEvent.RemoveAttachment -> handleRemoveAttachment(event.index)
             is ChatEvent.StopGeneration -> handleStopGeneration()
+            is ChatEvent.SelectModel -> handleSelectModel(event.option)
+            is ChatEvent.ConfirmModelDownload -> handleConfirmModelDownload()
+            is ChatEvent.CancelModelDownload -> handleCancelModelDownload()
         }
+    }
+
+    private fun handleSelectModel(option: GemmaModelOption) {
+        val prep = gemmaPreparation ?: return
+        if (option == _uiState.value.selectedModel) return
+
+        // If the model file isn't local yet, ask the user before downloading.
+        // (Switching to a different model deletes the previous file, so any
+        // switch effectively means a re-download — we still confirm.)
+        _uiState.value = _uiState.value.copy(pendingModelSwitch = option)
+    }
+
+    private fun handleConfirmModelDownload() {
+        val prep = gemmaPreparation ?: return
+        val target = _uiState.value.pendingModelSwitch ?: return
+        _uiState.value = _uiState.value.copy(
+            pendingModelSwitch = null,
+            isSwitchingModel = true,
+        )
+        // Reset chat session — the engine is going to be reinitialized.
+        chatSession?.close()
+        chatSession = null
+        viewModelScope.launch {
+            val ok = runCatching { prep.switchModel(target) }.getOrDefault(false)
+            _uiState.value = _uiState.value.copy(
+                isSwitchingModel = false,
+                error = if (!ok) "No se pudo cambiar el modelo. Verificá tu conexión e intentá de nuevo." else _uiState.value.error,
+            )
+        }
+    }
+
+    private fun handleCancelModelDownload() {
+        _uiState.value = _uiState.value.copy(pendingModelSwitch = null)
     }
 
     private fun handleNewSession() {
@@ -171,10 +253,16 @@ class ChatViewModel(
         chatSession?.close()
         chatSession = null
         currentConversationId = null
+
         _uiState.value = createInitialState()
     }
 
     override fun onCleared() {
+        // Cancel any in-flight send before closing the session — otherwise the
+        // native engine/ thread can keep writing into a closed Conversation and
+        // SIGSEGV in liblitertlm_jni.
+        sendJob?.cancel()
+        sendJob = null
         speechSynthesizer?.stop()
         audioRecorder?.cancel()
         chatSession?.close()
@@ -210,7 +298,12 @@ class ChatViewModel(
         )
 
         val mode = currentState.mode
+        val previousJob = sendJob
         sendJob = viewModelScope.launch {
+            // Wait for any prior stream to finish before starting a new one. The native
+            // LiteRT-LM Conversation cannot run two sendMessage() calls concurrently;
+            // overlapping calls null-deref in liblitertlm_jni.
+            runCatching { previousJob?.cancelAndJoin() }
             val localConversationId = runCatching {
                 val id = resolveConversationId(mode)
                 if (id != null) {
@@ -229,15 +322,32 @@ class ChatViewModel(
     }
 
     private fun handleStopGeneration() {
-        sendJob?.cancel()
+        val jobToCancel = sendJob
         sendJob = null
+        val sessionToClose = chatSession
+        chatSession = null
         val current = _uiState.value
         val messages = current.messages.toMutableList()
         val streamingIndex = messages.indexOfLast { it.isStreaming }
         if (streamingIndex != -1) {
-            messages[streamingIndex] = messages[streamingIndex].copy(isStreaming = false)
+            val stopped = messages[streamingIndex].copy(isStreaming = false, streamStartedAt = null)
+            messages[streamingIndex] = stopped
+            // Persist the stopped state so the orphan sweep on next launch doesn't
+            // re-overwrite the user-visible content with the "interrupted" copy.
+            currentConversationId?.let { conversationId ->
+                runCatching { localChatRepository?.saveMessage(conversationId, stopped) }
+                    .onFailure { platformLog("ChatViewModel", "Stop-state persist failed: ${it.message}") }
+            }
         }
         _uiState.value = current.copy(messages = messages, isLoading = false)
+        // Drop the Gemma session so the next turn starts on a fresh Conversation.
+        // Joining the cancelled job before close lets the native engine wind down
+        // cleanly; otherwise the engine/ thread can write into stale Kotlin state
+        // and SIGSEGV in liblitertlm_jni.
+        viewModelScope.launch {
+            runCatching { jobToCancel?.cancelAndJoin() }
+            runCatching { sessionToClose?.close() }
+        }
     }
 
     private suspend fun sendViaBackend(
@@ -301,26 +411,72 @@ class ChatViewModel(
             return
         }
 
-        if (!holder.ensureReady()) {
-            sendViaBackend(text, attachments, mode)
-            return
-        }
+        // Acquire foreground-service slot for the entire Gemma path. Released in
+        // the matching finally below so coroutine cancellation also tears it down.
+        // This protects the process from Android LMK during the multi-second
+        // engine init / vision prefill / thinking phases.
+        InferenceLifecycle.start("Procesando con Gemma…")
+        try {
 
         toolCallTracker.reset()
-        platformLog("AgroGemTools", "ChatVM tracker reset, awaiting tools")
         val assistantMessageId = "assistant_${Random.nextLong()}"
+        val nowMs = Clock.System.now().toEpochMilliseconds()
         val assistantPlaceholder = ChatMessage(
             id = assistantMessageId,
-            text = "...",
+            text = "",
             sender = MessageSender.Assistant,
             attachments = emptyList(),
-            timestamp = Clock.System.now().toEpochMilliseconds(),
+            timestamp = nowMs,
             isStreaming = true,
+            thinkingPhase = ThinkingPhase.Preparing,
+            streamStartedAt = nowMs,
         )
-
         _uiState.value = _uiState.value.copy(
             messages = _uiState.value.messages + assistantPlaceholder,
         )
+
+        if (!holder.ensureReady()) {
+            val msgs = _uiState.value.messages.filter { it.id != assistantMessageId }
+            _uiState.value = _uiState.value.copy(messages = msgs)
+            sendViaBackend(text, attachments, mode)
+            return
+        }
+        updateAssistantPhase(assistantMessageId, ThinkingPhase.Thinking)
+
+        // If the user attached images but the engine started in text-only mode (fast cold
+        // start), try to lazily upgrade to a vision-capable engine. Only models marked
+        // `visionCapable = true` succeed; on text-only finetunes enableVision returns
+        // false and we fall back to backend.
+        val hasImageAttachments = attachments.any { it is ChatAttachment.Image }
+        if (hasImageAttachments && !manager.supportsVision) {
+            platformLog("AgroGemTools", "Gemma sin visión: intentando activar modo visión")
+            updateAssistantPhase(assistantMessageId, ThinkingPhase.ActivatingVision)
+            val visionReady = holder.ensureVisionReady()
+            if (!visionReady) {
+                platformLog("AgroGemTools", "Modelo no soporta visión: enviando imagen vía backend")
+                val msgs = _uiState.value.messages.filter { it.id != assistantMessageId }
+                _uiState.value = _uiState.value.copy(messages = msgs)
+                sendViaBackend(text, attachments, mode)
+                return
+            }
+            // Engine was swapped — invalidate any open session so we build a fresh one
+            // against the new vision-capable engine. This also drops the prior chat KV-cache.
+            chatSession?.close()
+            chatSession = null
+            platformLog("AgroGemTools", "Modo visión activado; sesión anterior descartada")
+        }
+
+        platformLog("AgroGemTools", "ChatVM tracker reset, awaiting tools")
+
+        // Persist the streaming placeholder now that we're committed to Gemma
+        // (past the ensureReady / vision-upgrade fallbacks). If Android's LMK
+        // kills the process mid-thinking, the row exists with is_streaming=1
+        // and the next-launch orphan sweep marks it as failed instead of
+        // leaving a frozen "thinking…" bubble in the chat history.
+        currentConversationId?.let { conversationId ->
+            runCatching { localChatRepository?.saveMessage(conversationId, assistantPlaceholder) }
+                .onFailure { platformLog("ChatViewModel", "Streaming placeholder persist failed: ${it.message}") }
+        }
 
         try {
             val imageUris = attachments
@@ -330,25 +486,24 @@ class ChatViewModel(
 
             suspend fun startNewChatSession(): GemmaChatSession {
                 val hasImage = imageUris.isNotEmpty()
-                val useThinking = _uiState.value.useThinking
                 val systemPrompt = when {
-                    hasImage && mode == ChatMode.Blank -> buildImageDiagnosisSystemPrompt(useThinking)
+                    hasImage && mode == ChatMode.Blank -> buildImageDiagnosisSystemPrompt()
                     mode == ChatMode.Blank -> {
                         val envContext = fetchGeneralEnvironmentContext()
                         val profileContext = fetchOnboardingProfileContext()
-                        buildGeneralSystemPrompt(envContext, profileContext, useThinking)
+                        buildGeneralSystemPrompt(envContext, profileContext)
                     }
                     mode is ChatMode.AnalysisSeeded -> {
                         val pestRiskContext = fetchPestRiskContext(mode.diagnosis)
                         val diseaseRiskContext = fetchDiseaseRiskContext(mode.diagnosis)
-                        buildAnalysisSystemPrompt(mode.diagnosis, pestRiskContext, diseaseRiskContext, useThinking)
+                        buildAnalysisSystemPrompt(mode.diagnosis, pestRiskContext, diseaseRiskContext)
                     }
-                    else -> buildGeneralSystemPrompt(useThinking = useThinking)
+                    else -> buildGeneralSystemPrompt()
                 }
                 return manager.startChatSession(
                     systemPrompt = systemPrompt,
                     temperature = 0.4f,
-                    toolBundle = createAgroGemToolBundle(),
+                    toolBundle = toolBundle,
                 ).also { chatSession = it }
             }
 
@@ -362,12 +517,14 @@ class ChatViewModel(
                     toolCallTracker.calledTools.collect { tools ->
                         platformLog("AgroGemTools", "ChatVM observer received tools=$tools (size=${tools.size})")
                         if (tools.isNotEmpty()) {
+                            val (cleanText, extractedThought) = stripThinkingTokens(accumulatedText)
                             updateAssistantMessage(
                                 id = assistantMessageId,
-                                text = accumulatedText,
-                                thought = latestThought,
+                                text = cleanText,
+                                thought = latestThought ?: extractedThought,
                                 isDone = false,
                                 toolsUsed = tools.toList(),
+                                thinkingPhase = ThinkingPhase.CallingTools,
                             )
                         }
                     }
@@ -378,20 +535,28 @@ class ChatViewModel(
                         text = promptText,
                         images = imageUris,
                     ).collect { response ->
+                        if (response.error != null) {
+                            // Surface as exception so the outer catch falls back to backend.
+                            throw IllegalStateException("Gemma inference failed: ${response.error}")
+                        }
                         if (response.text.isNotEmpty()) {
                             accumulatedText += response.text
                         }
                         if (response.thought != null) {
-                            latestThought = response.thought
+                            // LiteRT-LM emits each thought channel chunk as a delta token, mirroring
+                            // how `response.text` is accumulated above. Concatenating here keeps the
+                            // dropdown showing the full reasoning instead of only the last token.
+                            latestThought = (latestThought ?: "") + response.thought
                         }
                         val nowMs = Clock.System.now().toEpochMilliseconds()
                         val shouldEmit = response.isDone || (nowMs - lastEmitMs) >= throttleMs
                         if (shouldEmit) {
                             lastEmitMs = nowMs
+                            val (cleanText, extractedThought) = stripThinkingTokens(accumulatedText)
                             updateAssistantMessage(
                                 id = assistantMessageId,
-                                text = accumulatedText,
-                                thought = latestThought,
+                                text = cleanText,
+                                thought = latestThought ?: extractedThought,
                                 isDone = response.isDone,
                                 toolsUsed = toolCallTracker.calledTools.value.toList(),
                             )
@@ -400,10 +565,11 @@ class ChatViewModel(
                 } finally {
                     toolObserverJob.cancelAndJoin()
                 }
+                val (cleanText, extractedThought) = stripThinkingTokens(accumulatedText)
                 updateAssistantMessage(
                     id = assistantMessageId,
-                    text = accumulatedText,
-                    thought = latestThought,
+                    text = cleanText,
+                    thought = latestThought ?: extractedThought,
                     isDone = true,
                     toolsUsed = toolCallTracker.calledTools.value.toList(),
                 )
@@ -412,15 +578,17 @@ class ChatViewModel(
             sendGemmaAttempt(text)
 
             if (ToolIntentSupervisor.shouldRetry(expectedTools, toolCallTracker.calledTools.value)) {
-                platformLog("AgroGemTools", "Supervisor retry, expected=$expectedTools called=${toolCallTracker.calledTools.value}")
-                chatSession?.close()
-                chatSession = null
+                platformLog("AgroGemTools", "Supervisor retry (preserving KV-cache), expected=$expectedTools called=${toolCallTracker.calledTools.value}")
+                // Don't close the session — sending the retry prompt as a new turn keeps the
+                // KV-cache and roughly halves retry latency vs. rebuilding the session.
                 toolCallTracker.reset()
                 updateAssistantMessage(
                     id = assistantMessageId,
-                    text = "...",
+                    text = "",
                     thought = null,
                     isDone = false,
+                    thinkingPhase = ThinkingPhase.Retrying,
+                    resetStreamStart = true,
                 )
                 sendGemmaAttempt(ToolIntentSupervisor.buildRetryPrompt(text, expectedTools))
             }
@@ -441,16 +609,26 @@ class ChatViewModel(
             chatSession = null
             val messagesWithoutPlaceholder = _uiState.value.messages.filter { it.id != assistantMessageId }
             _uiState.value = _uiState.value.copy(messages = messagesWithoutPlaceholder)
+            // Remove the persisted streaming placeholder so the next-launch orphan
+            // sweep doesn't render an "interrupted" bubble even though the user
+            // got a successful backend response from the fallback below.
+            runCatching { localChatRepository?.deleteMessage(assistantMessageId) }
+                .onFailure { platformLog("ChatViewModel", "Placeholder cleanup failed: ${it.message}") }
             sendViaBackend(text, attachments, mode)
+        }
+
+        } finally {
+            InferenceLifecycle.stop()
         }
     }
 
     private fun buildGeneralSystemPrompt(
         environmentContext: String? = null,
         onboardingProfileContext: String? = null,
-        useThinking: Boolean = true,
     ): String {
         return buildString {
+            append("<|think|>\n")
+            append(ANTI_CHAIN_OF_THOUGHT_RULE)
             append("Eres AgroGem, un asistente agronómico experto especializado en salud de cultivos. ")
             append("Toda respuesta debe orientarse al campo, el cultivo y la toma de decisiones agrícolas. ")
             append("Prioriza detección y explicación de enfermedades, hongos, bacterias, virus, insectos, ácaros, nematodos, plagas, deficiencias y estrés ambiental. ")
@@ -477,13 +655,17 @@ class ChatViewModel(
             append("NUNCA inventes datos numéricos (temperaturas, humedad, pH, riesgos o plagas) que no vinieron de una herramienta. ")
             append("NUNCA presentes un diagnóstico visual como certeza absoluta: separá lo observado, lo probable y lo que falta confirmar. ")
             append("NUNCA te rindas en silencio: si una herramienta falla, siempre respondé al usuario explicando qué pasó y, cuando aplique, pediéndole los datos que necesitás para reintentar.")
+            append("\n\nFormato de respuesta (IMPORTANTE): ")
+            append("Escribí como máximo 2 o 3 párrafos cortos. ")
+            append("Al final de cada respuesta, planteá 1 o 2 preguntas de seguimiento breves que inviten al usuario a profundizar. ")
+            append("Formulá esas preguntas como ofertas concretas: p. ej. '¿Te cuento tres cosas para mejorar tu cultivo?' o '¿Querés que te explique cómo identificar si el problema avanzó?' o '¿Te detallo el tratamiento paso a paso?'. ")
+            append("No hagas preguntas abiertas genéricas; cada pregunta debe referirse a algo específico que puedas desarrollar en la siguiente respuesta.")
             if (!environmentContext.isNullOrBlank()) {
                 append(environmentContext)
             }
             if (!onboardingProfileContext.isNullOrBlank()) {
                 append(onboardingProfileContext)
             }
-            if (!useThinking) append("\n<|think|>")
         }
     }
 
@@ -534,13 +716,15 @@ class ChatViewModel(
         }
     }
 
-    private fun buildImageDiagnosisSystemPrompt(useThinking: Boolean = true): String {
+    private fun buildImageDiagnosisSystemPrompt(): String {
         return buildString {
+            append("<|think|>\n")
+            append(ANTI_CHAIN_OF_THOUGHT_RULE)
             append("Eres AgroGem, un experto en diagnóstico visual de salud de cultivos. ")
             append("Analiza la imagen adjunta buscando enfermedades, hongos, bacterias, virus, insectos, ácaros, nematodos, plagas, deficiencias o estrés ambiental. ")
-            append("Responde a la pregunta del usuario con el siguiente formato JSON: ")
-            append("{nx: \"\", dx: \"\", est: \"\", trx: [\"\", \"\", \"\"]}")
-            if (!useThinking) append("\n<|think|>")
+            append("Responde en texto natural, en español, describiendo: qué problema detectas, la severidad estimada, la causa probable y los pasos de tratamiento recomendados. ")
+            append("Sé claro y práctico; no incluyas JSON ni formato estructurado. ")
+            append("Escribí máximo 2 o 3 párrafos. Al final planteá 1 o 2 preguntas breves de seguimiento como ofertas concretas: p. ej. '¿Te explico el tratamiento paso a paso?' o '¿Querés que identifique si hay más plantas afectadas?'.")
         }
     }
 
@@ -548,9 +732,10 @@ class ChatViewModel(
         diagnosis: DiagnosisResult,
         pestRiskContext: String? = null,
         diseaseRiskContext: String? = null,
-        useThinking: Boolean = true,
     ): String {
         return buildString {
+            append("<|think|>\n")
+            append(ANTI_CHAIN_OF_THOUGHT_RULE)
             append("Eres AgroGem, un asistente agronómico experto especializado en salud de cultivos. ")
             append("El usuario está consultando sobre un diagnóstico previo de enfermedad, plaga o daño en cultivo. ")
             append("Responde de forma clara, práctica y contextualizada. Explica qué significa el diagnóstico, por qué ocurre, qué señales debe revisar y qué acciones agrícolas puede tomar. ")
@@ -572,8 +757,8 @@ class ChatViewModel(
             if (!diseaseRiskContext.isNullOrBlank()) {
                 append(diseaseRiskContext)
             }
-            append("\nResponde en español y mantén un tono profesional pero accesible.")
-            if (!useThinking) append("\n<|think|>")
+            append("\nResponde en español y mantén un tono profesional pero accesible. ")
+            append("Escribí máximo 2 o 3 párrafos cortos. Al final planteá 1 o 2 preguntas breves de seguimiento formuladas como ofertas concretas: p. ej. '¿Te detallo el plan de tratamiento?' o '¿Querés que revise si las condiciones climáticas actuales favorecen la enfermedad?'.")
         }
     }
 
@@ -695,10 +880,134 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Strips thinking-process tokens from the raw model output so they never
+     * appear in the visible chat bubble.
+     *
+     * Gemma thinking models emit their reasoning wrapped in <|think|> delimiters:
+     *   <|think|>[thought content]<|think|>[actual response]
+     * Some variants use different open tokens (e.g. <|chanel |>, <|channel|>),
+     * so the fallback also handles any <|...|>-prefixed block separated from the
+     * response by a blank line.
+     *
+     * Returns (cleanResponse, thought?) — thought is null when nothing was stripped.
+     */
+    private fun stripThinkingTokens(raw: String): Pair<String, String?> {
+        val thinkToken = "<|think|>"
+        val firstIdx = raw.indexOf(thinkToken)
+        if (firstIdx != -1) {
+            val contentStart = firstIdx + thinkToken.length
+            val closeIdx = raw.indexOf(thinkToken, contentStart)
+            if (closeIdx != -1) {
+                val thought = raw.substring(contentStart, closeIdx).trim()
+                val response = raw.substring(closeIdx + thinkToken.length).trim()
+                if (response.isNotBlank()) return response to thought.ifBlank { null }
+            }
+            // Only one delimiter found: strip everything after it.
+            val response = (raw.take(firstIdx) + raw.drop(firstIdx + thinkToken.length)).trim()
+            return response to null
+        }
+
+        // Handle <|channel>thought\n[reasoning]<channel|>[response] format (Gemma 4 E2B,
+        // per the official model card on huggingface.co/google/gemma-4-E2B-it).
+        val channelThought = "<|channel>thought"
+        val channelClose = "<channel|>"
+        if (raw.startsWith(channelThought)) {
+            val afterToken = raw.substring(channelThought.length).trimStart('\n', ' ')
+            val closeIdx = afterToken.indexOf(channelClose)
+            if (closeIdx != -1) {
+                val thought = afterToken.substring(0, closeIdx).trim()
+                val response = afterToken.substring(closeIdx + channelClose.length).trim()
+                if (response.isNotBlank()) return response to thought.ifBlank { null }
+                return "" to thought.ifBlank { null }
+            }
+            // Fallback: some E2B outputs separate thought from response with a blank line
+            // instead of the explicit close token. Honor that legacy shape too.
+            val blankLine = afterToken.indexOf("\n\n")
+            if (blankLine != -1) {
+                val thought = afterToken.substring(0, blankLine).trim()
+                val response = afterToken.substring(blankLine).trim()
+                if (response.isNotBlank()) return response to thought.ifBlank { null }
+            }
+            // Still accumulating the thinking block — hide from main text.
+            return "" to afterToken.ifBlank { null }
+        }
+
+        // Fallback: handle <|…|> tokens at the very start of the output.
+        val specialToken = Regex("""<\|[^\n|]*\|>""")
+        if (specialToken.containsMatchIn(raw.take(80))) {
+            // Separate thinking block from response at the first blank line.
+            val blankLine = raw.indexOf("\n\n")
+            if (blankLine != -1) {
+                val possibleThought = raw.substring(0, blankLine).trim()
+                val possibleResponse = raw.substring(blankLine).trim()
+                if (possibleResponse.isNotBlank()) {
+                    return possibleResponse to possibleThought.ifBlank { null }
+                }
+            }
+            // Still accumulating — hide token markers, don't show as main text.
+            return "" to specialToken.replace(raw, "").trim().ifBlank { null }
+        }
+
+        // Last-resort fallback: Gemma 4 E2B sometimes verbalizes its reasoning as a
+        // numbered list with English bold headers ("1. **Analyze the User Input:** …")
+        // without ever emitting <|think|> markers. Detect that pattern and route the
+        // whole leading block to `thought` instead of the chat bubble.
+        val markerHits = COT_LEAK_MARKERS.count { raw.contains(it, ignoreCase = true) }
+        val startsWithNumberedHeader = raw.trimStart()
+            .take(160)
+            .matches(Regex("""^\d+\.\s+\*?\*?[A-Z][\s\S]*"""))
+        if (markerHits >= 2 && startsWithNumberedHeader) {
+            val lines = raw.lines()
+            var lastReasoningIdx = -1
+            for ((idx, line) in lines.withIndex()) {
+                val trimmed = line.trim()
+                val isNumbered = trimmed.matches(Regex("""^\d+\.\s+.*"""))
+                val isBullet = trimmed.startsWith("•") ||
+                    trimmed.startsWith("- ") ||
+                    trimmed.startsWith("* ") ||
+                    trimmed.startsWith("◦ ")
+                val isIndentedContinuation = (line.startsWith("   ") || line.startsWith("\t")) && trimmed.isNotEmpty()
+                val containsMarker = COT_LEAK_MARKERS.any { line.contains(it, ignoreCase = true) }
+                if (isNumbered || isBullet || isIndentedContinuation || containsMarker) {
+                    lastReasoningIdx = idx
+                }
+            }
+            if (lastReasoningIdx >= 0) {
+                val thought = lines.take(lastReasoningIdx + 1).joinToString("\n").trim()
+                val response = lines.drop(lastReasoningIdx + 1).joinToString("\n").trim()
+                return response to thought.ifBlank { null }
+            }
+        }
+
+        return raw to null
+    }
+
     companion object {
+        // Process-wide latch so the orphan sweep runs at most once per app launch,
+        // not on every VM recreation (config changes mid-stream would otherwise
+        // nuke the active message). The sweep is idempotent so a benign double-run
+        // from a race wouldn't cause harm — we don't need volatile semantics.
+        private var hasSweptOrphans: Boolean = false
+
         private const val CONTEXT_WINDOW_TOKENS = 8192
         private const val SYSTEM_PROMPT_TOKEN_ESTIMATE = 800
         private const val CHARS_PER_TOKEN = 4
+
+        private const val ANTI_CHAIN_OF_THOUGHT_RULE =
+            "REGLA ABSOLUTA: Respondé siempre directamente al usuario en español, sin razonamiento visible. " +
+                "NUNCA escribas pasos numerados de pensamiento ni encabezados como 'Analyze the User Input', " +
+                "'Determine the Goal', 'Check Tool Availability' o 'Formulate the Response Strategy'. " +
+                "NUNCA expliques tu proceso interno ni tus consideraciones meta. Si necesitás pensar, hacelo " +
+                "internamente y entregá solo la respuesta final.\n\n"
+
+        private val COT_LEAK_MARKERS = listOf(
+            "Analyze the User Input",
+            "Determine the Goal",
+            "Check Tool Availability",
+            "Formulate the Response Strategy",
+            "Response Strategy",
+        )
     }
 
     private fun updateAssistantMessage(
@@ -707,6 +1016,8 @@ class ChatViewModel(
         thought: String?,
         isDone: Boolean,
         toolsUsed: List<String> = emptyList(),
+        thinkingPhase: ThinkingPhase? = null,
+        resetStreamStart: Boolean = false,
     ) {
         val currentMessages = _uiState.value.messages.toMutableList()
         val index = currentMessages.indexOfFirst { it.id == id }
@@ -714,15 +1025,35 @@ class ChatViewModel(
             if (toolsUsed.isNotEmpty()) {
                 platformLog("AgroGemTools", "ChatVM updateMsg id=$id toolsUsed=$toolsUsed isDone=$isDone")
             }
-            currentMessages[index] = currentMessages[index].copy(
+            val current = currentMessages[index]
+            // Clear the timer when the stream completes; mint a fresh start when the
+            // supervisor decides to retry (so the counter restarts from 0:00 instead
+            // of accumulating from the prior attempt).
+            val newStreamStartedAt = when {
+                isDone -> null
+                resetStreamStart -> Clock.System.now().toEpochMilliseconds()
+                else -> current.streamStartedAt
+            }
+            currentMessages[index] = current.copy(
                 text = text,
                 thought = thought,
                 isStreaming = !isDone,
                 toolsUsed = toolsUsed,
+                thinkingPhase = thinkingPhase ?: current.thinkingPhase,
+                streamStartedAt = newStreamStartedAt,
             )
             _uiState.value = _uiState.value.copy(messages = currentMessages)
         } else {
             platformLog("AgroGemTools", "ChatVM updateMsg MISS — id=$id not found")
+        }
+    }
+
+    private fun updateAssistantPhase(id: String, phase: ThinkingPhase) {
+        val currentMessages = _uiState.value.messages.toMutableList()
+        val index = currentMessages.indexOfFirst { it.id == id }
+        if (index != -1) {
+            currentMessages[index] = currentMessages[index].copy(thinkingPhase = phase)
+            _uiState.value = _uiState.value.copy(messages = currentMessages)
         }
     }
 
@@ -972,4 +1303,13 @@ sealed interface ChatEvent {
 
     /** Cancel an in-progress Gemma inference. */
     data object StopGeneration : ChatEvent
+
+    /** User picked a model option in the dropdown — opens the confirm-download dialog if needed. */
+    data class SelectModel(val option: GemmaModelOption) : ChatEvent
+
+    /** User confirmed the model switch/download in the dialog. */
+    data object ConfirmModelDownload : ChatEvent
+
+    /** User dismissed the model switch/download dialog. */
+    data object CancelModelDownload : ChatEvent
 }

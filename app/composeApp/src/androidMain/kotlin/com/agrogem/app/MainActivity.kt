@@ -12,8 +12,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        // 1. Set the application context for the singletons
-        AndroidAppContext.context = applicationContext
+        // AndroidAppContext is now initialized in AgroGemApplication.onCreate
+        // (runs before any Activity), so the foreground-service notification
+        // channel can be registered before the service ever tries to start.
 
         setContent {
             App()

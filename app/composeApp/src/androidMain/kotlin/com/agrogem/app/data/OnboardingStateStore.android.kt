@@ -19,7 +19,7 @@ actual class OnboardingStateStore actual constructor() {
         }
 
     actual val isCompleted: Boolean
-        get() = prefsOrNull()?.getBoolean(KEY_ONBOARDING_DONE, false) ?: previewFallback.completed
+        get() = true
 
     actual fun markCompleted() {
         val prefs = prefsOrNull()

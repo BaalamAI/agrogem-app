@@ -20,10 +20,13 @@ actual interface GemmaToolSet
 
 actual fun createGemmaManager(): GemmaManager = object : GemmaManager {
     override val isInitialized: Flow<Boolean> = MutableStateFlow(false)
+    override val supportsVision: Boolean = false
 
-    override suspend fun initialize(modelPath: String) {
+    override suspend fun initialize(modelPath: String, preferVision: Boolean) {
         // No-op: no hay engine que inicializar todavía.
     }
+
+    override suspend fun enableVision(modelPath: String): Boolean = false
 
     override suspend fun sendMessage(
         systemPrompt: String,
@@ -33,17 +36,6 @@ actual fun createGemmaManager(): GemmaManager = object : GemmaManager {
         temperature: Float,
         toolBundle: GemmaToolBundle?,
     ): String = NOT_IMPLEMENTED
-
-    override fun sendMessageStream(
-        systemPrompt: String,
-        userPrompt: String,
-        images: List<String>,
-        audioPath: String?,
-        temperature: Float,
-        toolBundle: GemmaToolBundle?,
-    ): Flow<GemmaResponse> = flowOf(
-        GemmaResponse(text = NOT_IMPLEMENTED, thought = null, isDone = true),
-    )
 
     override fun startChatSession(
         systemPrompt: String,

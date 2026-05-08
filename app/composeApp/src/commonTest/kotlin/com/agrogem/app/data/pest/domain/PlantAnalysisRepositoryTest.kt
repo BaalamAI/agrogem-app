@@ -398,9 +398,12 @@ class PlantAnalysisRepositoryTest {
         private val throwOnSend: Boolean = false,
     ) : GemmaManager {
         override val isInitialized: Flow<Boolean> = flowOf(true)
+        override val supportsVision: Boolean = false
         var lastSystemPrompt: String? = null
 
-        override suspend fun initialize(modelPath: String) {}
+        override suspend fun initialize(modelPath: String, preferVision: Boolean) {}
+
+        override suspend fun enableVision(modelPath: String): Boolean = false
 
         override suspend fun sendMessage(
             systemPrompt: String,
@@ -414,15 +417,6 @@ class PlantAnalysisRepositoryTest {
             lastSystemPrompt = systemPrompt
             return response
         }
-
-        override fun sendMessageStream(
-            systemPrompt: String,
-            userPrompt: String,
-            images: List<String>,
-            audioPath: String?,
-            temperature: Float,
-            toolBundle: GemmaToolBundle?,
-        ): Flow<GemmaResponse> = flowOf()
 
         override fun startChatSession(
             systemPrompt: String,

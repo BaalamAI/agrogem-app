@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.composeapp.generated.resources.Res
 import app.composeapp.generated.resources.ic_action_search
+import com.agrogem.app.theme.AgroGemBrand
 import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.theme.AgroGemIconSizes
 import com.agrogem.app.ui.components.AgroGemIcon
@@ -50,14 +51,14 @@ fun HistoryScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(AgroGemColors.Screen)
+            .background(AgroGemBrand.Background)
             .padding(horizontal = 22.dp)
             .padding(top = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text(
             text = "Historial de análisis",
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 24.sp,
             fontWeight = FontWeight.Medium,
         )
@@ -84,7 +85,7 @@ private fun SearchBar() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(AgroGemColors.Surface, RoundedCornerShape(10.dp))
+            .background(AgroGemBrand.White, RoundedCornerShape(10.dp))
             .border(1.dp, AgroGemColors.BorderDivider, RoundedCornerShape(10.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -93,10 +94,10 @@ private fun SearchBar() {
         AgroGemIcon(
             icon = Res.drawable.ic_action_search,
             contentDescription = "Search",
-            tint = AgroGemColors.TextSearchIcon,
+            tint = AgroGemBrand.Gris400,
             size = AgroGemIconSizes.Sm,
         )
-        Text(text = "Buscar", color = AgroGemColors.TextPlaceholder, fontSize = 14.sp)
+        Text(text = "Buscar", color = AgroGemBrand.Text.Disabled, fontSize = 14.sp)
     }
 }
 
@@ -110,7 +111,7 @@ private fun DateHeader(label: String) {
         Box(modifier = Modifier.weight(1f).height(1.dp).background(AgroGemColors.DividerLine))
         Text(
             text = label,
-            color = AgroGemColors.TextDateHeader,
+            color = AgroGemBrand.Gris700,
             fontSize = 11.sp,
             letterSpacing = 1.1.sp,
         )
@@ -126,7 +127,7 @@ private fun HistoryCard(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(AgroGemColors.Surface, RoundedCornerShape(48.dp))
+            .background(AgroGemBrand.White, RoundedCornerShape(48.dp))
             .padding(16.dp)
             .clickable(onClick = { onOpenEntry(entry) }),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -137,10 +138,10 @@ private fun HistoryCard(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Text(text = entry.crop, color = AgroGemColors.TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Medium)
-            Text(text = entry.meta, color = AgroGemColors.TextHint, fontSize = 14.sp)
+            Text(text = entry.crop, color = AgroGemBrand.Text.Primary, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+            Text(text = entry.meta, color = AgroGemBrand.Text.Disabled, fontSize = 14.sp)
             SeverityBadge(severity = entry.severity, labelOverride = entry.status)
         }
-        Text(text = "›", color = AgroGemColors.TextNavChevron, fontSize = 22.sp)
+        Text(text = "›", color = AgroGemBrand.Gris400, fontSize = 22.sp)
     }
 }

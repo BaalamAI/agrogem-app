@@ -269,7 +269,8 @@ fun gemmaPreparationSupportingText(status: GemmaPreparationStatus): String = whe
     GemmaPreparationStatus.Preparing,
     -> "AgroGemma se está preparando para usarse localmente en este dispositivo."
     GemmaPreparationStatus.Ready -> "Todo listo para usar IA local en este dispositivo."
-    is GemmaPreparationStatus.Unavailable -> "No se pudo preparar AgroGemma local en este momento."
+    is GemmaPreparationStatus.Unavailable -> status.reason
+        ?: "No se pudo preparar AgroGemma local en este momento."
 }
 
 fun gemmaPreparationHintText(status: GemmaPreparationStatus): String = when (status) {

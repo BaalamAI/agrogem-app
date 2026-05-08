@@ -1,7 +1,7 @@
 package com.agrogem.app.ui.screens.chat
 
+import com.agrogem.app.agent.ToolCallTracker
 import com.agrogem.app.agent.ToolIntentSupervisor
-import com.agrogem.app.agent.toolCallTracker
 import com.agrogem.app.data.AudioRecorder
 import com.agrogem.app.data.GemmaChatSession
 import com.agrogem.app.data.GemmaManager
@@ -1338,93 +1338,86 @@ class ChatViewModelTest {
 
     @Test
     fun `Gemma supervisor does not retry when expected tool was called`() = runTest(testDispatcher) {
-        toolCallTracker.reset()
-        try {
-            val gemma = FakeGemmaManager(
-                initialInitialized = true,
-                calledToolsByCall = listOf(setOf(ToolIntentSupervisor.WEATHER_TOOL)),
-            )
-            val downloader = FakeGemmaModelDownloader(downloaded = true)
-            val repo = fakeRepo()
-            val viewModel = ChatViewModel(
-                chatRepository = repo,
-                gemmaManager = gemma,
-                gemmaModelDownloader = downloader,
-            )
+        val tracker = ToolCallTracker()
+        val gemma = FakeGemmaManager(
+            initialInitialized = true,
+            calledToolsByCall = listOf(setOf(ToolIntentSupervisor.WEATHER_TOOL)),
+            tracker = tracker,
+        )
+        val downloader = FakeGemmaModelDownloader(downloaded = true)
+        val repo = fakeRepo()
+        val viewModel = ChatViewModel(
+            chatRepository = repo,
+            gemmaManager = gemma,
+            gemmaModelDownloader = downloader,
+            toolCallTracker = tracker,
+        )
 
-            viewModel.onEvent(ChatEvent.InputChanged("¿Va a llover hoy?"))
-            viewModel.onEvent(ChatEvent.SendMessage)
-            advanceUntilIdle()
+        viewModel.onEvent(ChatEvent.InputChanged("¿Va a llover hoy?"))
+        viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
 
-            assertEquals(0, repo.sendMessageCallCount)
-            assertEquals(1, gemma.streamCallCount)
-            assertEquals("¿Va a llover hoy?", gemma.lastUserPrompt)
-            assertEquals("Gemma response", viewModel.uiState.value.messages.last().text)
-        } finally {
-            toolCallTracker.reset()
-        }
+        assertEquals(0, repo.sendMessageCallCount)
+        assertEquals(1, gemma.streamCallCount)
+        assertEquals("¿Va a llover hoy?", gemma.lastUserPrompt)
+        assertEquals("Gemma response", viewModel.uiState.value.messages.last().text)
     }
 
     @Test
     fun `Gemma supervisor retries once when expected tool was not called`() = runTest(testDispatcher) {
-        toolCallTracker.reset()
-        try {
-            val gemma = FakeGemmaManager(
-                initialInitialized = true,
-                responsesByCall = listOf(
-                    listOf(GemmaResponse(text = "Respuesta sin herramienta", isDone = true)),
-                    listOf(GemmaResponse(text = "Respuesta con clima", isDone = true)),
-                ),
-                calledToolsByCall = listOf(
-                    emptySet(),
-                    setOf(ToolIntentSupervisor.WEATHER_TOOL),
-                ),
-            )
-            val downloader = FakeGemmaModelDownloader(downloaded = true)
-            val repo = fakeRepo()
-            val viewModel = ChatViewModel(
-                chatRepository = repo,
-                gemmaManager = gemma,
-                gemmaModelDownloader = downloader,
-            )
+        val tracker = ToolCallTracker()
+        val gemma = FakeGemmaManager(
+            initialInitialized = true,
+            responsesByCall = listOf(
+                listOf(GemmaResponse(text = "Respuesta sin herramienta", isDone = true)),
+                listOf(GemmaResponse(text = "Respuesta con clima", isDone = true)),
+            ),
+            calledToolsByCall = listOf(
+                emptySet(),
+                setOf(ToolIntentSupervisor.WEATHER_TOOL),
+            ),
+            tracker = tracker,
+        )
+        val downloader = FakeGemmaModelDownloader(downloaded = true)
+        val repo = fakeRepo()
+        val viewModel = ChatViewModel(
+            chatRepository = repo,
+            gemmaManager = gemma,
+            gemmaModelDownloader = downloader,
+            toolCallTracker = tracker,
+        )
 
-            viewModel.onEvent(ChatEvent.InputChanged("¿Cómo está el clima hoy?"))
-            viewModel.onEvent(ChatEvent.SendMessage)
-            advanceUntilIdle()
+        viewModel.onEvent(ChatEvent.InputChanged("¿Cómo está el clima hoy?"))
+        viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
 
-            assertEquals(0, repo.sendMessageCallCount)
-            assertEquals(2, gemma.streamCallCount)
-            assertTrue(gemma.lastUserPrompt?.contains("Esta pregunta requiere datos reales") == true)
-            assertTrue(gemma.lastUserPrompt?.contains("¿Cómo está el clima hoy?") == true)
-            assertEquals("Respuesta con clima", viewModel.uiState.value.messages.last().text)
-        } finally {
-            toolCallTracker.reset()
-        }
+        assertEquals(0, repo.sendMessageCallCount)
+        assertEquals(2, gemma.streamCallCount)
+        assertTrue(gemma.lastUserPrompt?.contains("Esta pregunta requiere datos reales") == true)
+        assertTrue(gemma.lastUserPrompt?.contains("¿Cómo está el clima hoy?") == true)
+        assertEquals("Respuesta con clima", viewModel.uiState.value.messages.last().text)
     }
 
     @Test
     fun `Gemma supervisor does not retry when message does not expect tools`() = runTest(testDispatcher) {
-        toolCallTracker.reset()
-        try {
-            val gemma = FakeGemmaManager(initialInitialized = true)
-            val downloader = FakeGemmaModelDownloader(downloaded = true)
-            val repo = fakeRepo()
-            val viewModel = ChatViewModel(
-                chatRepository = repo,
-                gemmaManager = gemma,
-                gemmaModelDownloader = downloader,
-            )
+        val tracker = ToolCallTracker()
+        val gemma = FakeGemmaManager(initialInitialized = true, tracker = tracker)
+        val downloader = FakeGemmaModelDownloader(downloaded = true)
+        val repo = fakeRepo()
+        val viewModel = ChatViewModel(
+            chatRepository = repo,
+            gemmaManager = gemma,
+            gemmaModelDownloader = downloader,
+            toolCallTracker = tracker,
+        )
 
-            viewModel.onEvent(ChatEvent.InputChanged("Dame consejos generales para maíz"))
-            viewModel.onEvent(ChatEvent.SendMessage)
-            advanceUntilIdle()
+        viewModel.onEvent(ChatEvent.InputChanged("Dame consejos generales para maíz"))
+        viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
 
-            assertEquals(0, repo.sendMessageCallCount)
-            assertEquals(1, gemma.streamCallCount)
-            assertEquals("Dame consejos generales para maíz", gemma.lastUserPrompt)
-        } finally {
-            toolCallTracker.reset()
-        }
+        assertEquals(0, repo.sendMessageCallCount)
+        assertEquals(1, gemma.streamCallCount)
+        assertEquals("Dame consejos generales para maíz", gemma.lastUserPrompt)
     }
 
     // ========== Pest-risk context enrichment tests ==========
@@ -2346,18 +2339,22 @@ class ChatViewModelTest {
         var responses: List<GemmaResponse> = listOf(GemmaResponse(text = "Gemma response", isDone = true)),
         var responsesByCall: List<List<GemmaResponse>> = emptyList(),
         var calledToolsByCall: List<Set<String>> = emptyList(),
+        private val tracker: ToolCallTracker = ToolCallTracker(),
     ) : GemmaManager {
         private val _isInitialized = MutableStateFlow(initialInitialized)
         override val isInitialized: Flow<Boolean> = _isInitialized
+        override val supportsVision: Boolean = false
 
         var lastSystemPrompt: String? = null
         var lastUserPrompt: String? = null
         var streamCallCount = 0
 
-        override suspend fun initialize(modelPath: String) {
+        override suspend fun initialize(modelPath: String, preferVision: Boolean) {
             if (shouldThrowOnInit) throw Exception("Init failed")
             _isInitialized.value = true
         }
+
+        override suspend fun enableVision(modelPath: String): Boolean = false
 
         override suspend fun sendMessage(
             systemPrompt: String,
@@ -2370,22 +2367,6 @@ class ChatViewModelTest {
             lastSystemPrompt = systemPrompt
             lastUserPrompt = userPrompt
             return responsesForCall(0).joinToString("") { it.text }
-        }
-
-        override fun sendMessageStream(
-            systemPrompt: String,
-            userPrompt: String,
-            images: List<String>,
-            audioPath: String?,
-            temperature: Float,
-            toolBundle: GemmaToolBundle?,
-        ): Flow<GemmaResponse> {
-            if (shouldThrowOnStream) throw Exception("Stream failed")
-            val callIndex = streamCallCount++
-            lastSystemPrompt = systemPrompt
-            lastUserPrompt = userPrompt
-            markToolsForCall(callIndex)
-            return responsesForCall(callIndex).asFlow()
         }
 
         override fun startChatSession(
@@ -2411,7 +2392,7 @@ class ChatViewModelTest {
 
         private fun markToolsForCall(callIndex: Int) {
             calledToolsByCall.getOrNull(callIndex).orEmpty().forEach { tool ->
-                toolCallTracker.markCalled(tool)
+                tracker.markCalled(tool)
             }
         }
 

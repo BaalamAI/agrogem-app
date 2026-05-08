@@ -1,9 +1,13 @@
 package com.agrogem.app.ui.screens.chat
 
 import androidx.compose.runtime.Immutable
+import com.agrogem.app.data.GemmaModelOption
+import com.agrogem.app.data.GemmaPreparationStatus
 import com.agrogem.app.ui.screens.analysis.DiagnosisResult
 
 enum class ContextWarningLevel { None, Mild, Strong, Critical }
+
+enum class ThinkingPhase { Preparing, Thinking, CallingTools, Retrying, ActivatingVision }
 
 /**
  * Root UI state for the chat screen.
@@ -22,6 +26,11 @@ data class ChatUiState(
     val useThinking: Boolean = false,
     val speakingMessageId: String? = null,
     val contextWarning: ContextWarningLevel = ContextWarningLevel.None,
+    val selectedModel: GemmaModelOption = GemmaModelOption.Default,
+    val pendingModelSwitch: GemmaModelOption? = null,
+    val isSwitchingModel: Boolean = false,
+    val gemmaPreparationStatus: GemmaPreparationStatus = GemmaPreparationStatus.NotPrepared,
+    val gemmaDownloadProgress: Int? = null,
 )
 
 /**
@@ -37,6 +46,14 @@ data class ChatMessage(
     val timestamp: Long,
     val isStreaming: Boolean = false,
     val toolsUsed: List<String> = emptyList(),
+    val thinkingPhase: ThinkingPhase = ThinkingPhase.Preparing,
+    /**
+     * Epoch millis when this message started streaming. Drives the elapsed-time
+     * counter shown in [ThinkingIndicator] so users get feedback during the 60-90s
+     * vision-mode thinking phase. Null once the stream finishes (or for non-streaming
+     * messages) so the indicator stops counting.
+     */
+    val streamStartedAt: Long? = null,
 )
 
 /**

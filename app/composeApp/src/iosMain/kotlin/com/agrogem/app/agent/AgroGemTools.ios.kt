@@ -2,4 +2,5 @@ package com.agrogem.app.agent
 
 import com.agrogem.app.data.GemmaToolBundle
 
-actual fun createAgroGemToolBundle(): GemmaToolBundle? = null
+@Suppress("UNUSED_PARAMETER")
+actual fun createAgroGemToolBundle(tracker: ToolCallTracker): GemmaToolBundle? = null
