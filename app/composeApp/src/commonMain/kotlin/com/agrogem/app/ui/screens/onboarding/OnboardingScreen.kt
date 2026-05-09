@@ -38,12 +38,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import androidx.compose.foundation.Image
 import app.composeapp.generated.resources.Res
 import app.composeapp.generated.resources.ic_action_add
 import app.composeapp.generated.resources.ic_action_magic
 import app.composeapp.generated.resources.ic_action_mic
 import app.composeapp.generated.resources.ic_action_speak
+import app.composeapp.generated.resources.logo_isotipo
+import com.agrogem.app.theme.AgroGemBrand
 import com.agrogem.app.theme.AgroGemColors
+import org.jetbrains.compose.resources.painterResource
 import com.agrogem.app.theme.AgroGemIconSizes
 import com.agrogem.app.ui.components.AgroGemIcon
 import com.agrogem.app.ui.components.FilledPrimaryButton
@@ -75,7 +79,7 @@ fun OnboardingScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(AgroGemColors.Screen),
+            .background(AgroGemBrand.Background),
     ) {
         when (onboardingStep) {
             OnboardingUiStep.Welcome -> WelcomeScreen(
@@ -133,6 +137,19 @@ private fun WelcomeScreen(onAdvance: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .background(AgroGemBrand.Verde400.copy(alpha = 0.12f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(Res.drawable.logo_isotipo),
+                    contentDescription = "AgroGem",
+                    modifier = Modifier.size(40.dp),
+                )
+            }
+            Spacer(modifier = Modifier.height(20.dp))
             Text(
                 text = "Bienvenido",
                 color = Color.Transparent,
@@ -394,7 +411,7 @@ private fun FinalScreen(onFinish: () -> Unit) {
             Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = "¡Todo listo! 🎉",
-                color = AgroGemColors.TextPrimary,
+                color = AgroGemBrand.Text.Primary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
             )
@@ -404,7 +421,7 @@ private fun FinalScreen(onFinish: () -> Unit) {
 
         Text(
             text = "Ya podés empezar a usar AgroGemma para cuidar tus cultivos. Vamos a monitorear el clima, las plagas y las alertas de tu zona.\n\n¿Querés que empecemos?",
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 12.sp,
             lineHeight = 18.sp,
             modifier = Modifier.fillMaxWidth().padding(start = 28.dp),
@@ -489,7 +506,7 @@ private fun BotPrompt(text: String) {
 
         Text(
             text = text,
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 12.sp,
             lineHeight = 18.sp,
             fontWeight = FontWeight.Normal,
@@ -532,7 +549,7 @@ private fun ChoiceCard(
 
         Text(
             text = title,
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 12.sp,
             lineHeight = 16.sp,
             textAlign = TextAlign.Center,
@@ -555,7 +572,7 @@ private fun UserBubble(text: String) {
         ) {
             Text(
                 text = text,
-                color = AgroGemColors.TextPrimary,
+                color = AgroGemBrand.Text.Primary,
                 fontSize = 12.sp,
                 lineHeight = 16.sp,
             )
@@ -612,7 +629,7 @@ private fun ConversationComposer(
 
             Text(
                 text = placeholder,
-                color = AgroGemColors.TextHint,
+                color = AgroGemBrand.Text.Disabled,
                 fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -630,7 +647,7 @@ private fun ConversationComposer(
                 contentDescription = "Agregar adjunto",
                 onClick = {},
                 background = AgroGemColors.ChatAttachBg,
-                foreground = AgroGemColors.TextPrimary,
+                foreground = AgroGemBrand.Text.Primary,
                 size = 24.dp,
             )
 
@@ -669,7 +686,7 @@ private fun ConversationComposer(
                     )
                     Text(
                         text = "Hablar",
-                        color = AgroGemColors.TextPrimary,
+                        color = AgroGemBrand.Text.Primary,
                         fontSize = 10.sp,
                     )
                 }
@@ -678,7 +695,7 @@ private fun ConversationComposer(
                     label = "↑",
                     onClick = {},
                     background = AgroGemColors.ChatAttachBg,
-                    foreground = AgroGemColors.TextPrimary,
+                    foreground = AgroGemBrand.Text.Primary,
                     size = 24.dp,
                 )
             }
@@ -702,7 +719,7 @@ private fun LocationPermissionCard(
     ) {
         Text(
             text = title,
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
@@ -711,7 +728,7 @@ private fun LocationPermissionCard(
 
         Text(
             text = body,
-            color = AgroGemColors.TextHint,
+            color = AgroGemBrand.Text.Disabled,
             fontSize = 12.sp,
             textAlign = TextAlign.Center,
             lineHeight = 18.sp,
@@ -788,7 +805,7 @@ private fun ExampleAlertRow(
 
         Text(
             text = text,
-            color = AgroGemColors.TextHint,
+            color = AgroGemBrand.Text.Disabled,
             fontSize = 10.sp,
             lineHeight = 14.sp,
             modifier = Modifier.fillMaxWidth(),

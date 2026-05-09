@@ -6,5 +6,9 @@
         <true/>
         <key>NSLocationWhenInUseUsageDescription</key>
         <string>Necesitamos tu ubicación para mostrarte clima y recomendaciones locales de cultivo.</string>
+        <key>NSCameraUsageDescription</key>
+        <string>Necesitamos acceso a la cámara para que puedas tomar fotos de tus cultivos y analizarlas con Gemma 4.</string>
+        <key>NSPhotoLibraryUsageDescription</key>
+        <string>Necesitamos acceso a tu galería para que puedas seleccionar fotos de cultivos y analizarlas con Gemma 4.</string>
     </dict>
 </plist>

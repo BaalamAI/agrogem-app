@@ -1,6 +1,7 @@
 package com.agrogem.app.ui.screens.onboarding
 
 import com.agrogem.app.data.GemmaPreparationStatus
+import com.agrogem.app.data.geolocation.domain.GeocodeResolved
 import com.agrogem.app.data.geolocation.domain.GeolocationRepository
 import com.agrogem.app.data.geolocation.domain.LocationDisplay
 import com.agrogem.app.data.geolocation.domain.ResolvedLocation
@@ -462,6 +463,9 @@ private class FakeDeviceLocationProvider(
 private class FakeGeolocationRepository : GeolocationRepository {
     var reverseGeocodeCalls: Int = 0
     var lastLatLng: LatLng? = null
+
+    override suspend fun geocode(query: String): Result<GeocodeResolved> =
+        Result.failure(UnsupportedOperationException())
 
     override suspend fun reverseGeocode(latLng: LatLng): Result<ResolvedLocation> {
         reverseGeocodeCalls += 1

@@ -1,29 +1,33 @@
 package com.agrogem.app.ui
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.agrogem.app.data.GemmaPreparation
 import com.agrogem.app.data.OnboardingStateStore
-import com.agrogem.app.data.GemmaPreparationStateHolder
 import com.agrogem.app.data.analysis.createAnalysisRepository
 import com.agrogem.app.data.auth.createAuthRepository
 import com.agrogem.app.data.chat.createChatRepository
 import com.agrogem.app.data.chat.createLocalChatRepository
 import com.agrogem.app.data.climate.createClimateRepository
-import com.agrogem.app.data.geolocation.createGeolocationRepository
-import com.agrogem.app.data.getGemmaManager
-import com.agrogem.app.data.getGemmaModelDownloader
 import com.agrogem.app.data.connectivity.createConnectivityMonitor
+import com.agrogem.app.data.createGemmaManager
+import com.agrogem.app.data.createGemmaModelDownloader
+import com.agrogem.app.data.environment.createEnvironmentRepository
+import com.agrogem.app.data.geolocation.createGeolocationRepository
 import com.agrogem.app.data.pest.createPestRepository
 import com.agrogem.app.data.pest.domain.PlantAnalysisRepositoryImpl
+import com.agrogem.app.data.location.BindLocationGate
+import com.agrogem.app.data.rememberAudioRecorder
 import com.agrogem.app.data.rememberImagePickerLauncher
 import com.agrogem.app.data.rememberSpeechRecognizer
 import com.agrogem.app.data.rememberSpeechSynthesizer
@@ -41,6 +45,7 @@ import com.agrogem.app.ui.screens.chat.ChatEffect
 import com.agrogem.app.ui.screens.chat.ChatViewModel
 import com.agrogem.app.ui.screens.home.HomeViewModel
 import com.agrogem.app.ui.screens.map.MapRiskViewModel
+import androidx.compose.ui.Modifier
 import com.agrogem.app.ui.viewmodel.kmpViewModel
 import kotlinx.coroutines.flow.collectLatest
 
@@ -53,36 +58,19 @@ fun AppShell(modifier: Modifier = Modifier) {
     val appSessionViewModel = kmpViewModel {
         AppSessionViewModel(authRepository, sessionLocalStore)
     }
-    val sessionUiState by appSessionViewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         appSessionViewModel.bootstrap()
     }
 
-    LaunchedEffect(sessionUiState.onboardingDone) {
-        if (sessionUiState.onboardingDone) {
-            onboardingStateStore.markCompleted()
-            navController.navigate(AgroGemRoute.Home.route) {
-                popUpTo(AgroGemRoute.Onboarding.createRoute(0)) {
-                    inclusive = true
-                }
-                launchSingleTop = true
-                restoreState = false
-            }
-        }
-    }
-
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = AgroGemRoute.fromRoute(backStackEntry?.destination?.route)
-    val showBottomBar = currentRoute == AgroGemRoute.Home || currentRoute == AgroGemRoute.History || currentRoute == AgroGemRoute.Conversations || currentRoute == AgroGemRoute.MapRisk
+    // POC reducido: solo Home + Chat. La barra solo aparece en Home (Chat la oculta como antes).
+    val showBottomBar = currentRoute == AgroGemRoute.Home
     val currentTab = currentRoute.bottomTab ?: AgroGemBottomTab.Home
-    val startDestination = if (onboardingStateStore.isCompleted() || sessionUiState.onboardingDone) {
-        AgroGemRoute.Home.route
-    } else {
-        AgroGemRoute.Onboarding.createRoute(0)
-    }
+    // POC: onboarding is intentionally bypassed — always launch into Home.
+    val startDestination = AgroGemRoute.Home.route
 
-    // Shared repositories for geolocation, weather, soil, and risk — injected into ViewModels
     val geolocationRepository = remember { createGeolocationRepository() }
     val weatherRepository = remember { createWeatherRepository() }
     val soilRepository = remember { createSoilRepository() }
@@ -105,21 +93,22 @@ fun AppShell(modifier: Modifier = Modifier) {
         )
     }
 
-    // Shared ViewModel for the analysis flow — lives here so it survives navigation
     val pestRepository = remember { createPestRepository() }
     val connectivityMonitor = remember { createConnectivityMonitor() }
-    val gemmaManager = remember { getGemmaManager() }
-    val gemmaDownloader = remember { getGemmaModelDownloader() }
-    val gemmaPreparationStateHolder = remember {
-        GemmaPreparationStateHolder(
+    val gemmaManager = remember { createGemmaManager() }
+    val gemmaDownloader = remember { createGemmaModelDownloader() }
+    val gemmaModelPreference = remember { com.agrogem.app.data.GemmaModelPreferenceStore() }
+    val gemmaPreparation = remember {
+        GemmaPreparation(
             gemmaManager = gemmaManager,
             modelDownloader = gemmaDownloader,
+            modelPreference = gemmaModelPreference,
         )
     }
     val plantAnalysisRepository = remember {
         PlantAnalysisRepositoryImpl(
             gemmaManager = gemmaManager,
-            gemmaPreparationStateHolder = gemmaPreparationStateHolder,
+            gemmaPreparation = gemmaPreparation,
             pestRepository = pestRepository,
             connectivityMonitor = connectivityMonitor,
         )
@@ -133,14 +122,11 @@ fun AppShell(modifier: Modifier = Modifier) {
 
     val localChatRepository = remember { createLocalChatRepository() }
 
-    // Shared ChatViewModel for the chat/voice flow — lives here so it survives navigation
-    // and is shared across Chat, ChatConfirm, and VoiceReady routes (Phase 5 architecture fix).
-    // Seeded with null so it starts in Blank mode. When navigating from Analysis → Chat,
-    // AppNavHost calls chatViewModel.seedFromAnalysis(...) before pushing the chat route,
-    // so the shared instance carries the real analysis context at runtime.
     val chatRepository = remember { createChatRepository(authRepository) }
+    val environmentRepository = remember { createEnvironmentRepository() }
     val speechRecognizer = rememberSpeechRecognizer()
     val speechSynthesizer = rememberSpeechSynthesizer()
+    val audioRecorder = rememberAudioRecorder { }
     val chatViewModel = kmpViewModel {
         ChatViewModel(
             chatRepository = chatRepository,
@@ -149,15 +135,15 @@ fun AppShell(modifier: Modifier = Modifier) {
             diagnosis = null,
             gemmaManager = gemmaManager,
             gemmaModelDownloader = gemmaDownloader,
-            gemmaPreparationStateHolder = gemmaPreparationStateHolder,
+            gemmaPreparation = gemmaPreparation,
             geolocationRepository = geolocationRepository,
             riskRepository = riskRepository,
-            weatherRepository = weatherRepository,
-            soilRepository = soilRepository,
+            environmentRepository = environmentRepository,
             connectivityMonitor = connectivityMonitor,
             sessionLocalStore = sessionLocalStore,
             speechRecognizer = speechRecognizer,
             speechSynthesizer = speechSynthesizer,
+            audioRecorder = audioRecorder,
         )
     }
 
@@ -169,7 +155,12 @@ fun AppShell(modifier: Modifier = Modifier) {
         }
     }
 
-    // Camera launcher — opens the native camera directly from the Scan FAB
+    BindLocationGate()
+
+    LaunchedEffect(Unit) {
+        gemmaPreparation.ensureReady()
+    }
+
     val imagePicker = rememberImagePickerLauncher { result ->
         if (result != null) {
             analysisFlowVm.startAnalysis(result)
@@ -177,8 +168,15 @@ fun AppShell(modifier: Modifier = Modifier) {
         }
     }
 
+    val contentInsets = if (currentRoute == AgroGemRoute.Chat) {
+        WindowInsets.statusBars
+    } else {
+        ScaffoldDefaults.contentWindowInsets
+    }
+
     Scaffold(
         modifier = modifier,
+        contentWindowInsets = contentInsets,
         bottomBar = {
             if (showBottomBar) {
                 BottomNavigationBar(
@@ -188,12 +186,17 @@ fun AppShell(modifier: Modifier = Modifier) {
                             AgroGemBottomTab.Home -> AgroGemRoute.Home
                             AgroGemBottomTab.Fields -> AgroGemRoute.History
                             AgroGemBottomTab.Scan -> {
-                                // Launch native camera directly — no navigation
                                 imagePicker.launchCamera()
                                 return@BottomNavigationBar
                             }
                             AgroGemBottomTab.Maps -> AgroGemRoute.MapRisk
-                            AgroGemBottomTab.Chat -> AgroGemRoute.Conversations
+                            AgroGemBottomTab.Chat -> {
+                                chatViewModel.resetToBlank()
+                                navController.navigate(AgroGemRoute.Chat.createRoute(null)) {
+                                    launchSingleTop = true
+                                }
+                                return@BottomNavigationBar
+                            }
                         }
 
                         if (destination.route != backStackEntry?.destination?.route) {
@@ -216,6 +219,7 @@ fun AppShell(modifier: Modifier = Modifier) {
             soilRepository = soilRepository,
             climateRepository = climateRepository,
             geolocationRepository = geolocationRepository,
+            gemmaPreparation = gemmaPreparation,
             startDestination = startDestination,
             onOnboardingFinished = {
                 onboardingStateStore.markCompleted()

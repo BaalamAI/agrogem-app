@@ -15,6 +15,19 @@ interface LocalChatRepository {
     fun saveMessage(conversationId: String, message: ChatMessage)
     fun listMessages(conversationId: String): List<ChatMessage>
     fun createBlankConversation(): Conversation
+
+    /**
+     * Marks any chat_message rows still flagged `is_streaming=1` as failed,
+     * so a process killed mid-inference doesn't leave a frozen "thinking…"
+     * bubble after relaunch. Call once per process at app boot.
+     */
+    fun markOrphanStreamingMessagesAsFailed()
+
+    /**
+     * Removes a single message by id. Used to clean up a streaming placeholder
+     * when the in-flight Gemma attempt errors and falls back to the backend.
+     */
+    fun deleteMessage(messageId: String)
 }
 
 class LocalChatRepositoryImpl(
@@ -60,6 +73,14 @@ class LocalChatRepositoryImpl(
 
     override fun listMessages(conversationId: String): List<ChatMessage> =
         localDataSource.listMessages(conversationId)
+
+    override fun markOrphanStreamingMessagesAsFailed() {
+        localDataSource.markOrphanStreamingMessagesAsFailed()
+    }
+
+    override fun deleteMessage(messageId: String) {
+        localDataSource.deleteMessageById(messageId)
+    }
 
     override fun createBlankConversation(): Conversation {
         val now = Clock.System.now().toEpochMilliseconds()

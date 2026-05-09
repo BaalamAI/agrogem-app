@@ -7,17 +7,15 @@ import androidx.compose.runtime.Composable
  * Each platform provides an actual implementation via [rememberAudioRecorder].
  */
 interface AudioRecorder {
-    /** Start capturing audio input. */
-    fun startRecording()
+    fun start()
 
     /**
-     * Stop capturing audio and return the URI of the recorded file.
-     * Returns null if recording failed or was cancelled.
+     * Stops capturing audio and returns the URI of the recorded file,
+     * or null if recording failed or was cancelled.
      */
-    fun stopRecording(): String?
+    fun stop(): String?
 
-    /** Cancel the current recording and clean up resources. */
-    fun cancelRecording()
+    fun cancel()
 }
 
 /**

@@ -1,8 +1,9 @@
 package com.agrogem.app.data.pest.domain
 
 import com.agrogem.app.data.GemmaManager
-import com.agrogem.app.data.GemmaPreparationStateHolder
+import com.agrogem.app.data.GemmaPreparation
 import com.agrogem.app.data.ImageResult
+import com.agrogem.app.data.InferenceLifecycle
 import com.agrogem.app.data.connectivity.ConnectivityMonitor
 import kotlin.math.round
 import kotlinx.serialization.Serializable
@@ -14,7 +15,7 @@ interface PlantAnalysisRepository {
 
 class PlantAnalysisRepositoryImpl(
     private val gemmaManager: GemmaManager,
-    private val gemmaPreparationStateHolder: GemmaPreparationStateHolder,
+    private val gemmaPreparation: GemmaPreparation,
     private val pestRepository: PestRepository,
     private val connectivityMonitor: ConnectivityMonitor,
 ) : PlantAnalysisRepository {
@@ -33,7 +34,7 @@ class PlantAnalysisRepositoryImpl(
             null
         }
 
-        val shouldAttemptGemma = !isOnline || gemmaPreparationStateHolder.hasLocalModel()
+        val shouldAttemptGemma = !isOnline || gemmaPreparation.hasLocalModel()
         if (!shouldAttemptGemma) {
             return backendResult
                 ?: PestResult.Failure(PestFailure.Network(Exception("No local model available for offline analysis")))
@@ -46,38 +47,63 @@ class PlantAnalysisRepositoryImpl(
                 ?: PestResult.Failure(PestFailure.Network(Exception("No internet connection and Gemma model not available")))
         }
 
+        // Pushing an image into a text-only Gemma engine SIGSEGVs inside LiteRT-LM
+        // (uncatchable from Kotlin). Skip Gemma enrichment if the selected model
+        // isn't vision-capable — fall back to the backend pest classifier alone.
+        val visionReady = ensureVisionForImage()
+        if (!visionReady) {
+            return backendResult
+                ?: PestResult.Failure(PestFailure.Network(Exception("Modelo seleccionado no soporta análisis de imágenes")))
+        }
+
         val backendSuccess = backendResult as? PestResult.Success
 
-        val gemmaResult = runCatching {
-            val backendConfidence = backendSuccess?.diagnosis?.confidence
-            val responseText = gemmaManager.sendMessage(
-                systemPrompt = buildSystemPrompt(backendSuccess),
-                userPrompt = USER_PROMPT,
-                images = listOfNotNull(image.uri),
-                temperature = 0.4f,
-            )
-            parseGemmaResponse(responseText, backendConfidence)
-        }.getOrNull()
+        // Bracket the Gemma call with a foreground-service acquire so Android's
+        // Low-Memory Killer treats this multi-second vision-prefill+inference as
+        // critical and won't SIGKILL the process if other apps demand memory.
+        InferenceLifecycle.start("Analizando imagen con Gemma…")
+        val gemmaResult = try {
+            runCatching {
+                val backendConfidence = backendSuccess?.diagnosis?.confidence
+                val responseText = gemmaManager.sendMessage(
+                    systemPrompt = buildSystemPrompt(backendSuccess),
+                    userPrompt = USER_PROMPT,
+                    images = listOfNotNull(image.uri),
+                    temperature = 0.4f,
+                )
+                parseGemmaResponse(responseText, backendConfidence)
+            }.getOrNull()
+        } finally {
+            InferenceLifecycle.stop()
+        }
 
         return gemmaResult ?: backendResult ?: PestResult.Failure(PestFailure.Server)
     }
 
-    private suspend fun initializeGemmaIfPossible(): Boolean = gemmaPreparationStateHolder.ensureReady()
+    private suspend fun initializeGemmaIfPossible(): Boolean = gemmaPreparation.ensureReady()
+
+    private suspend fun ensureVisionForImage(): Boolean {
+        if (gemmaManager.supportsVision) return true
+        return gemmaPreparation.ensureVisionReady()
+    }
 
     private fun buildSystemPrompt(backendResult: PestResult.Success?): String = buildString {
-        append("Eres un experto Fitopatólogo Especialista en enfermedades de cultivos. ")
-        append("Analiza la imagen del cultivo y responde EXCLUSIVAMENTE con un objeto JSON válido, ")
+        append("Eres AgroGem, un experto en diagnóstico visual de salud de cultivos. ")
+        append("Analiza la imagen del cultivo buscando enfermedades, hongos, bacterias, virus, insectos, ácaros, nematodos, plagas, deficiencias nutricionales o estrés ambiental. ")
+        append("La respuesta debe servir para orientar una decisión agrícola práctica. ")
+        append("Responde EXCLUSIVAMENTE con un objeto JSON válido, ")
         append("sin texto adicional ni marcadores de código. ")
         append("El JSON debe tener exactamente estos campos: ")
-        append("\"pestName\" (string corto, en español, sin paréntesis), ")
+        append("\"pestName\" (string corto con la enfermedad, plaga o daño probable, en español, sin paréntesis), ")
         append("\"confidence\" (número decimal entre 0.0 y 1.0), ")
         append("\"severity\" (string: Alta, Media o Baja), ")
         append("\"affectedArea\" (string), ")
-        append("\"cause\" (string), ")
-        append("\"diagnosisText\" (string: descripción detallada), ")
+        append("\"cause\" (string: hongo, bacteria, virus, insecto, ácaro, nematodo, deficiencia, estrés ambiental o desconocida), ")
+        append("\"diagnosisText\" (string: descripción detallada con síntomas visibles y diagnóstico diferencial si aplica), ")
         append("\"treatmentSteps\" (array de strings). ")
-        append("Si no puedes inferir con suficiente certeza el área afectada o la causa, devuelve una cadena vacía en esos campos. ")
-        append("La imagen es la fuente principal de verdad; cualquier contexto adicional es solo referencia. ")
+        append("En treatmentSteps incluye acciones de manejo agrícola concretas y seguras: aislar/retirar tejido afectado cuando aplique, monitorear, mejorar ventilación/drenaje/nutrición y consultar etiqueta o técnico antes de agroquímicos. ")
+        append("Si no puedes inferir con suficiente certeza el área afectada, la causa o el diagnóstico, devuelve una cadena vacía en esos campos y baja la confidence. ")
+        append("La imagen es la fuente principal de verdad; cualquier contexto adicional es solo referencia para enriquecer, no para forzar una clase. ")
         if (backendResult != null) {
             backendResult.evidence?.let { evidence ->
                 append("Contexto adicional del sistema de reconocimiento: ")

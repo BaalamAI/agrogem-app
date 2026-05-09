@@ -3,7 +3,6 @@ package com.agrogem.app.data.pest.domain
 import com.agrogem.app.data.ImageResult
 import com.agrogem.app.data.network.ApiError
 import com.agrogem.app.data.pest.api.PestApi
-import com.agrogem.app.data.toByteArray
 import com.agrogem.app.data.pest.api.PestIdentifyResponse
 import com.agrogem.app.data.pest.api.PestUploadUrlResponse
 import com.agrogem.app.data.pest.api.TopMatch
@@ -100,19 +99,6 @@ class PestRepositoryTest {
 
         assertIs<PestResult.Failure>(result)
         assertIs<PestFailure.Server>(result.reason)
-    }
-
-    @Test
-    fun `ImageResult toByteArray returns bytes field`() = runTest {
-        val bytes = byteArrayOf(1, 2, 3)
-        val image = ImageResult(uri = "content://test.jpg", bytes = bytes)
-        assertEquals(bytes, image.toByteArray())
-    }
-
-    @Test
-    fun `ImageResult toByteArray returns null when bytes are null`() = runTest {
-        val image = ImageResult(uri = "content://test.jpg", bytes = null)
-        assertEquals(null, image.toByteArray())
     }
 
     @Test

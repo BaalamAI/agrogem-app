@@ -10,7 +10,7 @@ ELEVATION_KEY_PREFIX = "elevation:"
 
 
 def _elevation_key(lat: float, lon: float) -> str:
-    return f"{ELEVATION_KEY_PREFIX}{lat:.4f}:{lon:.4f}"
+    return f"{ELEVATION_KEY_PREFIX}{lat:.2f}:{lon:.2f}"
 
 
 class RedisElevationCache:

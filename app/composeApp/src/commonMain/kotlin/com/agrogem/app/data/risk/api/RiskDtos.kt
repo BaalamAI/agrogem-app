@@ -2,6 +2,7 @@ package com.agrogem.app.data.risk.api
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 /**
  * Defensive deserialization: fields are nullable with default null so that
@@ -18,7 +19,7 @@ data class DiseaseRiskResponse(
     @SerialName("risk_level")
     val riskLevel: String? = null,
     @SerialName("factors")
-    val factors: List<String>? = null,
+    val factors: JsonElement? = null,
     @SerialName("interpretation")
     val interpretation: String? = null,
 )
@@ -36,7 +37,7 @@ data class PestRiskResponse(
     @SerialName("pest_type")
     val pestType: String? = null,
     @SerialName("life_stage_risk")
-    val lifeStageRisk: Map<String, Double>? = null,
+    val lifeStageRisk: JsonElement? = null,
     @SerialName("affected_crops")
     val affectedCrops: List<String>? = null,
     @SerialName("risk_score")
@@ -46,7 +47,7 @@ data class PestRiskResponse(
     @SerialName("virus_coalert")
     val virusCoalert: String? = null,
     @SerialName("factors")
-    val factors: List<String>? = null,
+    val factors: JsonElement? = null,
     @SerialName("interpretation")
     val interpretation: String? = null,
 )

@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from config import lifespan
 from domain.chat.router import router as chat_router
+from domain.environment.router import router as environment_router
 from domain.climate.router import router as climate_router
 from domain.disease_risk.router import router as disease_risk_router
 from domain.elevation.router import router as elevation_router
@@ -18,6 +19,7 @@ from domain.user.router import router as user_router
 from domain.weather.router import router as weather_router
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(environment_router)
 app.include_router(user_router)
 app.include_router(session_router)
 app.include_router(chat_router)

@@ -163,7 +163,7 @@ class GeolocationRepositoryTest {
     }
 
     private class FakeGeolocationApi(
-        private val geocodeHits: List<GeocodeHit> = emptyList(),
+        private val geocodeHit: GeocodeHit? = null,
         private val reverseResponse: ReverseGeocodeResponse = ReverseGeocodeResponse(
             displayName = null,
             lat = 0.0,
@@ -172,7 +172,7 @@ class GeolocationRepositoryTest {
         private val elevationResponse: ElevationResponse = ElevationResponse(elevationMeters = null),
         private val shouldThrowOnElevation: Boolean = false,
     ) : GeolocationApi {
-        override suspend fun geocode(query: String): List<GeocodeHit> = geocodeHits
+        override suspend fun geocode(query: String): GeocodeHit? = geocodeHit
         override suspend fun reverseGeocode(lat: Double, lng: Double): ReverseGeocodeResponse = reverseResponse
         override suspend fun elevation(lat: Double, lng: Double): ElevationResponse {
             if (shouldThrowOnElevation) throw RuntimeException("Elevation failed")

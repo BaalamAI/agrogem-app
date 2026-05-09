@@ -126,3 +126,25 @@ SELECT *
 FROM chat_message
 WHERE conversation_id = ?
 ORDER BY timestamp_epoch_millis ASC;
+
+-- Sweeps any chat_message left in `is_streaming=1` from a process that died
+-- mid-inference (e.g. SIGKILL'd by Android's Low-Memory Killer during long
+-- vision turns). Empty placeholder rows get a user-visible failure copy so the
+-- chat doesn't render a frozen "thinking…" bubble forever after relaunch.
+markOrphanStreamingMessages:
+UPDATE chat_message
+SET is_streaming = 0,
+    text = CASE
+      WHEN text IS NULL OR text = ''
+        THEN 'La generación se interrumpió. Tocá reintentar.'
+      ELSE text
+    END
+WHERE is_streaming = 1;
+
+-- Removes a single message row by id. Used when an in-flight Gemma stream
+-- fails and we fall back to the backend — without deleting, the orphan-sweep
+-- on next launch would mark the placeholder as "interrupted" even though the
+-- user already got a successful backend response.
+deleteChatMessageById:
+DELETE FROM chat_message
+WHERE message_id = ?;

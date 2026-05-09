@@ -10,7 +10,7 @@ SOIL_KEY_PREFIX = "soil:"
 
 
 def _soil_key(lat: float, lon: float) -> str:
-    return f"{SOIL_KEY_PREFIX}{lat:.4f}:{lon:.4f}"
+    return f"{SOIL_KEY_PREFIX}{lat:.3f}:{lon:.3f}"
 
 
 class RedisSoilCache:

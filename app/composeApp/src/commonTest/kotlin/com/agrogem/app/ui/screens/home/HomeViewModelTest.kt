@@ -2,6 +2,7 @@ package com.agrogem.app.ui.screens.home
 
 import com.agrogem.app.data.analysis.domain.AnalysisRepository
 import com.agrogem.app.data.analysis.domain.StoredAnalysis
+import com.agrogem.app.data.geolocation.domain.GeocodeResolved
 import com.agrogem.app.data.geolocation.domain.GeolocationRepository
 import com.agrogem.app.data.geolocation.domain.LocationDisplay
 import com.agrogem.app.data.geolocation.domain.ResolvedLocation
@@ -444,6 +445,9 @@ class HomeViewModelTest {
     ) : GeolocationRepository {
         private val state = MutableStateFlow(resolved)
         var reverseGeocodeCalls: Int = 0
+
+        override suspend fun geocode(query: String): Result<GeocodeResolved> =
+            Result.failure(UnsupportedOperationException())
 
         override suspend fun reverseGeocode(latLng: LatLng): Result<ResolvedLocation> {
             reverseGeocodeCalls += 1

@@ -8,9 +8,9 @@ class IconSizesTest {
 
     @Test
     fun `icon sizes have correct dp values`() {
-        assertEquals(16.dp, AgroGemIconSizes.Sm)
-        assertEquals(24.dp, AgroGemIconSizes.Md)
-        assertEquals(32.dp, AgroGemIconSizes.Lg)
+        assertEquals(22.dp, AgroGemIconSizes.Sm)
+        assertEquals(28.dp, AgroGemIconSizes.Md)
+        assertEquals(36.dp, AgroGemIconSizes.Lg)
     }
 
     @Test

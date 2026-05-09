@@ -13,20 +13,27 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class GeolocationApiTest {
 
     @Test
-    fun `geocode returns list of hits`() = runTest {
+    fun `geocode returns single hit`() = runTest {
         val mockEngine = MockEngine { request ->
             assertTrue(request.url.encodedPath.endsWith("/geocode"))
             assertEquals("Zacapa, Guatemala", request.url.parameters["q"])
             respond(
-                content = """[
-                    {"display_name":"Zacapa, Guatemala","lat":14.9726,"lon":-89.5301},
-                    {"display_name":"Zacapa Department, Guatemala","lat":15.0,"lon":-89.5}
-                ]""",
+                content = """{
+                    "display_name":"Zacapa, Guatemala",
+                    "lat":14.9726,
+                    "lon":-89.5301,
+                    "municipality":"Zacapa",
+                    "state":"Zacapa Department",
+                    "country_code":"gt",
+                    "interpretation":"Ubicación encontrada"
+                }""",
                 status = HttpStatusCode.OK,
                 headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
             )
@@ -36,10 +43,29 @@ class GeolocationApiTest {
 
         val result = api.geocode("Zacapa, Guatemala")
 
-        assertEquals(2, result.size)
-        assertEquals("Zacapa, Guatemala", result[0].name)
-        assertEquals(14.9726, result[0].lat)
-        assertEquals(-89.5301, result[0].lng)
+        assertNotNull(result)
+        assertEquals("Zacapa, Guatemala", result.name)
+        assertEquals(14.9726, result.lat)
+        assertEquals(-89.5301, result.lng)
+        assertEquals("Zacapa", result.municipality)
+        assertEquals("Ubicación encontrada", result.interpretation)
+    }
+
+    @Test
+    fun `geocode returns null on 404`() = runTest {
+        val mockEngine = MockEngine {
+            respond(
+                content = """{"detail":"No match found for query."}""",
+                status = HttpStatusCode.NotFound,
+                headers = headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            )
+        }
+
+        val api: GeolocationApi = KtorGeolocationApi(HttpClientFactory.create(engine = mockEngine))
+
+        val result = api.geocode("xkqzz_no_such_place")
+
+        assertNull(result)
     }
 
     @Test

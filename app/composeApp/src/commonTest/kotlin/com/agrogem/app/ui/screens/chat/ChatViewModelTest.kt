@@ -1,14 +1,20 @@
 package com.agrogem.app.ui.screens.chat
 
+import com.agrogem.app.agent.ToolCallTracker
+import com.agrogem.app.agent.ToolIntentSupervisor
+import com.agrogem.app.data.AudioRecorder
+import com.agrogem.app.data.GemmaChatSession
 import com.agrogem.app.data.GemmaManager
 import com.agrogem.app.data.GemmaModelDownloader
 import com.agrogem.app.data.GemmaResponse
+import com.agrogem.app.data.GemmaToolBundle
 import com.agrogem.app.data.SpeechRecognizer
 import com.agrogem.app.data.SpeechSynthesizer
 import com.agrogem.app.data.chat.domain.ChatFailure
 import com.agrogem.app.data.chat.domain.ChatRepository
 import com.agrogem.app.data.chat.domain.ChatSendResult
 import com.agrogem.app.data.connectivity.ConnectivityMonitor
+import com.agrogem.app.data.geolocation.domain.GeocodeResolved
 import com.agrogem.app.data.geolocation.domain.GeolocationRepository
 import com.agrogem.app.data.geolocation.domain.LocationDisplay
 import com.agrogem.app.data.geolocation.domain.ResolvedLocation
@@ -667,7 +673,7 @@ class ChatViewModelTest {
 
         viewModel.onEvent(ChatEvent.StartVoiceInput)
 
-        assertEquals(1, recognizer.startListeningCallCount)
+        assertEquals(1, recognizer.startCallCount)
         assertIs<VoiceState.Listening>(viewModel.uiState.value.voiceState)
     }
 
@@ -718,13 +724,57 @@ class ChatViewModelTest {
         viewModel.onEvent(ChatEvent.StopVoiceInput)
         advanceUntilIdle()
 
-        assertEquals(1, recognizer.stopListeningCallCount)
+        assertEquals(1, recognizer.stopCallCount)
         val state = viewModel.uiState.value
         assertEquals(2, state.messages.size)
         assertEquals("What should I do?", state.messages[0].text)
         assertEquals(MessageSender.User, state.messages[0].sender)
         assertEquals(1, state.messages[0].attachments.size)
         assertIs<ChatAttachment.Audio>(state.messages[0].attachments[0])
+    }
+
+    @Test
+    fun `StopVoiceInput stores recorded audio uri on voice message`() = runTest(testDispatcher) {
+        val recorder = FakeAudioRecorder(stopUri = "file:///tmp/agrogem_voice.m4a")
+        val repo = fakeRepo()
+        val viewModel = ChatViewModel(
+            chatRepository = repo,
+            audioRecorder = recorder,
+        )
+
+        viewModel.onEvent(ChatEvent.InputChanged("What should I do?"))
+        viewModel.onEvent(ChatEvent.StartVoiceInput)
+        viewModel.onEvent(ChatEvent.StopVoiceInput)
+        advanceUntilIdle()
+
+        assertEquals(1, recorder.startCallCount)
+        assertEquals(1, recorder.stopCallCount)
+        val attachment = viewModel.uiState.value.messages[0].attachments.single()
+        assertIs<ChatAttachment.Audio>(attachment)
+        assertEquals("file:///tmp/agrogem_voice.m4a", attachment.uri)
+        assertEquals("file:///tmp/agrogem_voice.m4a", (repo.lastAttachments?.single() as ChatAttachment.Audio).uri)
+    }
+
+    @Test
+    fun `StopVoiceInput with recorded audio and no transcript creates audio message without sending`() = runTest(testDispatcher) {
+        val recorder = FakeAudioRecorder(stopUri = "file:///tmp/agrogem_voice.m4a")
+        val repo = fakeRepo()
+        val viewModel = ChatViewModel(
+            chatRepository = repo,
+            audioRecorder = recorder,
+        )
+
+        viewModel.onEvent(ChatEvent.StartVoiceInput)
+        viewModel.onEvent(ChatEvent.StopVoiceInput)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(1, state.messages.size)
+        assertEquals("", state.messages[0].text)
+        val attachment = state.messages[0].attachments.single()
+        assertIs<ChatAttachment.Audio>(attachment)
+        assertEquals("file:///tmp/agrogem_voice.m4a", attachment.uri)
+        assertEquals(0, repo.sendMessageCallCount)
     }
 
     @Test
@@ -738,7 +788,7 @@ class ChatViewModelTest {
         viewModel.onEvent(ChatEvent.StartVoiceInput)
         viewModel.onEvent(ChatEvent.DismissVoice)
 
-        // StartVoiceInput calls cancel() defensively before startListening(),
+        // StartVoiceInput calls cancel() defensively before start(),
         // so cancel is invoked twice: once on start and once on dismiss.
         assertEquals(2, recognizer.cancelCallCount)
         assertEquals(VoiceState.Idle, viewModel.uiState.value.voiceState)
@@ -1284,6 +1334,90 @@ class ChatViewModelTest {
         assertEquals("Hello world", assistantMessage.text)
         assertEquals(false, assistantMessage.isStreaming)
         assertEquals(false, state.isLoading)
+    }
+
+    @Test
+    fun `Gemma supervisor does not retry when expected tool was called`() = runTest(testDispatcher) {
+        val tracker = ToolCallTracker()
+        val gemma = FakeGemmaManager(
+            initialInitialized = true,
+            calledToolsByCall = listOf(setOf(ToolIntentSupervisor.WEATHER_TOOL)),
+            tracker = tracker,
+        )
+        val downloader = FakeGemmaModelDownloader(downloaded = true)
+        val repo = fakeRepo()
+        val viewModel = ChatViewModel(
+            chatRepository = repo,
+            gemmaManager = gemma,
+            gemmaModelDownloader = downloader,
+            toolCallTracker = tracker,
+        )
+
+        viewModel.onEvent(ChatEvent.InputChanged("¿Va a llover hoy?"))
+        viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
+
+        assertEquals(0, repo.sendMessageCallCount)
+        assertEquals(1, gemma.streamCallCount)
+        assertEquals("¿Va a llover hoy?", gemma.lastUserPrompt)
+        assertEquals("Gemma response", viewModel.uiState.value.messages.last().text)
+    }
+
+    @Test
+    fun `Gemma supervisor retries once when expected tool was not called`() = runTest(testDispatcher) {
+        val tracker = ToolCallTracker()
+        val gemma = FakeGemmaManager(
+            initialInitialized = true,
+            responsesByCall = listOf(
+                listOf(GemmaResponse(text = "Respuesta sin herramienta", isDone = true)),
+                listOf(GemmaResponse(text = "Respuesta con clima", isDone = true)),
+            ),
+            calledToolsByCall = listOf(
+                emptySet(),
+                setOf(ToolIntentSupervisor.WEATHER_TOOL),
+            ),
+            tracker = tracker,
+        )
+        val downloader = FakeGemmaModelDownloader(downloaded = true)
+        val repo = fakeRepo()
+        val viewModel = ChatViewModel(
+            chatRepository = repo,
+            gemmaManager = gemma,
+            gemmaModelDownloader = downloader,
+            toolCallTracker = tracker,
+        )
+
+        viewModel.onEvent(ChatEvent.InputChanged("¿Cómo está el clima hoy?"))
+        viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
+
+        assertEquals(0, repo.sendMessageCallCount)
+        assertEquals(2, gemma.streamCallCount)
+        assertTrue(gemma.lastUserPrompt?.contains("Esta pregunta requiere datos reales") == true)
+        assertTrue(gemma.lastUserPrompt?.contains("¿Cómo está el clima hoy?") == true)
+        assertEquals("Respuesta con clima", viewModel.uiState.value.messages.last().text)
+    }
+
+    @Test
+    fun `Gemma supervisor does not retry when message does not expect tools`() = runTest(testDispatcher) {
+        val tracker = ToolCallTracker()
+        val gemma = FakeGemmaManager(initialInitialized = true, tracker = tracker)
+        val downloader = FakeGemmaModelDownloader(downloaded = true)
+        val repo = fakeRepo()
+        val viewModel = ChatViewModel(
+            chatRepository = repo,
+            gemmaManager = gemma,
+            gemmaModelDownloader = downloader,
+            toolCallTracker = tracker,
+        )
+
+        viewModel.onEvent(ChatEvent.InputChanged("Dame consejos generales para maíz"))
+        viewModel.onEvent(ChatEvent.SendMessage)
+        advanceUntilIdle()
+
+        assertEquals(0, repo.sendMessageCallCount)
+        assertEquals(1, gemma.streamCallCount)
+        assertEquals("Dame consejos generales para maíz", gemma.lastUserPrompt)
     }
 
     // ========== Pest-risk context enrichment tests ==========
@@ -2203,18 +2337,24 @@ class ChatViewModelTest {
         var shouldThrowOnInit: Boolean = false,
         var shouldThrowOnStream: Boolean = false,
         var responses: List<GemmaResponse> = listOf(GemmaResponse(text = "Gemma response", isDone = true)),
+        var responsesByCall: List<List<GemmaResponse>> = emptyList(),
+        var calledToolsByCall: List<Set<String>> = emptyList(),
+        private val tracker: ToolCallTracker = ToolCallTracker(),
     ) : GemmaManager {
         private val _isInitialized = MutableStateFlow(initialInitialized)
         override val isInitialized: Flow<Boolean> = _isInitialized
+        override val supportsVision: Boolean = false
 
         var lastSystemPrompt: String? = null
         var lastUserPrompt: String? = null
         var streamCallCount = 0
 
-        override suspend fun initialize(modelPath: String) {
+        override suspend fun initialize(modelPath: String, preferVision: Boolean) {
             if (shouldThrowOnInit) throw Exception("Init failed")
             _isInitialized.value = true
         }
+
+        override suspend fun enableVision(modelPath: String): Boolean = false
 
         override suspend fun sendMessage(
             systemPrompt: String,
@@ -2222,24 +2362,38 @@ class ChatViewModelTest {
             images: List<String>,
             audioPath: String?,
             temperature: Float,
+            toolBundle: GemmaToolBundle?,
         ): String {
             lastSystemPrompt = systemPrompt
             lastUserPrompt = userPrompt
-            return responses.joinToString("") { it.text }
+            return responsesForCall(0).joinToString("") { it.text }
         }
 
-        override fun sendMessageStream(
+        override fun startChatSession(
             systemPrompt: String,
-            userPrompt: String,
-            images: List<String>,
-            audioPath: String?,
             temperature: Float,
-        ): Flow<GemmaResponse> {
-            if (shouldThrowOnStream) throw Exception("Stream failed")
-            streamCallCount++
+            toolBundle: GemmaToolBundle?,
+        ): GemmaChatSession {
             lastSystemPrompt = systemPrompt
-            lastUserPrompt = userPrompt
-            return responses.asFlow()
+            return object : GemmaChatSession {
+                override fun sendMessage(text: String, images: List<String>): Flow<GemmaResponse> {
+                    if (shouldThrowOnStream) throw Exception("Stream failed")
+                    val callIndex = streamCallCount++
+                    lastUserPrompt = text
+                    markToolsForCall(callIndex)
+                    return responsesForCall(callIndex).asFlow()
+                }
+                override fun close() {}
+            }
+        }
+
+        private fun responsesForCall(callIndex: Int): List<GemmaResponse> =
+            responsesByCall.getOrNull(callIndex) ?: responses
+
+        private fun markToolsForCall(callIndex: Int) {
+            calledToolsByCall.getOrNull(callIndex).orEmpty().forEach { tool ->
+                tracker.markCalled(tool)
+            }
         }
 
         override fun close() {}
@@ -2257,6 +2411,9 @@ class ChatViewModelTest {
     private class FakeGeolocationRepository(
         private val resolved: ResolvedLocation?
     ) : GeolocationRepository {
+        override suspend fun geocode(query: String): Result<GeocodeResolved> =
+            Result.failure(UnsupportedOperationException())
+
         override suspend fun reverseGeocode(latLng: LatLng): Result<ResolvedLocation> =
             Result.failure(UnsupportedOperationException())
 
@@ -2297,26 +2454,27 @@ class ChatViewModelTest {
     }
 
     private class FakeSpeechRecognizer : SpeechRecognizer {
-        var startListeningCallCount = 0
-        var stopListeningCallCount = 0
+        var startCallCount = 0
+        var stopCallCount = 0
         var cancelCallCount = 0
         private var onPartialResult: ((String) -> Unit)? = null
         private var onFinalResult: ((String) -> Unit)? = null
         private var onError: ((String) -> Unit)? = null
 
-        override fun startListening(
+        override fun start(
             onPartialResult: (String) -> Unit,
             onFinalResult: (String) -> Unit,
             onError: (String) -> Unit,
+            onAmplitudeUpdate: (Float) -> Unit,
         ) {
-            startListeningCallCount++
+            startCallCount++
             this.onPartialResult = onPartialResult
             this.onFinalResult = onFinalResult
             this.onError = onError
         }
 
-        override fun stopListening() {
-            stopListeningCallCount++
+        override fun stop() {
+            stopCallCount++
         }
 
         override fun cancel() {
@@ -2333,6 +2491,27 @@ class ChatViewModelTest {
 
         fun simulateError(message: String) {
             onError?.invoke(message)
+        }
+    }
+
+    private class FakeAudioRecorder(
+        private val stopUri: String? = null,
+    ) : AudioRecorder {
+        var startCallCount = 0
+        var stopCallCount = 0
+        var cancelCallCount = 0
+
+        override fun start() {
+            startCallCount++
+        }
+
+        override fun stop(): String? {
+            stopCallCount++
+            return stopUri
+        }
+
+        override fun cancel() {
+            cancelCallCount++
         }
     }
 

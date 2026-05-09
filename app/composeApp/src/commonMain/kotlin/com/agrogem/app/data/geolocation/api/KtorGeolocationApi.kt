@@ -8,15 +8,15 @@ import io.ktor.client.request.parameter
 
 class KtorGeolocationApi(private val client: HttpClient) : GeolocationApi {
 
-    override suspend fun geocode(query: String): List<GeocodeHit> {
+    override suspend fun geocode(query: String): GeocodeHit? {
         return try {
             val response = client.get("/geocode") {
                 parameter("q", query)
             }
-            if (response.status.value in 200..299) {
-                response.body<List<GeocodeHit>>()
-            } else {
-                throw ApiError.from(response.status, response.body<String>())
+            when (response.status.value) {
+                in 200..299 -> response.body<GeocodeHit>()
+                404 -> null
+                else -> throw ApiError.from(response.status, response.body<String>())
             }
         } catch (e: ApiError) {
             throw e

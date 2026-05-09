@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,16 +51,14 @@ fun VoiceReadyScreen(
                 .offset(x = 277.dp, y = 558.dp),
         )
 
-        Row(
+        RoundIconButton(
+            label = "‹",
+            onClick = onDismiss,
+            size = 44.dp,
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(start = 23.dp, top = 58.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            RoundIconButton(label = "‹", onClick = onDismiss)
-            RoundIconButton(label = "≡", onClick = {}, foreground = AgroGemColors.IconDefaultTint)
-        }
+        )
 
         Text(
             text = "AgroGemma",
@@ -83,28 +82,29 @@ fun VoiceReadyScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(start = 25.dp, end = 12.dp, bottom = 27.dp),
+                .navigationBarsPadding()
+                .padding(start = 36.dp, end = 36.dp, bottom = 32.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(56.dp)
                     .background(AgroGemColors.VoiceDismissBg, CircleShape)
                     .clickable(onClick = onDismiss),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = "⋯", color = AgroGemColors.VoiceDismissText, fontSize = 12.sp)
+                Text(text = "⋯", color = AgroGemColors.VoiceDismissText, fontSize = 22.sp)
             }
 
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(56.dp)
                     .background(AgroGemColors.VoiceSendBg, CircleShape)
                     .clickable(onClick = onStopRecording),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = "↑", color = Color.White, fontSize = 12.sp)
+                Text(text = "↑", color = Color.White, fontSize = 22.sp)
             }
         }
     }

@@ -37,6 +37,7 @@ import app.composeapp.generated.resources.ic_action_sound
 import app.composeapp.generated.resources.ic_status_check
 import app.composeapp.generated.resources.ic_status_plant
 import app.composeapp.generated.resources.ic_status_shield
+import com.agrogem.app.theme.AgroGemBrand
 import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.theme.AgroGemIconSizes
 import com.agrogem.app.ui.components.AgroGemIcon
@@ -89,7 +90,7 @@ fun PlantAnalysisScreen(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .background(
-                    AgroGemColors.Surface,
+                    AgroGemBrand.White,
                     RoundedCornerShape(topStart = 40.dp, topEnd = 40.dp),
                 )
                 .padding(horizontal = 24.dp, vertical = 20.dp),
@@ -197,7 +198,7 @@ private fun AnalyzingContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(AgroGemColors.SurfaceMuted, RoundedCornerShape(48.dp))
+                .background(AgroGemBrand.WhiteMuted, RoundedCornerShape(48.dp))
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
@@ -214,7 +215,7 @@ private fun AnalyzingContent(
                     isCurrent -> AgroGemColors.Primary
                     else -> AgroGemColors.AnalysisStepPending
                 }
-                val titleColor = if (step.done || isCurrent) AgroGemColors.Primary else AgroGemColors.TextPrimary
+                val titleColor = if (step.done || isCurrent) AgroGemColors.Primary else AgroGemBrand.Text.Primary
 
                 AnalysisStepRow(
                     iconBackground = iconBg,
@@ -249,7 +250,7 @@ private fun ErrorContent(
     ) {
         Text(
             text = message,
-            color = AgroGemColors.TextPrimary,
+            color = AgroGemBrand.Text.Primary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(horizontal = 8.dp),
@@ -274,7 +275,7 @@ private fun AnalysisStepRow(
     iconBackground: Color,
     title: String,
     subtitle: String,
-    titleColor: Color = AgroGemColors.TextPrimary,
+    titleColor: Color = AgroGemBrand.Text.Primary,
     alpha: Float,
     indicator: String,
 ) {
@@ -298,7 +299,7 @@ private fun AnalysisStepRow(
 
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(text = title, color = titleColor, fontSize = 14.sp)
-            Text(text = subtitle, color = AgroGemColors.TextSecondary, fontSize = 12.sp)
+            Text(text = subtitle, color = AgroGemBrand.Text.Secondary, fontSize = 12.sp)
         }
     }
 }
@@ -329,7 +330,7 @@ private fun ResultsContent(
                 Text(
                     text = result.pestName,
                     modifier = Modifier.weight(1f),
-                    color = AgroGemColors.TextPrimary,
+                    color = AgroGemBrand.Text.Primary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                 )
@@ -407,11 +408,11 @@ private fun ResultsContent(
                     tint = Color.Unspecified,
                     size = AgroGemIconSizes.Sm,
                 )
-                Text(text = "Diagnóstico", color = AgroGemColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(text = "Diagnóstico", color = AgroGemBrand.Text.Primary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
             Text(
                 text = result.diagnosisText,
-                color = AgroGemColors.TextSecondary,
+                color = AgroGemBrand.Text.Secondary,
                 fontSize = 16.sp,
                 lineHeight = 26.sp,
             )
@@ -431,7 +432,7 @@ private fun ResultsContent(
                 )
                 Text(
                     text = "Plan de tratamiento",
-                    color = AgroGemColors.TextPrimary,
+                    color = AgroGemBrand.Text.Primary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -476,6 +477,6 @@ private fun TreatmentStepRow(number: String, text: String) {
         ) {
             Text(text = number, color = Color.White, fontSize = 12.sp)
         }
-        Text(text = text, color = AgroGemColors.TextSecondary, fontSize = 16.sp, lineHeight = 26.sp)
+        Text(text = text, color = AgroGemBrand.Text.Secondary, fontSize = 16.sp, lineHeight = 26.sp)
     }
 }

@@ -66,4 +66,14 @@ class LocalChatDataSource(
         database.analysisQueries.selectChatMessagesByConversationId(conversationId)
             .executeAsList()
             .map(mapper::toMessage)
+
+    /** See [Analysis.sq#markOrphanStreamingMessages]. Idempotent — safe to call repeatedly. */
+    fun markOrphanStreamingMessagesAsFailed() {
+        database.analysisQueries.markOrphanStreamingMessages()
+    }
+
+    /** See [Analysis.sq#deleteChatMessageById]. */
+    fun deleteMessageById(messageId: String) {
+        database.analysisQueries.deleteChatMessageById(messageId)
+    }
 }

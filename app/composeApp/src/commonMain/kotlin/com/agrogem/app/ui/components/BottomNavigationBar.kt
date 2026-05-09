@@ -8,40 +8,36 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Agriculture
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import app.composeapp.generated.resources.Res
-import app.composeapp.generated.resources.ic_navigation_chat
-import app.composeapp.generated.resources.ic_navigation_fields
-import app.composeapp.generated.resources.ic_navigation_home
-import app.composeapp.generated.resources.ic_navigation_maps
-import app.composeapp.generated.resources.ic_navigation_scan
 import com.agrogem.app.navigation.AgroGemBottomTab
 import com.agrogem.app.theme.AgroGemColors
 import com.agrogem.app.theme.AgroGemIconSizes
-import org.jetbrains.compose.resources.DrawableResource
-import org.jetbrains.compose.resources.painterResource
 
-/**
- * Maps each bottom tab to its corresponding drawable resource.
- * Used by tests to verify icon assignments and by the component for rendering.
- */
 enum class BottomTabIcons(val resourceName: String) {
-    Home("ic_navigation_home"),
-    Fields("ic_navigation_fields"),
-    Scan("ic_navigation_scan"),
-    Maps("ic_navigation_maps"),
-    Chat("ic_navigation_chat"),
+    Home("home"),
+    Fields("agriculture"),
+    Scan("bug_report"),
+    Maps("map"),
+    Chat("forum"),
 }
 
 @Composable
@@ -53,22 +49,25 @@ fun BottomNavigationBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(68.dp)
             .background(AgroGemColors.NavBackground)
+            .navigationBarsPadding()
+            .height(68.dp)
             .padding(horizontal = 30.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         BottomBarItem(
             tab = AgroGemBottomTab.Home,
             label = "HOME",
-            icon = Res.drawable.ic_navigation_home,
+            icon = Icons.Filled.Home,
             currentTab = currentTab,
             onNavigate = onNavigate,
         )
+        // POC reducido: solo Home + Chat
+        /*
         BottomBarItem(
             tab = AgroGemBottomTab.Fields,
             label = "FIELDS",
-            icon = Res.drawable.ic_navigation_fields,
+            icon = Icons.Filled.Agriculture,
             currentTab = currentTab,
             onNavigate = onNavigate,
         )
@@ -81,14 +80,15 @@ fun BottomNavigationBar(
         BottomBarItem(
             tab = AgroGemBottomTab.Maps,
             label = "MAPS",
-            icon = Res.drawable.ic_navigation_maps,
+            icon = Icons.Filled.Map,
             currentTab = currentTab,
             onNavigate = onNavigate,
         )
+        */
         BottomBarItem(
             tab = AgroGemBottomTab.Chat,
             label = "CHAT",
-            icon = Res.drawable.ic_navigation_chat,
+            icon = Icons.Filled.Forum,
             currentTab = currentTab,
             onNavigate = onNavigate,
         )
@@ -99,7 +99,7 @@ fun BottomNavigationBar(
 private fun BottomBarItem(
     tab: AgroGemBottomTab,
     label: String,
-    icon: DrawableResource,
+    icon: ImageVector,
     currentTab: AgroGemBottomTab,
     onNavigate: (AgroGemBottomTab) -> Unit,
     modifier: Modifier = Modifier,
@@ -112,10 +112,10 @@ private fun BottomBarItem(
             .padding(top = 4.dp)
             .clickable { onNavigate(tab) },
         verticalArrangement = Arrangement.Center,
-        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
-            painter = painterResource(icon),
+            imageVector = icon,
             contentDescription = label,
             tint = tint,
             modifier = Modifier.size(AgroGemIconSizes.Md),
@@ -147,7 +147,7 @@ private fun ScanFab(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            painter = painterResource(Res.drawable.ic_navigation_scan),
+            imageVector = Icons.Filled.BugReport,
             contentDescription = "Scan",
             tint = Color.White,
             modifier = Modifier.size(AgroGemIconSizes.Lg),

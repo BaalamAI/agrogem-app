@@ -4,6 +4,6 @@ package com.agrogem.app.data
  * Persists whether the onboarding flow was completed at least once.
  */
 expect class OnboardingStateStore() {
-    fun isCompleted(): Boolean
+    val isCompleted: Boolean
     fun markCompleted()
 }

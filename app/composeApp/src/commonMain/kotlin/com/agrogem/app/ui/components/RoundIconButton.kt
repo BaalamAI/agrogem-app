@@ -13,7 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.agrogem.app.theme.AgroGemColors
+import com.agrogem.app.theme.AgroGemBrand
 import org.jetbrains.compose.resources.DrawableResource
 
 /**
@@ -29,7 +29,7 @@ internal fun RoundIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     background: Color = Color.White.copy(alpha = 0.4f),
-    foreground: Color = AgroGemColors.IconDefaultTint,
+    foreground: Color = AgroGemBrand.Gris400,
     size: Dp = 32.dp,
     icon: DrawableResource? = null,
     contentDescription: String? = null,

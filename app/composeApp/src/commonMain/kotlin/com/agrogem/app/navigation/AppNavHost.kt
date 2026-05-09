@@ -16,6 +16,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.agrogem.app.data.GemmaPreparation
 import com.agrogem.app.data.rememberImagePickerLauncher
 import com.agrogem.app.data.rememberMicrophonePermissionRequester
 import com.agrogem.app.data.analysis.domain.AnalysisRepository
@@ -61,6 +62,7 @@ fun AppNavHost(
     soilRepository: SoilRepository,
     climateRepository: ClimateRepository,
     geolocationRepository: GeolocationRepository,
+    gemmaPreparation: GemmaPreparation,
     startDestination: String = AgroGemRoute.Home.route,
     onOnboardingFinished: () -> Unit = {},
     onWelcomeAdvance: () -> Unit = {},
@@ -89,12 +91,16 @@ fun AppNavHost(
         composable(AgroGemRoute.Home.route) {
             HomeScreen(
                 viewModel = homeViewModel,
-                onOpenCamera = { /* Camera is launched via FAB in AppShell */ },
-                onOpenHistory = { navController.pushTo(AgroGemRoute.History) },
-                onOpenEnvironmentDetail = { navController.pushTo(AgroGemRoute.Environment) },
+                onOpenCamera = { /* deshabilitado: solo Home + Chat */ },
+                onOpenHistory = { /* deshabilitado: solo Home + Chat */ },
+                onOpenEnvironmentDetail = { /* deshabilitado: solo Home + Chat */ },
             )
         }
 
+        // ============================================================
+        // RUTAS DESHABILITADAS — POC reducido a Home + Chat
+        // ============================================================
+        /*
         composable(
             route = AgroGemRoute.Onboarding.NAV_ROUTE,
             arguments = listOf(
@@ -135,7 +141,9 @@ fun AppNavHost(
 
 
         composable(route = AgroGemRoute.GemmaDemo.route) {
-            val demoVm = kmpViewModel { com.agrogem.app.ui.screens.gemma_demo.GemmaDemoViewModel() }
+            val demoVm = kmpViewModel {
+                com.agrogem.app.ui.screens.gemma_demo.GemmaDemoViewModel(gemmaPreparation = gemmaPreparation)
+            }
             val demoImagePicker = com.agrogem.app.data.rememberImagePickerLauncher { result ->
                 if (result != null) {
                     demoVm.onEvent(com.agrogem.app.ui.screens.chat.ChatEvent.ImageSelected(result.uri))
@@ -262,6 +270,7 @@ fun AppNavHost(
                 },
             )
         }
+        */
 
         composable(AgroGemRoute.VoiceReady.route) {
             // Use shared chatViewModel from AppShell — same instance as Chat and ChatConfirm
@@ -309,7 +318,6 @@ fun AppNavHost(
             ChatScreen(
                 viewModel = chatViewModel,
                 onBack = { navController.popBackStack() },
-                onRequestClose = { navController.pushTo(AgroGemRoute.ChatConfirm) },
                 onMicClick = { micPermissionRequester.request() },
                 onLaunchCamera = { chatImagePicker.launchCamera() },
                 onLaunchGallery = { chatImagePicker.launchGallery() },
@@ -322,7 +330,6 @@ fun AppNavHost(
             ChatScreen(
                 viewModel = chatViewModel,
                 onBack = { navController.popBackStack() },
-                onRequestClose = {},
                 onMicClick = { micPermissionRequester.request() },
                 onLaunchCamera = { chatImagePicker.launchCamera() },
                 onLaunchGallery = { chatImagePicker.launchGallery() },
@@ -333,6 +340,7 @@ fun AppNavHost(
             )
         }
 
+        /*
         composable(AgroGemRoute.Environment.route) {
             val location by geolocationRepository.observeResolvedLocation()
                 .collectAsStateWithLifecycle(initialValue = null)
@@ -359,6 +367,7 @@ fun AppNavHost(
                 )
             }
         }
+        */
     }
 }
 

@@ -3,6 +3,10 @@ package com.agrogem.app.data.risk.domain
 import com.agrogem.app.data.network.ApiError
 import com.agrogem.app.data.risk.api.RiskApi
 import com.agrogem.app.data.shared.domain.LatLng
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 interface RiskRepository {
     suspend fun getDiseaseRisks(latLng: LatLng?): Result<List<DiseaseRisk>>
@@ -62,7 +66,7 @@ internal fun mapDiseaseDto(diseaseKey: String, dto: com.agrogem.app.data.risk.ap
         score = dto.riskScore ?: 0.0,
         severity = severity,
         interpretation = dto.interpretation ?: "",
-        factors = dto.factors ?: emptyList(),
+        factors = extractFactors(dto.factors),
     )
 }
 
@@ -80,8 +84,19 @@ internal fun mapPestDto(pestKey: String, dto: com.agrogem.app.data.risk.api.Pest
         score = dto.riskScore ?: 0.0,
         severity = severity,
         interpretation = dto.interpretation ?: "",
-        factors = dto.factors ?: emptyList(),
+        factors = extractFactors(dto.factors),
     )
+}
+
+private fun extractFactors(element: JsonElement?): List<String> {
+    if (element == null) return emptyList()
+    val obj = element as? JsonObject
+    if (obj != null) {
+        val arr = obj["rule_notes"] as? JsonArray ?: return emptyList()
+        return arr.mapNotNull { (it as? JsonPrimitive)?.content }
+    }
+    val arr = element as? JsonArray ?: return emptyList()
+    return arr.mapNotNull { (it as? JsonPrimitive)?.content }
 }
 
 fun mapDiseaseBackend(disease: String): String = when (disease) {
