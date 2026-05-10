@@ -447,12 +447,32 @@ private fun ModelSelector(
                     val isActive = option == selectedModel
                     DropdownMenuItem(
                         text = {
-                            Text(
-                                text = option.displayName,
-                                color = AgroGemBrand.Text.Primary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = option.displayName,
+                                    color = AgroGemBrand.Text.Primary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                                if (option.isExperimental) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFFFFF3CD))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    ) {
+                                        Text(
+                                            text = "EXP",
+                                            color = Color(0xFF8A6D00),
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                        )
+                                    }
+                                }
+                            }
                         },
                         trailingIcon = {
                             if (isActive) {

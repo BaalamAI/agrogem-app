@@ -31,6 +31,12 @@ sealed class GemmaModelOption(
      * Kotlin), so callers should gate vision attempts behind this flag.
      */
     val visionCapable: Boolean,
+    /**
+     * Marks the option as experimental in the UI. Used for variants whose bundle still has
+     * known on-device issues (slow CPU-only inference, broken stop tokens) so the user
+     * understands what they are picking. The option remains selectable.
+     */
+    val isExperimental: Boolean = false,
 ) {
     data object Default : GemmaModelOption(
         id = "default-it",
@@ -46,6 +52,7 @@ sealed class GemmaModelOption(
         shortName = "Finetuneado",
         url = FINETUNED_GEMMA_MODEL_URL,
         visionCapable = false,
+        isExperimental = true,
     )
 
     companion object {
