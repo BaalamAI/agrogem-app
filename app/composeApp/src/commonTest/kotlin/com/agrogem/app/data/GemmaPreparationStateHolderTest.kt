@@ -2,7 +2,6 @@ package com.agrogem.app.data
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -40,12 +39,15 @@ class GemmaPreparationStateHolderTest {
     private class FakeGemmaManager : GemmaManager {
         private val initialized = MutableStateFlow(false)
         override val isInitialized: Flow<Boolean> = initialized
+        override val supportsVision: Boolean = false
         var initializeCallCount = 0
 
-        override suspend fun initialize(modelPath: String) {
+        override suspend fun initialize(modelPath: String, preferVision: Boolean) {
             initializeCallCount++
             initialized.value = true
         }
+
+        override suspend fun enableVision(modelPath: String): Boolean = false
 
         override suspend fun sendMessage(
             systemPrompt: String,
@@ -53,15 +55,14 @@ class GemmaPreparationStateHolderTest {
             images: List<String>,
             audioPath: String?,
             temperature: Float,
+            toolBundle: GemmaToolBundle?,
         ): String = ""
 
-        override fun sendMessageStream(
+        override fun startChatSession(
             systemPrompt: String,
-            userPrompt: String,
-            images: List<String>,
-            audioPath: String?,
             temperature: Float,
-        ): Flow<GemmaResponse> = flowOf()
+            toolBundle: GemmaToolBundle?,
+        ): GemmaChatSession = error("Not used in GemmaPreparationStateHolderTest")
 
         override fun close() {}
     }

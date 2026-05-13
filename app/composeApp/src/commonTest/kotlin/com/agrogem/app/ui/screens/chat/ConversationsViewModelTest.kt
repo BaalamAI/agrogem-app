@@ -44,6 +44,8 @@ class ConversationsViewModelTest {
         override fun listRecent(limit: Long): List<Conversation> = conversations
         override fun saveMessage(conversationId: String, message: ChatMessage) {}
         override fun listMessages(conversationId: String): List<ChatMessage> = emptyList()
+        override fun markOrphanStreamingMessagesAsFailed() {}
+        override fun deleteMessage(messageId: String) {}
         override fun createBlankConversation(): Conversation = conversations.first()
     }
 
