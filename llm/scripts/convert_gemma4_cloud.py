@@ -436,15 +436,12 @@ def patch_gemma4_vision_boolean_indexing():
 
 
 def patch_gemma3_metadata_builder():
-    """Parche 5: Fix metadata_builder para image_processor=None o .size=None.
+    """Parche 5: Fix image_processor.size cuando es None o no tiene height/width.
 
-    El metadata_builder de Gemma3 asume que image_processor.size es un dict
-    con 'height' y 'width'. En Gemma4 pueden ocurrir dos casos:
-      (a) image_processor llega como None directamente (caso real del error)
-      (b) image_processor existe pero .size es None o no es un dict
-
-    En ambos casos envolvemos con un proxy que proporciona un .size sintético
-    basado en config.vision_config.image_size (por defecto 224).
+    IMPORTANTE: gemma3.build_llm_metadata NO tiene un parámetro 'image_processor'
+    en su firma — lo extrae internamente desde otro argumento (ej. processor.image_processor).
+    La estrategia correcta es mutar en-lugar los objetos que ya están en args/kwargs,
+    NO inyectar kwargs nuevos (eso genera TypeError: unexpected keyword argument).
     """
     try:
         from litert_torch.generative.export_hf.model_ext.gemma3 import (
@@ -454,77 +451,71 @@ def patch_gemma3_metadata_builder():
 
         original_func = gemma3_metadata.build_llm_metadata
 
-        def patched_build_llm_metadata(*args, **kwargs):
+        # Log de la firma real para diagnóstico
+        try:
             sig = inspect.signature(original_func)
-            bound = sig.bind(*args, **kwargs)
-            bound.apply_defaults()
+            print(f"  [Parche 5] Firma: build_llm_metadata{sig}")
+        except Exception:
+            pass
 
-            image_processor = bound.arguments.get("image_processor")
+        def _fix_ip_size(ip, config=None):
+            """Inyecta ip.size = {'height': H, 'width': W} si no es un dict válido."""
+            if ip is None:
+                return
+            size = getattr(ip, "size", None)
+            if isinstance(size, dict) and "height" in size and "width" in size:
+                return  # ya correcto
 
-            # Detectar si necesitamos el proxy:
-            # caso (a): image_processor es None
-            # caso (b): image_processor existe pero .size no es un dict
-            needs_proxy = (
-                image_processor is None
-                or not isinstance(getattr(image_processor, "size", None), dict)
-            )
+            # Determinar la dimensión real (fallback 224)
+            image_size = 224
+            if config is not None:
+                vc = getattr(config, "vision_config", None)
+                if vc is not None:
+                    image_size = getattr(vc, "image_size", image_size)
+                else:
+                    image_size = getattr(config, "image_size", image_size)
+            if isinstance(size, dict):
+                le = size.get("longest_edge")
+                if le:
+                    image_size = le
+            crop = getattr(ip, "crop_size", None)
+            if isinstance(crop, dict):
+                image_size = crop.get("height", crop.get("width", image_size))
 
-            if needs_proxy:
-                config = bound.arguments.get("config")
-                image_size = 224
-                if config is not None:
-                    if hasattr(config, "vision_config") and hasattr(config.vision_config, "image_size"):
-                        image_size = config.vision_config.image_size
-                    elif hasattr(config, "image_size"):
-                        image_size = config.image_size
+            try:
+                ip.size = {"height": image_size, "width": image_size}
+                print(f"  [Parche 5] Inyectado size={ip.size} en {type(ip).__name__}")
+            except (AttributeError, TypeError) as e:
+                print(f"  [Parche 5] No se pudo setear size en-lugar: {e}")
 
-                # Proxy wrapper: provee .size y delega todo lo demás al objeto
-                # original (o actúa como stub si image_processor era None).
-                class ImageProcessorProxy:
-                    def __init__(self, obj):
-                        self._obj = obj
-                        self._size = {"height": image_size, "width": image_size}
+        def patched_build_llm_metadata(*args, **kwargs):
+            # Config suele ser el primer argumento posicional
+            config = args[0] if args else kwargs.get("config")
 
-                    def __getattr__(self, name):
-                        if name == "size":
-                            return self._size
-                        if self._obj is not None:
-                            return getattr(self._obj, name)
-                        raise AttributeError(f"ImageProcessorProxy has no attribute '{name}'")
-
-                proxy = ImageProcessorProxy(image_processor)
-
-                # Reconstruir args/kwargs reemplazando image_processor por el proxy
-                new_args = list(args)
-                new_kwargs = dict(kwargs)
-                param_names = list(sig.parameters.keys())
-
-                replaced = False
-                for i, name in enumerate(param_names):
-                    if i < len(args) and args[i] is image_processor:
-                        new_args[i] = proxy
-                        replaced = True
-                    elif name in kwargs and kwargs[name] is image_processor:
-                        new_kwargs[name] = proxy
-                        replaced = True
-
-                # Fallback: si image_processor era None y no estaba en args/kwargs
-                # posicionalmente, inyectarlo por nombre.
-                if not replaced:
-                    new_kwargs["image_processor"] = proxy
-
-                return original_func(*new_args, **new_kwargs)
+            # Escanear todos los args y kwargs buscando image_processor
+            for v in list(args) + list(kwargs.values()):
+                if v is None:
+                    continue
+                # Caso A: v tiene .image_processor (ej. Gemma4Processor)
+                ip = getattr(v, "image_processor", None)
+                if ip is not None:
+                    _fix_ip_size(ip, config)
+                    continue
+                # Caso B: v mismo es el image_processor
+                if hasattr(v, "size") or hasattr(v, "crop_size"):
+                    _fix_ip_size(v, config)
 
             return original_func(*args, **kwargs)
 
         gemma3_metadata.build_llm_metadata = patched_build_llm_metadata
-        print("✅ Parche 5 aplicado: metadata_builder proxy wrapper fix.")
+        print("✅ Parche 5 aplicado: metadata_builder in-place size fix.")
         return True
     except Exception as e:
         print(f"⚠️  Parche 5 error: {e}")
         import traceback
         traceback.print_exc()
         return False
+
 
 
 def patch_litert_lm_builder_gemma4():
