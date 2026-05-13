@@ -14,6 +14,8 @@ import com.agrogem.app.data.chat.domain.ChatFailure
 import com.agrogem.app.data.chat.domain.ChatRepository
 import com.agrogem.app.data.chat.domain.ChatSendResult
 import com.agrogem.app.data.connectivity.ConnectivityMonitor
+import com.agrogem.app.data.environment.domain.EnvironmentData
+import com.agrogem.app.data.environment.domain.EnvironmentRepository
 import com.agrogem.app.data.geolocation.domain.GeocodeResolved
 import com.agrogem.app.data.geolocation.domain.GeolocationRepository
 import com.agrogem.app.data.geolocation.domain.LocationDisplay
@@ -942,8 +944,7 @@ class ChatViewModelTest {
             gemmaManager = gemma,
             gemmaModelDownloader = downloader,
             geolocationRepository = FakeGeolocationRepository(location),
-            weatherRepository = FakeWeatherRepository(Result.success(weather)),
-            soilRepository = FakeSoilRepository(Result.success(soil)),
+            environmentRepository = FakeEnvironmentRepository(Result.success(EnvironmentData(weather = weather, soil = soil))),
             connectivityMonitor = FakeConnectivityMonitor(online = true),
         )
 
@@ -972,8 +973,7 @@ class ChatViewModelTest {
             gemmaManager = gemma,
             gemmaModelDownloader = downloader,
             geolocationRepository = FakeGeolocationRepository(null),
-            weatherRepository = FakeWeatherRepository(Result.failure(Exception("no location"))),
-            soilRepository = FakeSoilRepository(Result.failure(Exception("no location"))),
+            environmentRepository = FakeEnvironmentRepository(Result.failure(Exception("no location"))),
             connectivityMonitor = FakeConnectivityMonitor(online = true),
         )
 
@@ -1015,8 +1015,7 @@ class ChatViewModelTest {
             gemmaManager = gemma,
             gemmaModelDownloader = downloader,
             geolocationRepository = FakeGeolocationRepository(location),
-            weatherRepository = FakeWeatherRepository(Result.failure(Exception("network error"))),
-            soilRepository = FakeSoilRepository(Result.success(soil)),
+            environmentRepository = FakeEnvironmentRepository(Result.success(EnvironmentData(soil = soil))),
             connectivityMonitor = FakeConnectivityMonitor(online = true),
         )
 
@@ -1064,8 +1063,7 @@ class ChatViewModelTest {
             gemmaManager = gemma,
             gemmaModelDownloader = downloader,
             geolocationRepository = FakeGeolocationRepository(location),
-            weatherRepository = FakeWeatherRepository(Result.success(weather)),
-            soilRepository = FakeSoilRepository(Result.failure(Exception("network error"))),
+            environmentRepository = FakeEnvironmentRepository(Result.success(EnvironmentData(weather = weather))),
             connectivityMonitor = FakeConnectivityMonitor(online = true),
         )
 
@@ -1119,8 +1117,7 @@ class ChatViewModelTest {
             gemmaManager = gemma,
             gemmaModelDownloader = downloader,
             geolocationRepository = FakeGeolocationRepository(location),
-            weatherRepository = FakeWeatherRepository(Result.success(weather)),
-            soilRepository = FakeSoilRepository(Result.success(soil)),
+            environmentRepository = FakeEnvironmentRepository(Result.success(EnvironmentData(weather = weather, soil = soil))),
             connectivityMonitor = FakeConnectivityMonitor(online = false),
         )
 
@@ -1184,8 +1181,7 @@ class ChatViewModelTest {
             gemmaManager = gemma,
             gemmaModelDownloader = downloader,
             geolocationRepository = FakeGeolocationRepository(location),
-            weatherRepository = FakeWeatherRepository(Result.success(weather)),
-            soilRepository = FakeSoilRepository(Result.success(soil)),
+            environmentRepository = FakeEnvironmentRepository(Result.success(EnvironmentData(weather = weather, soil = soil))),
             connectivityMonitor = FakeConnectivityMonitor(online = true),
         )
 
@@ -2429,6 +2425,12 @@ class ChatViewModelTest {
         override suspend fun getDiseaseRisks(latLng: LatLng?): Result<List<DiseaseRisk>> = diseaseResult
 
         override suspend fun getPestRisks(latLng: LatLng?): Result<List<DiseaseRisk>> = pestResult
+    }
+
+    private class FakeEnvironmentRepository(
+        private val result: Result<EnvironmentData>,
+    ) : EnvironmentRepository {
+        override suspend fun getEnvironment(latLng: LatLng): Result<EnvironmentData> = result
     }
 
     private class FakeWeatherRepository(

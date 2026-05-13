@@ -468,6 +468,8 @@ class ChatIntegrationTest {
             savedMessages.add(message)
         }
         override fun listMessages(conversationId: String): List<ChatMessage> = emptyList()
+        override fun markOrphanStreamingMessagesAsFailed() {}
+        override fun deleteMessage(messageId: String) {}
         override fun createBlankConversation(): Conversation = Conversation(
             id = "conv_blank",
             title = "Nueva conversación",
