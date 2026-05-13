@@ -501,32 +501,80 @@ private fun ModelDownloadConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val isExperimental = target.isExperimental
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = AgroGemColors.Surface,
         shape = RoundedCornerShape(20.dp),
         title = {
-            Text(
-                text = "Descargar ${target.shortName}",
-                color = AgroGemBrand.Text.Primary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = if (isExperimental) "Cambiar a ${target.shortName}" else "Descargar ${target.shortName}",
+                    color = AgroGemBrand.Text.Primary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (isExperimental) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFFFFF3CD))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = "EXP",
+                            color = Color(0xFF8A6D00),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
         },
         text = {
-            Text(
-                text = "Para usar “${target.displayName}” hay que descargar el modelo (~1 GB). " +
-                    "Reemplazará al modelo actual y puede tardar varios minutos. " +
-                    "Te recomendamos estar en WiFi.",
-                color = AgroGemBrand.Text.Primary,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Para usar “${target.displayName}” hay que descargar el modelo (~1 GB). " +
+                        "Reemplazará al modelo actual y puede tardar varios minutos. " +
+                        "Te recomendamos estar en WiFi.",
+                    color = AgroGemBrand.Text.Primary,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                )
+                if (isExperimental) {
+                    Column(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFFFF3CD))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = "Modelo experimental",
+                            color = Color(0xFF8A6D00),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = "Es un fine-tune propio bloqueado por limitaciones del toolchain " +
+                                "de LiteRT-LM. Diagnóstico por foto NO disponible (solo chat de texto), " +
+                                "respuestas más lentas (CPU) y la salida puede tener artefactos. " +
+                                "Podés volver al modelo principal cuando quieras.",
+                            color = Color(0xFF6B5500),
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                        )
+                    }
+                }
+            }
         },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text(
-                    text = "Descargar",
+                    text = if (isExperimental) "Entendido, cambiar" else "Descargar",
                     color = AgroGemBrand.Verde600,
                     fontWeight = FontWeight.SemiBold,
                 )
