@@ -8,20 +8,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-const val DEFAULT_GEMMA_MODEL_URL = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/7fa1d78473894f7e736a21d920c3aa80f950c0db/gemma-4-E2B-it.litertlm?download=true"
-
-sealed interface GemmaPreparationStatus {
-    data object NotPrepared : GemmaPreparationStatus
-    data object Downloading : GemmaPreparationStatus
-    data object Preparing : GemmaPreparationStatus
-    data object Ready : GemmaPreparationStatus
-    data class Unavailable(val reason: String? = null) : GemmaPreparationStatus
-}
-
 class GemmaPreparationStateHolder(
     private val gemmaManager: GemmaManager,
     private val modelDownloader: GemmaModelDownloader,
-    private val defaultModelUrl: String = DEFAULT_GEMMA_MODEL_URL,
+    private val defaultModelUrl: String = GemmaModelOption.Default.url,
     private val downloadPollIntervalMs: Long = 1_000,
     private val maxDownloadWaitMs: Long = 30 * 60 * 1_000,
 ) {
